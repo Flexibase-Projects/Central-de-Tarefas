@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS projects (
   github_url TEXT,
   github_owner VARCHAR(255),
   github_repo VARCHAR(255),
+  project_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_by UUID REFERENCES auth.users(id)
@@ -165,6 +166,13 @@ ALTER TABLE comments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_assignments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE activities DISABLE ROW LEVEL SECURITY;
 ALTER TABLE github_repositories DISABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- Migração: coluna project_url (link do projeto para status online/offline)
+-- ============================================
+-- Se a tabela de projetos se chama cdt_projects, execute:
+-- ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS project_url TEXT;
+-- Se a tabela se chama projects (sem prefixo), project_url já está no CREATE TABLE acima.
 
 -- ============================================
 -- FIM DO SCRIPT

@@ -175,9 +175,12 @@ CDT-Inteligencia/
 
 ## 🔧 Scripts Disponíveis
 
-- `npm run dev` - Inicia frontend e backend simultaneamente
-- `npm run build` - Build de produção
+- `npm run dev` - Inicia frontend e backend simultaneamente (desenvolvimento local)
+- `npm run build` - Build de produção (frontend + backend)
+- `npm run start` - Inicia apenas o backend (serve API + SPA na mesma porta; use após o build)
 - `npm run install:all` - Instala dependências de todos os workspaces
+
+Para deploy em produção (PM2, Nginx, porta única), veja [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## 📝 Próximos Passos
 

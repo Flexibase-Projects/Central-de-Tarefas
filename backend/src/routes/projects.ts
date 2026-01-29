@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { Project } from '../types/index.js';
+import { getRecentCommits, parseGitHubUrl } from '../services/github.js';
 
 const router = express.Router();
 
@@ -25,6 +26,132 @@ router.get('/', async (req, res) => {
   } catch (error: any) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch projects' });
+  }
+});
+
+// Health check: valida se a URL do projeto está online (GET com timeout)
+router.get('/health-check', async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return res.status(400).json({ error: 'Only http and https URLs are allowed' });
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'Central-de-Tarefas-HealthCheck/1.0' },
+    });
+    clearTimeout(timeout);
+    const ok = response.status >= 200 && response.status < 400;
+    res.json({ ok, status: response.status });
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return res.json({ ok: false, status: 408, error: 'Timeout' });
+    }
+    res.json({ ok: false, status: 0, error: err.message || 'Request failed' });
+  }
+});
+
+// Extrai SHA curto (7 hex) de meta tags, comentários ou data-attributes no HTML
+function extractVersionFromHtml(html: string): string | null {
+  const sha7Regex = /[a-fA-F0-9]{7}/;
+  // Meta: name="version" content="...", name="build-id", name="git-commit"
+  const metaMatch = html.match(/<meta[^>]+name=["'](?:version|build-id|git-commit)["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["'](?:version|build-id|git-commit)["']/i);
+  if (metaMatch) {
+    const m = metaMatch[1].match(sha7Regex);
+    if (m) return m[0].toLowerCase();
+    const trimmed = metaMatch[1].trim();
+    if (/^[a-fA-F0-9]{7,40}$/.test(trimmed)) return trimmed.substring(0, 7).toLowerCase();
+  }
+  // Comentários: <!-- version: ... -->, <!-- build: ... -->, <!-- commit: ... -->
+  const commentMatch = html.match(/<!--\s*(?:version|build|commit):\s*([a-fA-F0-9]{7,40})/);
+  if (commentMatch) return commentMatch[1].substring(0, 7).toLowerCase();
+  // data-version, data-build, data-commit em body ou #root
+  const dataMatch = html.match(/data-(?:version|build|commit)=["']([^"']+)["']/i);
+  if (dataMatch) {
+    const m = dataMatch[1].match(sha7Regex);
+    if (m) return m[0].toLowerCase();
+    if (/^[a-fA-F0-9]{7,40}$/.test(dataMatch[1].trim())) return dataMatch[1].trim().substring(0, 7).toLowerCase();
+  }
+  // Qualquer ocorrência de 7 hex que pareça SHA (evitar números de versão tipo 1.2.3)
+  const anySha = html.match(/\b([a-fA-F0-9]{7})\b/);
+  if (anySha) return anySha[1].toLowerCase();
+  return null;
+}
+
+// Version check: compara deploy (project_url) com último commit do GitHub
+router.get('/version-check', async (req, res) => {
+  let reason: string | undefined;
+  try {
+    const { projectUrl, githubUrl } = req.query;
+    if (!projectUrl || typeof projectUrl !== 'string' || !githubUrl || typeof githubUrl !== 'string') {
+      return res.status(400).json({ error: 'projectUrl and githubUrl are required' });
+    }
+    const parsed = parseGitHubUrl(githubUrl);
+    if (!parsed) {
+      return res.status(400).json({ error: 'Invalid GitHub URL' });
+    }
+    const [latestCommit] = await getRecentCommits(parsed.owner, parsed.repo, 1);
+    const latestSha = latestCommit ? latestCommit.sha.substring(0, 7) : null;
+    if (!latestSha) {
+      return res.json({ upToDate: null, latestSha: null, deployedSha: null, reason: 'no_github_commits' });
+    }
+    const base = projectUrl.replace(/\/$/, '');
+    const candidates = [`${base}/version`, `${base}/api/version`, `${base}/api/health`];
+    let deployedSha: string | null = null;
+    for (const url of candidates) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'Central-de-Tarefas-VersionCheck/1.0' } });
+        clearTimeout(t);
+        if (!r.ok) continue;
+        const contentType = r.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const body = await r.json().catch(() => ({}));
+          const raw = body.commit ?? body.sha ?? body.version ?? body.git_commit ?? body.buildId ?? null;
+          if (raw && typeof raw === 'string') {
+            deployedSha = raw.length >= 7 ? raw.substring(0, 7) : raw;
+            break;
+          }
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') reason = 'timeout';
+        continue;
+      }
+    }
+    // Fallback: GET da página principal e parse do HTML
+    if (!deployedSha) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 6000);
+        const r = await fetch(base, { signal: ctrl.signal, headers: { 'User-Agent': 'Central-de-Tarefas-VersionCheck/1.0' } });
+        clearTimeout(t);
+        if (r.ok) {
+          const html = await r.text();
+          deployedSha = extractVersionFromHtml(html);
+        }
+      } catch (e: any) {
+        if (e?.name === 'AbortError') reason = 'timeout';
+        else reason = 'fetch_error';
+      }
+      if (!deployedSha) reason = reason || 'no_version_found';
+    }
+    const upToDate = deployedSha ? deployedSha.toLowerCase() === latestSha.toLowerCase() : null;
+    const payload: Record<string, unknown> = { upToDate: upToDate === null ? null : !!upToDate, latestSha, deployedSha };
+    if (reason) payload.reason = reason;
+    res.json(payload);
+  } catch (err: any) {
+    console.error('Error in version-check:', err);
+    res.json({ upToDate: null, latestSha: null, deployedSha: null, reason: 'fetch_error', error: err.message });
   }
 });
 
@@ -72,6 +199,7 @@ router.post('/', async (req, res) => {
         github_url: project.github_url || null,
         github_owner: project.github_owner || null,
         github_repo: project.github_repo || null,
+        project_url: project.project_url || null,
         created_by: project.created_by || null,
       }])
       .select()
@@ -119,6 +247,7 @@ router.put('/:id', async (req, res) => {
     if (updates.github_url !== undefined) updateData.github_url = updates.github_url;
     if (updates.github_owner !== undefined) updateData.github_owner = updates.github_owner;
     if (updates.github_repo !== undefined) updateData.github_repo = updates.github_repo;
+    if (updates.project_url !== undefined) updateData.project_url = updates.project_url;
 
     const { data, error } = await supabase
       .from('cdt_projects')

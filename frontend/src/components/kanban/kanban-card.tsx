@@ -6,7 +6,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { useGitHub } from '@/hooks/use-github'
 import { useTodos } from '@/hooks/use-todos'
 import { useUsersList } from '@/hooks/use-users-list'
-import { CheckSquare2, User } from 'lucide-react'
+import { CheckSquare2, User, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react'
+
+const API_URL = import.meta.env.VITE_API_URL || ''
 
 interface KanbanCardProps {
   project: Project
@@ -27,6 +29,8 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
   const { todos } = useTodos(project.id)
   const { users } = useUsersList()
   const [commitsCount, setCommitsCount] = useState<number | null>(null)
+  const [online, setOnline] = useState<boolean | null>(null)
+  const [versionCheck, setVersionCheck] = useState<{ upToDate: boolean | null; loading: boolean; reason?: string }>({ upToDate: null, loading: false })
 
   useEffect(() => {
     if (project.github_url) {
@@ -37,6 +41,33 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
       setCommitsCount(0)
     }
   }, [project.github_url, getCommitsCount])
+
+  useEffect(() => {
+    if (!project.project_url) {
+      setOnline(null)
+      return
+    }
+    const url = API_URL ? `${API_URL}/api/projects/health-check?url=${encodeURIComponent(project.project_url)}` : `/api/projects/health-check?url=${encodeURIComponent(project.project_url)}`
+    fetch(url)
+      .then((r) => r.json())
+      .then((d) => setOnline(d.ok === true))
+      .catch(() => setOnline(false))
+  }, [project.project_url])
+
+  useEffect(() => {
+    if (!project.project_url || !project.github_url) {
+      setVersionCheck({ upToDate: null, loading: false })
+      return
+    }
+    setVersionCheck((v) => ({ ...v, loading: true }))
+    const url = API_URL
+      ? `${API_URL}/api/projects/version-check?projectUrl=${encodeURIComponent(project.project_url)}&githubUrl=${encodeURIComponent(project.github_url)}`
+      : `/api/projects/version-check?projectUrl=${encodeURIComponent(project.project_url)}&githubUrl=${encodeURIComponent(project.github_url)}`
+    fetch(url)
+      .then((r) => r.json())
+      .then((d) => setVersionCheck({ upToDate: d.upToDate ?? null, loading: false, reason: d.reason }))
+      .catch(() => setVersionCheck({ upToDate: null, loading: false, reason: 'fetch_error' }))
+  }, [project.project_url, project.github_url])
 
   // Filtrar TODOs pendentes e agrupar por responsável
   const pendingTodos = todos.filter(todo => !todo.completed)
@@ -85,6 +116,16 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
   // Usar total de commits ou 0 se não houver GitHub URL
   const displayNumber = commitsCount !== null ? commitsCount : 0
 
+  // Bolinha à esquerda: verde = online, vermelho = offline, cinza = sem link (cor fixa)
+  const statusDotClass =
+    !project.project_url
+      ? 'bg-muted-foreground/30 border-muted-foreground/40'
+      : online === true
+        ? 'bg-green-500 border-green-600'
+        : online === false
+          ? 'bg-red-500 border-red-600'
+          : 'bg-muted-foreground/40 border-muted-foreground/50'
+
   return (
     <div
       ref={setNodeRef}
@@ -98,6 +139,14 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
         isDragging && 'opacity-0'
       )}
     >
+      {/* Bolinha: verde = online, vermelho = offline */}
+      <div
+        className={cn(
+          'absolute -top-1.5 -left-1.5 h-3 w-3 rounded-full border border-background z-10',
+          statusDotClass
+        )}
+        title={project.project_url ? (online === true ? 'Online' : online === false ? 'Offline' : 'Verificando...') : 'Link não configurado'}
+      />
       {/* Badge com total de commits */}
       {project.github_url && (
         <div className={cn(
@@ -112,6 +161,41 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm truncate">{project.name}</h3>
           <div className="h-px bg-border mt-2 mb-2" />
+          {project.project_url && project.github_url && (
+            <div className="flex items-center gap-1.5 text-xs mt-1.5">
+              {versionCheck.loading ? (
+                <span className="text-muted-foreground">Verificando versão...</span>
+              ) : versionCheck.upToDate === true ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-500 shrink-0" />
+                  <span className="text-green-700 dark:text-green-400 font-medium">Atualizado — Última versão</span>
+                </>
+              ) : versionCheck.upToDate === false ? (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500 shrink-0" />
+                  <span className="text-amber-700 dark:text-amber-400 font-medium">Desatualizado — Atualize o deploy</span>
+                </>
+              ) : (
+                <>
+                  <HelpCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span
+                    className="text-muted-foreground font-medium"
+                    title={
+                      versionCheck.reason === 'timeout'
+                        ? 'Timeout ao acessar o site. O sistema em produção não expõe a versão. Para habilitar a verificação, adicione um endpoint ou meta tag — veja docs/VERSIONAMENTO_DEPLOY.md'
+                        : versionCheck.reason === 'no_version_found'
+                          ? 'Nenhuma versão encontrada na página. Para habilitar a verificação, adicione um endpoint ou meta tag — veja docs/VERSIONAMENTO_DEPLOY.md'
+                          : versionCheck.reason === 'fetch_error'
+                            ? 'Erro ao acessar o site. Para habilitar a verificação, adicione um endpoint ou meta tag — veja docs/VERSIONAMENTO_DEPLOY.md'
+                            : 'O sistema em produção não expõe a versão. Para habilitar a verificação, adicione um endpoint ou meta tag — veja docs/VERSIONAMENTO_DEPLOY.md'
+                    }
+                  >
+                    Não foi possível validar a versão
+                  </span>
+                </>
+              )}
+            </div>
+          )}
           {project.description && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
               {project.description}

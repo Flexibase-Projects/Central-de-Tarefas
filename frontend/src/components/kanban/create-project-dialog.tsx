@@ -27,6 +27,7 @@ export function CreateProjectDialog({
     name: '',
     description: '',
     github_url: '',
+    project_url: '',
     status: 'backlog' as Project['status'],
   })
   const [loading, setLoading] = useState(false)
@@ -52,6 +53,7 @@ export function CreateProjectDialog({
         name: formData.name,
         description: formData.description || null,
         github_url: formData.github_url || null,
+        project_url: formData.project_url || null,
         github_owner,
         github_repo,
         status: formData.status,
@@ -64,6 +66,7 @@ export function CreateProjectDialog({
         name: '',
         description: '',
         github_url: '',
+        project_url: '',
         status: 'backlog',
       })
       onOpenChange(false)
@@ -113,6 +116,16 @@ export function CreateProjectDialog({
                 value={formData.github_url}
                 onChange={(e) => setFormData({ ...formData, github_url: e.target.value })}
                 placeholder="https://github.com/owner/repo"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="project_url">Link do projeto (opcional)</Label>
+              <Input
+                id="project_url"
+                type="url"
+                value={formData.project_url}
+                onChange={(e) => setFormData({ ...formData, project_url: e.target.value })}
+                placeholder="https://app.exemplo.com"
               />
             </div>
             <div className="space-y-2">

@@ -6,6 +6,7 @@ export interface Project {
   github_url: string | null
   github_owner: string | null
   github_repo: string | null
+  project_url: string | null
   created_at: string
   updated_at: string
   created_by: string | null

@@ -116,7 +116,7 @@ async function initializeCleanup() {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = Number(process.env.PORT) || 3002;
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3003',
@@ -142,16 +142,35 @@ app.use('/api/roles', rolesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/notifications', notificationsRoutes);
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT} (temporary port)`);
-  
+// Produção: servir SPA (build do frontend) na mesma porta da API
+const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
+if (existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+}
+
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : undefined;
+if (HOST) {
+  app.listen(PORT, HOST, async () => {
+    console.log(`🚀 Backend server running on http://${HOST}:${PORT}`);
+    await logStartupStatus();
+  });
+} else {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+    await logStartupStatus();
+  });
+}
+
+async function logStartupStatus() {
   const hasSupabase = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY);
   if (hasSupabase) {
     console.log('✅ Supabase configured - database operations enabled');
     console.log(`   URL: ${process.env.SUPABASE_URL?.substring(0, 30)}...`);
     console.log(`   Key: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON'} key set`);
-    
-    // Limpar notificações órfãs na inicialização
     await initializeCleanup();
   } else {
     console.warn('⚠️  Supabase not configured - database operations will fail');
@@ -161,8 +180,6 @@ app.listen(PORT, async () => {
     console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Set' : '❌ Missing'}`);
     console.log(`   SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing'}`);
   }
-
-  // GitHub token status
   const hasGitHubToken = process.env.GITHUB_TOKEN;
   if (hasGitHubToken) {
     console.log('✅ GitHub token configured - GitHub API operations enabled');
@@ -171,4 +188,4 @@ app.listen(PORT, async () => {
     console.warn('⚠️  GitHub token not configured - GitHub API operations will be limited');
     console.warn('⚠️  Add GITHUB_TOKEN to backend/.env.local to enable full GitHub integration');
   }
-});
+}

@@ -7,9 +7,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Project, GitHubCommit, GitHubRepository } from '@/types'
-import { ExternalLink, GitBranch, Calendar, User, Loader2, Lock, Archive, Tag, ChevronDown, ChevronUp, FileText, CheckSquare2, MessageSquare, Settings, Trash2 } from 'lucide-react'
+import { ExternalLink, GitBranch, Calendar, User, Loader2, Lock, Archive, Tag, ChevronDown, ChevronUp, FileText, CheckSquare2, MessageSquare, Settings, Trash2, Pencil } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useGitHub } from '@/hooks/use-github'
 import { TodoList } from './todo-list'
 import { CommentsSection } from './comments-section'
@@ -93,6 +95,14 @@ export function ProjectCardDialog({
   const [readmeExpanded, setReadmeExpanded] = useState(false)
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<0 | 1 | 2>(0)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [editProjectUrl, setEditProjectUrl] = useState('')
+  const [editUrlLoading, setEditUrlLoading] = useState(false)
+
+  useEffect(() => {
+    if (open && project) {
+      setEditProjectUrl(project.project_url || '')
+    }
+  }, [open, project?.project_url])
 
   useEffect(() => {
     if (open && project?.github_url) {
@@ -482,17 +492,48 @@ export function ProjectCardDialog({
                     <Settings className="h-4 w-4" />
                     Configurações
                   </h3>
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => setDeleteConfirmStep(1)}
-                      disabled={!onDelete}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir este card
-                    </Button>
+                  <div className="rounded-lg border p-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="project_url" className="flex items-center gap-2 text-xs font-medium">
+                        <Pencil className="h-3.5 w-3.5" />
+                        Editar card — Link do projeto
+                      </Label>
+                      <Input
+                        id="project_url"
+                        type="url"
+                        value={editProjectUrl}
+                        onChange={(e) => setEditProjectUrl(e.target.value)}
+                        placeholder="https://app.exemplo.com"
+                        className="text-sm"
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          setEditUrlLoading(true)
+                          try {
+                            await onUpdate({ ...project, project_url: editProjectUrl || null })
+                          } finally {
+                            setEditUrlLoading(false)
+                          }
+                        }}
+                        disabled={editUrlLoading}
+                      >
+                        {editUrlLoading ? 'Salvando...' : 'Salvar link'}
+                      </Button>
+                    </div>
+                    <div className="border-t pt-3">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        onClick={() => setDeleteConfirmStep(1)}
+                        disabled={!onDelete}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir este card
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
