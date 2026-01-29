@@ -91,16 +91,18 @@ export async function getRepositoryInfo(owner: string, repo: string): Promise<Gi
       archived: data.archived || false,
       private: data.private || false,
     };
-  } catch (error) {
-    console.error('Error fetching repository info:', error);
+  } catch (error: any) {
+    const status = error?.status ?? error?.response?.status;
+    const msg = error?.message ?? String(error);
+    console.error(`Error fetching repository info (${owner}/${repo}): status=${status} message=${msg}`);
     return null;
   }
 }
 
 /**
- * Get total commit count from a repository
- * @param owner Repository owner
- * @param repo Repository name
+ * Get total commit count from a repository.
+ * Usa listContributors (não stats/contributors) para compatibilidade com tokens
+ * fine-grained e orgs; stats/contributors retorna 202 ou exige permissões extras.
  */
 export async function getTotalCommits(owner: string, repo: string): Promise<number> {
   const octokitInstance = getOctokit();
@@ -110,18 +112,6 @@ export async function getTotalCommits(owner: string, repo: string): Promise<numb
   }
 
   try {
-    // Use contributors stats API which provides total commits per contributor
-    const { data: stats } = await octokitInstance.repos.getContributorsStats({
-      owner,
-      repo,
-    });
-
-    if (stats && Array.isArray(stats)) {
-      // Sum all contributions from all contributors
-      return stats.reduce((sum, stat) => sum + (stat.total || 0), 0);
-    }
-
-    // Fallback: use contributors API and paginate through all contributors
     let totalCommits = 0;
     let page = 1;
     let hasMore = true;
@@ -135,21 +125,20 @@ export async function getTotalCommits(owner: string, repo: string): Promise<numb
         anon: 'true',
       });
 
-      if (contributors.length === 0) {
+      if (!contributors || contributors.length === 0) {
         hasMore = false;
       } else {
-        totalCommits += contributors.reduce((sum, contributor) => sum + contributor.contributions, 0);
+        totalCommits += contributors.reduce((sum, c) => sum + (c.contributions || 0), 0);
         page++;
-        // Stop if we got less than 100 (last page)
-        if (contributors.length < 100) {
-          hasMore = false;
-        }
+        if (contributors.length < 100) hasMore = false;
       }
     }
 
     return totalCommits;
   } catch (error: any) {
-    console.error('Error fetching total commits:', error);
+    const status = error?.status ?? error?.response?.status;
+    const msg = error?.message ?? String(error);
+    console.error(`Error fetching total commits (${owner}/${repo}): status=${status} message=${msg}`);
     return 0;
   }
 }
@@ -194,8 +183,10 @@ export async function getRecentCommits(
       } : null,
       html_url: commit.html_url,
     }));
-  } catch (error) {
-    console.error('Error fetching commits:', error);
+  } catch (error: any) {
+    const status = error?.status ?? error?.response?.status;
+    const msg = error?.message ?? String(error);
+    console.error(`Error fetching commits (${owner}/${repo}): status=${status} message=${msg}`);
     return [];
   }
 }
@@ -219,8 +210,10 @@ export async function getContributors(owner: string, repo: string): Promise<GitH
       avatar_url: contributor.avatar_url,
       contributions: contributor.contributions,
     }));
-  } catch (error) {
-    console.error('Error fetching contributors:', error);
+  } catch (error: any) {
+    const status = error?.status ?? error?.response?.status;
+    const msg = error?.message ?? String(error);
+    console.error(`Error fetching contributors (${owner}/${repo}): status=${status} message=${msg}`);
     return [];
   }
 }
@@ -243,11 +236,12 @@ export async function getReadme(owner: string, repo: string): Promise<string | n
     const content = Buffer.from(data.content, 'base64').toString('utf-8');
     return content;
   } catch (error: any) {
-    // README might not exist, return null instead of throwing
-    if (error.status === 404) {
+    if (error?.status === 404 || error?.response?.status === 404) {
       return null;
     }
-    console.error('Error fetching README:', error);
+    const status = error?.status ?? error?.response?.status;
+    const msg = error?.message ?? String(error);
+    console.error(`Error fetching README (${owner}/${repo}): status=${status} message=${msg}`);
     return null;
   }
 }
@@ -262,7 +256,7 @@ export function parseGitHubUrl(url: string): { owner: string; repo: string } | n
     if (match) {
       return {
         owner: match[1],
-        repo: match[2].replace(/\.git$/, ''),
+        repo: match[2].replace(/\.git$/, '').split('?')[0].split('#')[0],
       };
     }
     return null;

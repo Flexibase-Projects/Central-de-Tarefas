@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Project, GitHubCommit, GitHubRepository } from '@/types'
-import { ExternalLink, GitBranch, Calendar, User, Loader2, Lock, Archive, Tag, ChevronDown, ChevronUp, FileText, CheckSquare2, MessageSquare } from 'lucide-react'
+import { ExternalLink, GitBranch, Calendar, User, Loader2, Lock, Archive, Tag, ChevronDown, ChevronUp, FileText, CheckSquare2, MessageSquare, Settings, Trash2 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { useGitHub } from '@/hooks/use-github'
@@ -72,6 +72,7 @@ interface ProjectCardDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onUpdate: (project: Project) => void
+  onDelete?: (projectId: string) => Promise<void>
   highlightedTodoId?: string | null
 }
 
@@ -80,6 +81,7 @@ export function ProjectCardDialog({
   open,
   onOpenChange,
   onUpdate,
+  onDelete,
   highlightedTodoId,
 }: ProjectCardDialogProps) {
   const { getRecentCommits, getRepositoryInfo, getReadme, loading: githubLoading } = useGitHub()
@@ -89,6 +91,8 @@ export function ProjectCardDialog({
   const [commitsError, setCommitsError] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [readmeExpanded, setReadmeExpanded] = useState(false)
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState<0 | 1 | 2>(0)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   useEffect(() => {
     if (open && project?.github_url) {
@@ -119,10 +123,36 @@ export function ProjectCardDialog({
     }
   }, [open, project?.github_url, getRecentCommits, getRepositoryInfo, getReadme])
 
+  const handleDeleteConfirmClose = (open: boolean) => {
+    if (!open) setDeleteConfirmStep(0)
+  }
+
+  const handleExcluirCard = () => {
+    if (deleteConfirmStep === 0) {
+      setDeleteConfirmStep(1)
+      return
+    }
+    if (deleteConfirmStep === 1) {
+      setDeleteConfirmStep(2)
+      return
+    }
+    if (deleteConfirmStep === 2 && project && onDelete) {
+      setDeleteLoading(true)
+      onDelete(project.id)
+        .then(() => {
+          setDeleteConfirmStep(0)
+          onOpenChange(false)
+        })
+        .catch(() => setDeleteLoading(false))
+        .finally(() => setDeleteLoading(false))
+    }
+  }
+
   if (!project) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) setDeleteConfirmStep(0); onOpenChange(o); }}>
       <DialogContent className="max-w-6xl max-h-[90vh] w-[95vw]">
         <DialogHeader>
           <DialogTitle>{project.name}</DialogTitle>
@@ -445,11 +475,82 @@ export function ProjectCardDialog({
                     </div>
                   </div>
                 )}
+
+                {/* Configurações */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Configurações
+                  </h3>
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => setDeleteConfirmStep(1)}
+                      disabled={!onDelete}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir este card
+                    </Button>
+                  </div>
+                </div>
               </div>
             </ScrollArea>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Diálogo de confirmação dupla para exclusão */}
+    <Dialog open={deleteConfirmStep > 0} onOpenChange={handleDeleteConfirmClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {deleteConfirmStep === 1
+              ? 'Excluir projeto?'
+              : 'Confirmar exclusão'}
+          </DialogTitle>
+          <DialogDescription>
+            {deleteConfirmStep === 1
+              ? `Tem certeza que deseja excluir o projeto "${project.name}"? Esta ação não pode ser desfeita.`
+              : 'Para confirmar, clique em "Sim, excluir". O projeto será removido permanentemente.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2 pt-2">
+          {deleteConfirmStep === 1 ? (
+            <>
+              <Button variant="outline" onClick={() => setDeleteConfirmStep(0)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={() => setDeleteConfirmStep(2)}>
+                Excluir
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setDeleteConfirmStep(1)}>
+                Voltar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleExcluirCard}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Excluindo...
+                  </>
+                ) : (
+                  'Sim, excluir'
+                )}
+              </Button>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

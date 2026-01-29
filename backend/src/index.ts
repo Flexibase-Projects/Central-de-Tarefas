@@ -7,15 +7,17 @@ import { existsSync } from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load .env from backend directory (try multiple locations)
+// Load .env: prioridade para .env.local na raiz do projeto (fonte única)
 const backendEnvPath = path.resolve(__dirname, '../.env');
 const backendEnvLocalPath = path.resolve(__dirname, '../.env.local');
 const rootEnvPath = path.resolve(__dirname, '../../.env');
 const rootEnvLocalPath = path.resolve(__dirname, '../../.env.local');
 
-// Try to load from backend directory first, then root
 let loadedFile = '';
-if (existsSync(backendEnvPath)) {
+if (existsSync(rootEnvLocalPath)) {
+  dotenv.config({ path: rootEnvLocalPath });
+  loadedFile = '.env.local (root)';
+} else if (existsSync(backendEnvPath)) {
   dotenv.config({ path: backendEnvPath });
   loadedFile = 'backend/.env';
 } else if (existsSync(backendEnvLocalPath)) {
@@ -24,11 +26,7 @@ if (existsSync(backendEnvPath)) {
 } else if (existsSync(rootEnvPath)) {
   dotenv.config({ path: rootEnvPath });
   loadedFile = '.env (root)';
-} else if (existsSync(rootEnvLocalPath)) {
-  dotenv.config({ path: rootEnvLocalPath });
-  loadedFile = '.env.local (root)';
 } else {
-  // Fallback to default behavior (current directory)
   dotenv.config();
   loadedFile = 'default location';
 }
@@ -48,6 +46,7 @@ import permissionsRoutes from './routes/permissions.js';
 import rolesRoutes from './routes/roles.js';
 import usersRoutes from './routes/users.js';
 import notificationsRoutes from './routes/notifications.js';
+import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from './utils/supabase-errors.js';
 
 // Função para limpar notificações órfãs na inicialização
 async function initializeCleanup() {
@@ -61,7 +60,11 @@ async function initializeCleanup() {
       .eq('related_type', 'todo');
 
     if (fetchError) {
-      console.error('Error fetching notifications for cleanup:', fetchError);
+      if (isSupabaseConnectionRefused(fetchError)) {
+        console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+      } else {
+        console.error('Error fetching notifications for cleanup:', fetchError);
+      }
       return;
     }
 
@@ -75,7 +78,11 @@ async function initializeCleanup() {
       .select('id');
 
     if (todosError) {
-      console.error('Error fetching todos for cleanup:', todosError);
+      if (isSupabaseConnectionRefused(todosError)) {
+        console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+      } else {
+        console.error('Error fetching todos for cleanup:', todosError);
+      }
       return;
     }
 
@@ -99,8 +106,12 @@ async function initializeCleanup() {
         console.log(`🧹 Limpadas ${orphanedNotificationIds.length} notificações órfãs na inicialização`);
       }
     }
-  } catch (error: any) {
-    console.error('Error in initializeCleanup:', error);
+  } catch (error: unknown) {
+    if (isSupabaseConnectionRefused(error)) {
+      console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+    } else {
+      console.error('Error in initializeCleanup:', error);
+    }
   }
 }
 

@@ -19,7 +19,10 @@ router.get('/repo', async (req, res) => {
 
     const repoInfo = await getRepositoryInfo(parsed.owner, parsed.repo);
     if (!repoInfo) {
-      return res.status(404).json({ error: 'Repository not found or GitHub token not configured' });
+      return res.status(404).json({
+        error: 'Repository not found or access denied',
+        hint: 'If the repo is in an organization, ensure your token has access to that org and, if the org uses SAML SSO, authorize the token for the organization in GitHub token settings.',
+      });
     }
 
     res.json(repoInfo);

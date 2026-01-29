@@ -22,16 +22,22 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Buscar usuário por email
-      const userId = localStorage.getItem('cdt_user_id') || '';
-      const response = await fetch(`${API_URL}/api/users?userId=${userId}`, {
+      // Buscar usuário por email — não enviar userId para o backend tratar como login e permitir listar usuários
+      const requestUrl = `${API_URL}/api/users?userId=`;
+      const response = await fetch(requestUrl, {
         headers: {
-          'x-user-id': userId,
+          'x-user-id': 'temp',
         },
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao buscar usuários');
+        const bodyText = await response.text();
+        let errorMessage = 'Erro ao buscar usuários';
+        try {
+          const body = JSON.parse(bodyText);
+          if (body?.error && typeof body.error === 'string') errorMessage = body.error;
+        } catch (_) {}
+        throw new Error(errorMessage);
       }
 
       const users = await response.json();

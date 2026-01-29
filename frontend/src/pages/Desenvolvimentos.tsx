@@ -11,7 +11,7 @@ import { Project } from '@/types'
 import { useSearchParams } from 'react-router-dom'
 
 export default function Desenvolvimentos() {
-  const { projects, loading, createProject, updateProject, moveProject } = useProjects()
+  const { projects, loading, createProject, updateProject, moveProject, deleteProject } = useProjects()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
@@ -72,6 +72,17 @@ export default function Desenvolvimentos() {
     }
   }
 
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      await deleteProject(projectId)
+      setSelectedProject(null)
+      setIsProjectDialogOpen(false)
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      throw error
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -114,6 +125,7 @@ export default function Desenvolvimentos() {
           open={isProjectDialogOpen}
           onOpenChange={setIsProjectDialogOpen}
           onUpdate={handleUpdateProject}
+          onDelete={handleDeleteProject}
           highlightedTodoId={highlightedTodoId}
         />
       </div>

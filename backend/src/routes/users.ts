@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { User, UserWithRole } from '../types/index.js';
 import { checkRole } from '../middleware/permissions.js';
 import { hasRole } from '../services/permissions.js';
+import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 
 const router = express.Router();
 
@@ -18,7 +19,6 @@ router.get('/', async (req, res) => {
   try {
     const userId = req.headers['x-user-id'] as string;
     const isForAssignment = req.query.for_assignment === 'true';
-    
     // Se for para atribuição, qualquer usuário autenticado pode ver a lista
     if (isForAssignment) {
       // Verificar se está autenticado (não pode ser requisição de login)
@@ -80,6 +80,12 @@ router.get('/', async (req, res) => {
 
     res.json(usersWithRoles);
   } catch (error: any) {
+    if (isSupabaseConnectionRefused(error)) {
+      console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+      return res.status(503).json({
+        error: 'Serviço de banco de dados indisponível. Inicie o Supabase local com "supabase start" ou use a URL do projeto em nuvem no .env.local.',
+      });
+    }
     console.error('Error fetching users:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch users' });
   }

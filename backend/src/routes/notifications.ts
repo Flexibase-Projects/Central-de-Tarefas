@@ -1,6 +1,7 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { Notification } from '../types/index.js';
+import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 
 const router = express.Router();
 
@@ -14,7 +15,11 @@ async function cleanupOrphanedNotifications() {
       .eq('related_type', 'todo');
 
     if (fetchError) {
-      console.error('Error fetching notifications for cleanup:', fetchError);
+      if (isSupabaseConnectionRefused(fetchError)) {
+        console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+      } else {
+        console.error('Error fetching notifications for cleanup:', fetchError);
+      }
       return;
     }
 
@@ -28,7 +33,11 @@ async function cleanupOrphanedNotifications() {
       .select('id');
 
     if (todosError) {
-      console.error('Error fetching todos for cleanup:', todosError);
+      if (isSupabaseConnectionRefused(todosError)) {
+        console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+      } else {
+        console.error('Error fetching todos for cleanup:', todosError);
+      }
       return;
     }
 
@@ -52,8 +61,12 @@ async function cleanupOrphanedNotifications() {
         console.log(`🧹 Limpadas ${orphanedNotificationIds.length} notificações órfãs`);
       }
     }
-  } catch (error: any) {
-    console.error('Error in cleanupOrphanedNotifications:', error);
+  } catch (error: unknown) {
+    if (isSupabaseConnectionRefused(error)) {
+      console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+    } else {
+      console.error('Error in cleanupOrphanedNotifications:', error);
+    }
   }
 }
 
