@@ -12,10 +12,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3003,
+    // Porta: usa VITE_PORT do ambiente ou 3003 (dev local)
+    port: Number(process.env.VITE_PORT) || 3003,
+    // Host: 0.0.0.0 para aceitar conexões externas (servidor)
+    host: process.env.VITE_HOST || 'localhost',
     proxy: {
       '/api': {
-        target: 'http://localhost:3002',
+        target: `http://localhost:${process.env.BACKEND_PORT || 3002}`,
         changeOrigin: true,
       },
     },

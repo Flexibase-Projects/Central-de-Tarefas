@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "dev:server": "concurrently \"npm run dev --workspace=backend\" \"npm run dev:server --workspace=frontend\"",
     "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
     "start": "npm run start --workspace=backend",
     "install:all": "npm install && npm install --workspace=frontend && npm install --workspace=backend"
