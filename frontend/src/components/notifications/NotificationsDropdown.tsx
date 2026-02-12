@@ -21,7 +21,7 @@ import { Notification } from '@/types';
 import { cn } from '@/lib/utils';
 
 export function NotificationsDropdown() {
-  const { notifications, unreadCount, loading, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useNotifications();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 

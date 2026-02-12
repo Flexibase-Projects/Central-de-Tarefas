@@ -66,7 +66,7 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
       : `/api/projects/version-check?projectUrl=${encodeURIComponent(project.project_url)}&githubUrl=${encodeURIComponent(project.github_url)}`
     fetch(url)
       .then((r) => (r.ok ? r.json() : {}))
-      .then((d) => setVersionCheck({ upToDate: d.upToDate ?? null, loading: false, reason: d.reason }))
+      .then((d: { upToDate?: boolean | null; reason?: string }) => setVersionCheck({ upToDate: d.upToDate ?? null, loading: false, reason: d.reason }))
       .catch(() => setVersionCheck({ upToDate: null, loading: false, reason: 'fetch_error' }))
   }, [project.project_url, project.github_url])
 
@@ -204,7 +204,7 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
           )}
            {pendingTodos.length > 0 && (
              <div className="flex flex-col gap-1.5 mt-2">
-               {assigneesWithCounts.map((assignee, index) => (
+               {assigneesWithCounts.map((assignee) => (
                  <div
                    key={assignee.assigneeId}
                    className="relative flex items-center gap-2 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800"

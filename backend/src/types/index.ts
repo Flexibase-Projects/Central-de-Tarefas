@@ -7,6 +7,12 @@ export interface Project {
   github_owner: string | null;
   github_repo: string | null;
   project_url: string | null;
+  /** Quadrante do mapa Eisenhower (1–4). Null = não posicionado. */
+  map_quadrant?: number | null;
+  /** Posição X no quadrante (0–100). */
+  map_x?: number | null;
+  /** Posição Y no quadrante (0–100). */
+  map_y?: number | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

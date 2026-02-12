@@ -200,6 +200,9 @@ router.post('/', async (req, res) => {
         github_owner: project.github_owner || null,
         github_repo: project.github_repo || null,
         project_url: project.project_url || null,
+        map_quadrant: project.map_quadrant ?? null,
+        map_x: project.map_x ?? null,
+        map_y: project.map_y ?? null,
         created_by: project.created_by || null,
       }])
       .select()
@@ -248,6 +251,9 @@ router.put('/:id', async (req, res) => {
     if (updates.github_owner !== undefined) updateData.github_owner = updates.github_owner;
     if (updates.github_repo !== undefined) updateData.github_repo = updates.github_repo;
     if (updates.project_url !== undefined) updateData.project_url = updates.project_url;
+    if (updates.map_quadrant !== undefined) updateData.map_quadrant = updates.map_quadrant;
+    if (updates.map_x !== undefined) updateData.map_x = updates.map_x;
+    if (updates.map_y !== undefined) updateData.map_y = updates.map_y;
 
     const { data, error } = await supabase
       .from('cdt_projects')
@@ -256,7 +262,23 @@ router.put('/:id', async (req, res) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const isMapColumnMissing = error.code === 'PGRST204' && /map_(quadrant|x|y)/i.test(String(error.message || ''));
+      if (isMapColumnMissing) {
+        const { map_quadrant: _mq, map_x: _mx, map_y: _my, ...updateDataWithoutMap } = updateData;
+        const { data: dataRetry, error: errorRetry } = await supabase
+          .from('cdt_projects')
+          .update(updateDataWithoutMap)
+          .eq('id', id)
+          .select()
+          .single();
+        if (!errorRetry && dataRetry) {
+          const merged = { ...dataRetry, map_quadrant: updates.map_quadrant, map_x: updates.map_x, map_y: updates.map_y };
+          return res.json(merged);
+        }
+      }
+      throw error;
+    }
     if (!data) {
       return res.status(404).json({ error: 'Project not found' });
     }

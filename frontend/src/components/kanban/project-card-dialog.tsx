@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Project, GitHubCommit, GitHubRepository } from '@/types'
-import { ExternalLink, GitBranch, Calendar, User, Loader2, Lock, Archive, Tag, ChevronDown, ChevronUp, FileText, CheckSquare2, MessageSquare, Settings, Trash2, Pencil } from 'lucide-react'
+import { ExternalLink, GitBranch, Calendar, Loader2, Lock, Archive, Tag, ChevronDown, ChevronUp, FileText, CheckSquare2, MessageSquare, Settings, Trash2, Pencil } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

@@ -8,7 +8,6 @@ import {
   useSensor,
   useSensors,
   closestCorners,
-  getFirstCollision,
   pointerWithin,
   rectIntersection,
 } from '@dnd-kit/core'
@@ -148,8 +147,9 @@ export function KanbanBoard({ projects, onProjectMove, onProjectClick }: KanbanB
     if (originalProject.status !== targetColumn) {
       // Manter o estado otimista (já atualizado durante o drag)
       // Chamar callback para atualizar backend
-      onProjectMove(projectId, targetColumn).catch((error) => {
-        // Se der erro, restaurar estado original
+      Promise.resolve(
+        (onProjectMove(projectId, targetColumn) as Promise<unknown> | undefined)
+      ).catch((error: unknown) => {
         console.error('Error moving project:', error)
         setLocalProjects(projects)
       })

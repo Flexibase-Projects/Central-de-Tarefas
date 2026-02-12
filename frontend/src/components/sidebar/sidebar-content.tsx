@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 interface SidebarContentProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 const SidebarContent = React.forwardRef<HTMLDivElement, SidebarContentProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ className, children, dir: _dir, ...props }, ref) => {
     return (
       <ScrollAreaPrimitive.Root
         ref={ref}

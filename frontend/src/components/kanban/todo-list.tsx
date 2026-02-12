@@ -7,8 +7,7 @@ import { useUsersList } from '@/hooks/use-users-list'
 import { RequirePermission } from '@/components/auth/RequirePermission'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Trash2, GripVertical, Plus, Loader2, User } from 'lucide-react'
+import { Trash2, GripVertical, Plus, Loader2 } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -42,7 +41,8 @@ interface TodoItemProps {
   isHighlighted?: boolean
 }
 
-function TodoItem({ todo, onToggle, onDelete, onAssign, assignedUserName, users, isHighlighted }: TodoItemProps) {
+function TodoItem({ todo, onToggle, onDelete, onAssign, users, isHighlighted }: TodoItemProps) {
+  // assignedUserName kept in interface for API but not rendered in this view
   const {
     attributes,
     listeners,
@@ -83,7 +83,7 @@ function TodoItem({ todo, onToggle, onDelete, onAssign, assignedUserName, users,
       ref={(node) => {
         setNodeRef(node)
         if (node) {
-          itemRef.current = node
+          ;(itemRef as React.MutableRefObject<HTMLDivElement | null>).current = node
         }
       }}
       style={style}
@@ -148,7 +148,7 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
   const { todos, loading, createTodo, updateTodo, deleteTodo, reorderTodos } =
     useTodos(projectId)
   const { hasPermission } = usePermissions()
-  const { users, loading: usersLoading, error: usersError } = useUsersList()
+  const { users, error: usersError } = useUsersList()
   const canCreateTodo = hasPermission('create_todo')
   const [newTodoTitle, setNewTodoTitle] = useState('')
 

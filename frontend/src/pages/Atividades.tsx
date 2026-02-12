@@ -25,6 +25,7 @@ export default function Atividades() {
     github_url: null,
     github_owner: null,
     github_repo: null,
+    project_url: null,
     created_at: activity.created_at,
     updated_at: activity.updated_at,
     created_by: activity.created_by,

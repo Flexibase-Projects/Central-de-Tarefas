@@ -39,7 +39,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
           data-side={side}
           data-variant={variant}
           data-state={state}
-          data-collapsible={collapsible !== "none" ? collapsible : ""}
+          data-collapsible={collapsible ?? ""}
           data-mobile={isMobile}
           className={cn(
             "group/sidebar peer flex h-full shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-all duration-200 ease-linear",

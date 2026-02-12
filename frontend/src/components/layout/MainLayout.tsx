@@ -1,5 +1,4 @@
 import { ReactNode } from 'react'
-import * as React from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import {
   Sidebar,
@@ -19,7 +18,6 @@ import { cn } from '@/lib/utils'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth } from '@/contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { RequirePermission } from '@/components/auth/RequirePermission'
 import { Button } from '@/components/ui/button'
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown'
 
@@ -154,7 +152,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
           {menuCategories.map((category) => {
             // Filtrar itens baseado em permissões
             const visibleItems = category.items.filter((item) => {
-              if (item.requireRole) {
+              if ('requireRole' in item && item.requireRole) {
                 // Verificar role (admin)
                 return hasRole('admin')
               }

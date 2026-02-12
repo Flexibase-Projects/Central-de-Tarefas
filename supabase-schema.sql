@@ -175,6 +175,18 @@ ALTER TABLE github_repositories DISABLE ROW LEVEL SECURITY;
 -- Se a tabela se chama projects (sem prefixo), project_url já está no CREATE TABLE acima.
 
 -- ============================================
+-- Migração: posição no mapa Eisenhower (global para todos os usuários)
+-- ============================================
+-- Para cdt_projects (nome usado na aplicação):
+ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS map_quadrant SMALLINT NULL;
+ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS map_x NUMERIC(5,2) NULL;
+ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS map_y NUMERIC(5,2) NULL;
+-- Para tabela projects (se existir sem prefixo):
+-- ALTER TABLE projects ADD COLUMN IF NOT EXISTS map_quadrant SMALLINT NULL;
+-- ALTER TABLE projects ADD COLUMN IF NOT EXISTS map_x NUMERIC(5,2) NULL;
+-- ALTER TABLE projects ADD COLUMN IF NOT EXISTS map_y NUMERIC(5,2) NULL;
+
+-- ============================================
 -- FIM DO SCRIPT
 -- ============================================
 -- Após executar este script, as tabelas estarão criadas e prontas para uso.
