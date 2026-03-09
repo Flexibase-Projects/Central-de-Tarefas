@@ -15,7 +15,7 @@ import { Project } from '@/types'
 import { KanbanColumn } from './kanban-column'
 import { KanbanCard } from './kanban-card'
 import { usePermissions } from '@/hooks/use-permissions'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const columns = [
   { id: 'backlog', title: 'Backlog' },
@@ -41,17 +41,25 @@ export function KanbanBoard({ projects, onProjectMove, onProjectClick }: KanbanB
   const [localProjects, setLocalProjects] = useState<Project[]>(projects)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [draggedOverColumn, setDraggedOverColumn] = useState<ColumnId | null>(null)
+  // Movimento otimista pendente: não sobrescrever local com props até o pai refletir
+  const pendingMoveRef = useRef<{ projectId: string; targetColumn: ColumnId } | null>(null)
 
   // Sincronizar projetos locais quando props mudarem (mas não durante drag)
-  // Também sincronizar após um pequeno delay para garantir que o backend atualizou
+  // Não sincronizar se acabamos de soltar e o pai ainda não atualizou (evita "volta" do card)
   useEffect(() => {
-    if (!activeId) {
-      // Pequeno delay para garantir que o estado do hook foi atualizado após o backend
-      const timeoutId = setTimeout(() => {
-        setLocalProjects(projects)
-      }, 100)
-      return () => clearTimeout(timeoutId)
+    if (activeId) return
+
+    const pending = pendingMoveRef.current
+    if (pending) {
+      const projectInProps = projects.find((p) => p.id === pending.projectId)
+      const propsAlreadyUpdated = projectInProps?.status === pending.targetColumn
+      if (!propsAlreadyUpdated) {
+        return // Mantém estado otimista até o pai receber a nova lista
+      }
+      pendingMoveRef.current = null
     }
+
+    setLocalProjects(projects)
   }, [projects, activeId])
 
   const sensors = useSensors(
@@ -145,16 +153,16 @@ export function KanbanBoard({ projects, onProjectMove, onProjectClick }: KanbanB
 
     // Se o status realmente mudou, atualizar backend
     if (originalProject.status !== targetColumn) {
-      // Manter o estado otimista (já atualizado durante o drag)
-      // Chamar callback para atualizar backend
+      pendingMoveRef.current = { projectId, targetColumn }
+      // Manter o estado otimista; não sincronizar com props até o pai refletir
       Promise.resolve(
         (onProjectMove(projectId, targetColumn) as Promise<unknown> | undefined)
       ).catch((error: unknown) => {
         console.error('Error moving project:', error)
+        pendingMoveRef.current = null
         setLocalProjects(projects)
       })
     } else {
-      // Se não mudou, restaurar estado original
       setLocalProjects(projects)
     }
   }

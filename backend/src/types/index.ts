@@ -13,6 +13,8 @@ export interface Project {
   map_x?: number | null;
   /** Posição Y no quadrante (0–100). */
   map_y?: number | null;
+  /** Ordem na tela Prioridades: menor = mais importante, null = fim. */
+  priority_order?: number | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -62,6 +64,7 @@ export interface Activity {
   due_date: string | null;
   priority: 'low' | 'medium' | 'high';
   assigned_to: string | null;
+  cover_image_url?: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

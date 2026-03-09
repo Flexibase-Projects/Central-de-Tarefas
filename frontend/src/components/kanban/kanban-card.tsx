@@ -3,7 +3,7 @@ import { Project } from '@/types';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent, Box, Typography } from '@mui/material';
-import { CheckCircle, Warning, Help, Person, CheckBox } from '@mui/icons-material';
+import { Person, CheckBox } from '@mui/icons-material';
 
 function GitHubIconSmall() {
   const size = 12;
@@ -39,11 +39,6 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
   const { users } = useUsersList();
   const [commitsCount, setCommitsCount] = useState<number | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
-  const [versionCheck, setVersionCheck] = useState<{
-    upToDate: boolean | null;
-    loading: boolean;
-    reason?: string;
-  }>({ upToDate: null, loading: false });
 
   useEffect(() => {
     if (project.github_url) {
@@ -70,24 +65,6 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
       .catch(() => setOnline(false));
   }, [project.project_url]);
 
-  useEffect(() => {
-    if (!project.project_url || !project.github_url) {
-      setVersionCheck({ upToDate: null, loading: false });
-      return;
-    }
-    setVersionCheck((v) => ({ ...v, loading: true }));
-    const base = getApiBase();
-    const url = base
-      ? `${base}/api/projects/version-check?projectUrl=${encodeURIComponent(project.project_url)}&githubUrl=${encodeURIComponent(project.github_url)}`
-      : `/api/projects/version-check?projectUrl=${encodeURIComponent(project.project_url)}&githubUrl=${encodeURIComponent(project.github_url)}`;
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((d: { upToDate?: boolean | null; reason?: string }) =>
-        setVersionCheck({ upToDate: d.upToDate ?? null, loading: false, reason: d.reason })
-      )
-      .catch(() => setVersionCheck({ upToDate: null, loading: false, reason: 'fetch_error' }));
-  }, [project.project_url, project.github_url]);
-
   const pendingTodos = todos.filter((t) => !t.completed);
   const todosByAssignee = pendingTodos.reduce(
     (acc, todo) => {
@@ -112,14 +89,7 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
   const dotColor =
     !project.project_url ? '#cbd5e1' : online === true ? '#10b981' : online === false ? '#ef4444' : '#cbd5e1';
 
-  const versionTitle =
-    versionCheck.reason === 'timeout'
-      ? 'Timeout ao acessar o site.'
-      : versionCheck.reason === 'no_version_found'
-        ? 'Nenhuma versão encontrada na página.'
-        : versionCheck.reason === 'fetch_error'
-          ? 'Erro ao acessar o site.'
-          : 'Não foi possível validar a versão';
+  const hasCover = Boolean(project.cover_image_url);
 
   return (
     <Card
@@ -142,79 +112,87 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           borderColor: 'action.selected',
         },
-        overflow: 'visible',
+        overflow: 'hidden',
       }}
     >
+      {/* Imagem de capa (estilo Trello) */}
+      {hasCover && (
+        <Box
+          sx={{
+            width: '100%',
+            height: 100,
+            backgroundImage: `url(${project.cover_image_url})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            flexShrink: 0,
+          }}
+        />
+      )}
       {/* Barra de status (indicador visual discreto) */}
       <Box
         sx={{
           position: 'absolute',
           left: 0,
-          top: 0,
+          top: hasCover ? 100 : 0,
           bottom: 0,
           width: 4,
           borderRight: '1px solid',
           borderColor: 'divider',
           bgcolor: stripeColor,
-          borderRadius: '8px 0 0 8px',
+          borderRadius: hasCover ? 0 : '8px 0 0 8px',
         }}
       />
-      {/* Indicador online/offline */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 10,
-          left: 14,
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          bgcolor: dotColor,
-          border: '1.5px solid',
-          borderColor: 'background.paper',
-          boxShadow: 1,
-          zIndex: 1,
-        }}
-        title={
-          project.project_url
-            ? online === true
-              ? 'Online'
-              : online === false
-                ? 'Offline'
-                : 'Verificando...'
-            : 'Link não configurado'
-        }
-      />
-      {/* Badge commits (discreto) */}
-      {project.github_url && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            height: 20,
-            px: 1,
-            borderRadius: 1,
-            bgcolor: 'action.hover',
-            border: '1px solid',
-            borderColor: 'divider',
-            color: 'text.secondary',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit' }}>
-            <GitHubIconSmall />
-          </Box>
-          <Typography component="span" variant="caption" fontWeight={600} sx={{ fontSize: 11, lineHeight: 1 }}>
-            {commitsCount !== null ? String(displayNumber).padStart(2, '0') : '--'}
-          </Typography>
-        </Box>
-      )}
       <CardContent sx={{ pl: 2.5, py: 1.5, pr: 1.5, '&:last-child': { pb: 1.5 } }}>
-        <Typography variant="subtitle2" fontWeight={600} noWrap sx={{ pr: project.github_url ? 5 : 0 }}>
-          {project.name}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+          <Box
+            sx={{
+              flexShrink: 0,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              bgcolor: dotColor,
+              border: '1.5px solid',
+              borderColor: 'background.paper',
+              boxShadow: 1,
+            }}
+            title={
+              project.project_url
+                ? online === true
+                  ? 'Online'
+                  : online === false
+                    ? 'Offline'
+                    : 'Verificando...'
+                : 'Link não configurado'
+            }
+          />
+          <Typography variant="subtitle2" fontWeight={600} noWrap sx={{ flex: 1, minWidth: 0 }}>
+            {project.name}
+          </Typography>
+          {project.github_url && (
+            <Box
+              sx={{
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                height: 20,
+                px: 1,
+                borderRadius: 1,
+                bgcolor: 'action.hover',
+                border: '1px solid',
+                borderColor: 'divider',
+                color: 'text.secondary',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', color: 'inherit' }}>
+                <GitHubIconSmall />
+              </Box>
+              <Typography component="span" variant="caption" fontWeight={600} sx={{ fontSize: 11, lineHeight: 1 }}>
+                {commitsCount !== null ? String(displayNumber).padStart(2, '0') : '--'}
+              </Typography>
+            </Box>
+          )}
+        </Box>
         {project.description && (
           <Typography
             variant="caption"
@@ -230,36 +208,6 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
           >
             {project.description}
           </Typography>
-        )}
-        {project.project_url && project.github_url && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-            {versionCheck.loading ? (
-              <Typography variant="caption" color="text.secondary">
-                Verificando versão...
-              </Typography>
-            ) : versionCheck.upToDate === true ? (
-              <>
-                <CheckCircle sx={{ fontSize: 14, color: '#10b981' }} />
-                <Typography variant="caption" color="text.secondary">
-                  Atualizado
-                </Typography>
-              </>
-            ) : versionCheck.upToDate === false ? (
-              <>
-                <Warning sx={{ fontSize: 14, color: '#f59e0b' }} />
-                <Typography variant="caption" color="text.secondary">
-                  Desatualizado
-                </Typography>
-              </>
-            ) : (
-              <>
-                <Help sx={{ fontSize: 14, color: 'text.secondary' }} />
-                <Typography variant="caption" color="text.secondary" title={versionTitle}>
-                  Versão não verificada
-                </Typography>
-              </>
-            )}
-          </Box>
         )}
         {pendingTodos.length > 0 && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>

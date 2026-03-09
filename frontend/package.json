@@ -1,7 +1,7 @@
 {
   "name": "cdt-inteligencia-frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,7 @@
     "@dnd-kit/utilities": "^3.2.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@excalidraw/excalidraw": "^0.18.0",
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
     "@radix-ui/react-dialog": "^1.0.5",

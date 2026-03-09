@@ -12,6 +12,78 @@ const isLoginRequest = (req: express.Request): boolean => {
   return req.headers['x-user-id'] === 'temp' || !req.headers['x-user-id'];
 };
 
+// Listar usuários do Supabase Auth (apenas admin) — para dar acesso ao sistema
+router.get('/auth-list', checkRole('admin'), async (req, res) => {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+
+    if (authError) {
+      console.error('Error listing auth users:', authError);
+      return res.status(500).json({ error: authError.message || 'Failed to list auth users' });
+    }
+
+    const authUsers = authData?.users || [];
+    const cdtIds = new Set<string>();
+
+    if (authUsers.length > 0) {
+      const { data: cdtRows } = await supabase
+        .from('cdt_users')
+        .select('id')
+        .in('id', authUsers.map((u) => u.id));
+      (cdtRows || []).forEach((r: { id: string }) => cdtIds.add(r.id));
+    }
+
+    const list = authUsers.map((u) => ({
+      id: u.id,
+      email: u.email ?? '',
+      name: (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || u.email?.split('@')[0] || '—',
+      created_at: u.created_at,
+      in_cdt: cdtIds.has(u.id),
+    }));
+
+    res.json(list);
+  } catch (error: any) {
+    if (isSupabaseConnectionRefused(error)) {
+      return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
+    }
+    console.error('Error fetching auth users:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch auth users' });
+  }
+});
+
+// Criar usuário no CDT a partir de um usuário Supabase Auth (dar acesso)
+router.post('/from-auth', checkRole('admin'), async (req, res) => {
+  try {
+    const { id, email, name } = req.body;
+    if (!id || !email) {
+      return res.status(400).json({ error: 'id and email are required' });
+    }
+
+    const { data, error } = await supabase
+      .from('cdt_users')
+      .insert([{
+        id,
+        email: String(email).trim(),
+        name: (name && String(name).trim()) || email.split('@')[0] || 'Usuário',
+        avatar_url: null,
+        is_active: true,
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Este usuário já possui acesso no sistema.' });
+      }
+      throw error;
+    }
+    res.status(201).json(data);
+  } catch (error: any) {
+    console.error('Error creating user from auth:', error);
+    res.status(500).json({ error: error.message || 'Failed to create user' });
+  }
+});
+
 // Get all users with their roles
 // Temporariamente permitir acesso sem autenticação para login inicial
 // Para atribuição de responsáveis, qualquer usuário autenticado pode ver a lista

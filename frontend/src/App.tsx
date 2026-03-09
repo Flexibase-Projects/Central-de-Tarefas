@@ -8,6 +8,9 @@ import Atividades from './pages/Atividades'
 import Dashboard from './pages/Dashboard'
 import Admin from './pages/Admin'
 import Mapa from './pages/Mapa'
+import Prioridades from './pages/Prioridades'
+import Indicadores from './pages/Indicadores'
+import CanvaEquipe from './pages/CanvaEquipe'
 
 function App() {
   return (
@@ -23,8 +26,11 @@ function App() {
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/mapa" element={<Mapa />} />
+                    <Route path="/prioridades" element={<Prioridades />} />
                     <Route path="/desenvolvimentos" element={<Desenvolvimentos />} />
                     <Route path="/atividades" element={<Atividades />} />
+                    <Route path="/canva-equipe" element={<CanvaEquipe />} />
+                    <Route path="/indicadores" element={<Indicadores />} />
                     <Route path="/admin" element={<Admin />} />
                   </Routes>
                 </MainLayout>

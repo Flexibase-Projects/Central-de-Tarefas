@@ -25,6 +25,7 @@ export default function Atividades() {
     github_owner: null,
     github_repo: null,
     project_url: null,
+    cover_image_url: activity.cover_image_url ?? null,
     created_at: activity.created_at,
     updated_at: activity.updated_at,
     created_by: activity.created_by,
@@ -58,8 +59,11 @@ export default function Atividades() {
 
   const handleUpdateActivity = async (activity: Activity) => {
     try {
-      await updateActivity(activity.id, activity)
-      setSelectedActivity(activity)
+      const updated = await updateActivity(activity.id, activity)
+      setSelectedActivity({
+        ...updated,
+        cover_image_url: updated.cover_image_url ?? activity.cover_image_url ?? null,
+      })
     } catch (error) {
       console.error('Error updating activity:', error)
     }

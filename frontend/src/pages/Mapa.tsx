@@ -3,7 +3,6 @@ import { Box, CircularProgress, Typography, Paper } from '@mui/material'
 import { useProjects } from '@/hooks/use-projects'
 import { ProjectCardDialog } from '@/components/kanban/project-card-dialog'
 import { EisenhowerCanvas } from '@/components/mapa/eisenhower-canvas'
-import { PriorityList } from '@/components/mapa/priority-list'
 import type { Project } from '@/types'
 
 export default function Mapa() {
@@ -46,9 +45,6 @@ export default function Mapa() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <Box sx={{ flexShrink: 0, borderBottom: 1, borderColor: 'divider', px: 2, py: 1.5 }}>
-        <PriorityList projects={projects} onProjectClick={handleProjectClick} />
-      </Box>
       <Box sx={{ flex: 1, minHeight: 0, p: 1 }}>
         <Paper variant="outlined" sx={{ height: '100%', overflow: 'hidden', borderRadius: 1 }}>
           <EisenhowerCanvas

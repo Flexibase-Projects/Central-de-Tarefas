@@ -134,6 +134,38 @@ export function useUsers() {
     }
   };
 
+  const [authList, setAuthList] = useState<Array<{ id: string; email: string; name: string; created_at: string; in_cdt: boolean }>>([]);
+  const [authListLoading, setAuthListLoading] = useState(false);
+
+  const fetchAuthList = useCallback(async () => {
+    try {
+      setAuthListLoading(true);
+      const response = await fetch(`${API_URL}/api/users/auth-list`, { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error('Falha ao carregar usuários do Supabase Auth');
+      const data = await response.json();
+      setAuthList(data);
+    } catch (err) {
+      console.error('Error fetching auth list:', err);
+      setAuthList([]);
+    } finally {
+      setAuthListLoading(false);
+    }
+  }, [getAuthHeaders]);
+
+  const giveAccessFromAuth = async (authUser: { id: string; email: string; name: string }) => {
+    const response = await fetch(`${API_URL}/api/users/from-auth`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ id: authUser.id, email: authUser.email, name: authUser.name }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error((err as { error?: string }).error || 'Falha ao dar acesso');
+    }
+    await Promise.all([fetchUsers(), fetchAuthList()]);
+    return response.json();
+  };
+
   return {
     users,
     loading,
@@ -144,5 +176,9 @@ export function useUsers() {
     assignRole,
     removeRole,
     refreshUsers: fetchUsers,
+    authList,
+    authListLoading,
+    fetchAuthList,
+    giveAccessFromAuth,
   };
 }

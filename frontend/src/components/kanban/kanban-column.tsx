@@ -48,7 +48,7 @@ export function KanbanColumn({
               highlight
                 ? theme.palette.action.selected
                 : theme.palette.mode === 'dark'
-                  ? 'grey.900'
+                  ? theme.palette.background.paper
                   : 'grey.50',
             overflowY: 'auto',
             overflowX: 'hidden',

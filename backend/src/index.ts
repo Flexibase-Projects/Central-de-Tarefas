@@ -46,6 +46,8 @@ import permissionsRoutes from './routes/permissions.js';
 import rolesRoutes from './routes/roles.js';
 import usersRoutes from './routes/users.js';
 import notificationsRoutes from './routes/notifications.js';
+import indicatorsRoutes from './routes/indicators.js';
+import teamCanvasRoutes from './routes/team-canvas.js';
 import { authMiddleware } from './middleware/auth.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from './utils/supabase-errors.js';
 
@@ -116,6 +118,33 @@ async function initializeCleanup() {
   }
 }
 
+const ACTIVITY_COVERS_BUCKET = 'activity-covers';
+
+/** Cria o bucket de capas de atividades no Storage se não existir (requer SERVICE_ROLE). */
+async function ensureActivityCoversBucket() {
+  try {
+    const { supabase } = await import('./config/supabase.js');
+    const { error: createError } = await supabase.storage.createBucket(ACTIVITY_COVERS_BUCKET, {
+      public: true,
+    });
+    if (createError) {
+      const msg = (createError.message || String(createError)).toLowerCase();
+      if (msg.includes('already exists') || msg.includes('duplicate') || msg.includes('bucket already')) {
+        return;
+      }
+      console.warn('⚠️ Storage createBucket activity-covers:', createError.message);
+      return;
+    }
+    console.log(`✅ Bucket "${ACTIVITY_COVERS_BUCKET}" criado no Storage`);
+  } catch (error: unknown) {
+    if (isSupabaseConnectionRefused(error)) {
+      console.warn('⚠️', SUPABASE_UNAVAILABLE_MESSAGE);
+    } else {
+      console.warn('⚠️ ensureActivityCoversBucket:', error);
+    }
+  }
+}
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3002;
 
@@ -124,7 +153,8 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+// Limite 15mb para permitir upload de capa em base64 (imagem até 10MB)
+app.use(express.json({ limit: '15mb' }));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -145,6 +175,16 @@ app.use('/api/permissions', permissionsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/indicators', indicatorsRoutes);
+app.use('/api/team-canvas', teamCanvasRoutes);
+
+// Tratamento de payload too large (413) em JSON para o cliente
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err.status === 413 || err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Imagem muito grande. O tamanho máximo é 10MB.' });
+  }
+  next(err);
+});
 
 // Produção: servir SPA (build do frontend) na mesma porta da API
 const frontendDistPath = path.resolve(__dirname, '../../frontend/dist');
@@ -176,6 +216,7 @@ async function logStartupStatus() {
     console.log(`   URL: ${process.env.SUPABASE_URL?.substring(0, 30)}...`);
     console.log(`   Key: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON'} key set`);
     await initializeCleanup();
+    await ensureActivityCoversBucket();
   } else {
     console.warn('⚠️  Supabase not configured - database operations will fail');
     console.warn('⚠️  Create backend/.env.local with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY');

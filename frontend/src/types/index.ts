@@ -21,6 +21,10 @@ export interface Project {
   map_x?: number | null
   /** Posição Y no quadrante (0–100). */
   map_y?: number | null
+  /** Ordem na tela Prioridades: menor = mais importante, null = fim. */
+  priority_order?: number | null
+  /** URL da imagem de capa (usado no kanban de atividades). */
+  cover_image_url?: string | null
   created_at: string
   updated_at: string
   created_by: string | null
@@ -108,6 +112,8 @@ export interface Activity {
   due_date: string | null
   priority: 'low' | 'medium' | 'high'
   assigned_to: string | null
+  /** URL da imagem de capa (Supabase Storage). */
+  cover_image_url?: string | null
   created_at: string
   updated_at: string
   created_by: string | null
@@ -172,4 +178,49 @@ export interface Notification {
   project_id: string | null
   read: boolean
   created_at: string
+}
+
+export interface UserIndicator {
+  user_id: string
+  name: string
+  email: string
+  avatar_url: string | null
+  comments_count: number
+  todos_created: number
+  todos_completed: number
+  activities_created: number
+  activities_assigned: number
+}
+
+export interface ProjectIndicator {
+  project_id: string
+  project_name: string
+  project_status: string
+  todos_count: number
+  todos_completed: number
+  comments_count: number
+}
+
+export interface ActivityIndicator {
+  activity_id: string
+  activity_name: string
+  status: string
+  assigned_to: string | null
+  due_date: string | null
+}
+
+export interface TeamTotals {
+  total_users: number
+  total_projects: number
+  total_activities: number
+  total_comments: number
+  total_todos_created: number
+  total_todos_completed: number
+}
+
+export interface IndicatorsData {
+  by_user: UserIndicator[]
+  by_project: ProjectIndicator[]
+  by_activity: ActivityIndicator[]
+  team: TeamTotals
 }

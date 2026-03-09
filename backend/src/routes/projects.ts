@@ -5,22 +5,29 @@ import { getRecentCommits, parseGitHubUrl } from '../services/github.js';
 
 const router = express.Router();
 
-// Get all projects
+// Get all projects (ordem: priority_order quando a coluna existir, senão created_at)
 router.get('/', async (req, res) => {
   try {
-    // Check if Supabase is configured
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
-      return res.status(503).json({ 
+      return res.status(503).json({
         error: 'Supabase not configured',
-        message: 'Please configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY in backend/.env'
+        message: 'Please configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY in backend/.env',
       });
     }
 
-    const { data, error } = await supabase
-      .from('cdt_projects')
-      .select('*')
+    let query = supabase.from('cdt_projects').select('*');
+    let { data, error } = await query
+      .order('priority_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
 
+    if (error && /priority_order|does not exist|column.*not exist/i.test(String(error.message || ''))) {
+      const fallback = await supabase
+        .from('cdt_projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) throw error;
     res.json(data || []);
   } catch (error: any) {
@@ -155,6 +162,47 @@ router.get('/version-check', async (req, res) => {
   }
 });
 
+// Reorder projects (prioridades): body { orderedIds: string[] }
+router.put('/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      return res.status(400).json({ error: 'orderedIds must be a non-empty array of project IDs' });
+    }
+    const migrationSql = 'ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS priority_order INTEGER NULL; CREATE INDEX IF NOT EXISTS idx_cdt_projects_priority_order ON cdt_projects(priority_order);';
+    for (let i = 0; i < orderedIds.length; i++) {
+      const id = orderedIds[i];
+      if (typeof id !== 'string') {
+        return res.status(400).json({ error: 'Each orderedIds item must be a string' });
+      }
+      const { error } = await supabase
+        .from('cdt_projects')
+        .update({ priority_order: i, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) {
+        if (/priority_order|does not exist|column.*not exist/i.test(String(error.message || ''))) {
+          return res.status(503).json({
+            error: 'Coluna priority_order não existe. Execute a migração no Supabase (SQL Editor):',
+            code: 'MIGRATION_REQUIRED',
+            sql: migrationSql,
+          });
+        }
+        throw error;
+      }
+    }
+    const { data, error } = await supabase
+      .from('cdt_projects')
+      .select('*')
+      .order('priority_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error: any) {
+    console.error('Error reordering projects:', error);
+    res.status(500).json({ error: error.message || 'Failed to reorder projects' });
+  }
+});
+
 // Get project by ID
 router.get('/:id', async (req, res) => {
   try {
@@ -254,6 +302,7 @@ router.put('/:id', async (req, res) => {
     if (updates.map_quadrant !== undefined) updateData.map_quadrant = updates.map_quadrant;
     if (updates.map_x !== undefined) updateData.map_x = updates.map_x;
     if (updates.map_y !== undefined) updateData.map_y = updates.map_y;
+    if (updates.priority_order !== undefined) updateData.priority_order = updates.priority_order;
 
     const { data, error } = await supabase
       .from('cdt_projects')

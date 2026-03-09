@@ -174,6 +174,33 @@ export function useProjects() {
     return updateProject(projectId, { status: newStatus })
   }
 
+  /** Atualiza a ordem de prioridade (tela Prioridades). orderedIds = ordem do mais ao menos importante. */
+  const updatePriorityOrder = async (orderedIds: string[]) => {
+    if (orderedIds.length === 0) return
+    const byId = new Map(projects.map((p) => [p.id, p]))
+    const reordered = orderedIds.map((id) => byId.get(id)).filter(Boolean) as Project[]
+    if (reordered.length !== orderedIds.length) return
+    const previous = projects
+    setProjects(reordered)
+    try {
+      const url = API_URL ? `${API_URL}/api/projects/reorder` : '/api/projects/reorder'
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ orderedIds }),
+      })
+      if (!response.ok) throw new Error('Falha ao salvar ordem de prioridades')
+      const data = await response.json()
+      setProjects(Array.isArray(data) ? data : reordered)
+      setError(null)
+    } catch (err) {
+      setProjects(previous)
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao salvar ordem'
+      setError(errorMessage)
+      throw err
+    }
+  }
+
   return {
     projects,
     loading,
@@ -183,6 +210,7 @@ export function useProjects() {
     updateProjectWithOptimisticPosition,
     deleteProject,
     moveProject,
+    updatePriorityOrder,
     refetch: fetchProjects,
   }
 }

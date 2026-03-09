@@ -181,10 +181,45 @@ ALTER TABLE github_repositories DISABLE ROW LEVEL SECURITY;
 ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS map_quadrant SMALLINT NULL;
 ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS map_x NUMERIC(5,2) NULL;
 ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS map_y NUMERIC(5,2) NULL;
+
+-- Ordem de prioridade (tela Prioridades): menor = mais importante, NULL = fim da lista
+ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS priority_order INTEGER NULL;
+CREATE INDEX IF NOT EXISTS idx_cdt_projects_priority_order ON cdt_projects(priority_order ASC NULLS LAST);
 -- Para tabela projects (se existir sem prefixo):
 -- ALTER TABLE projects ADD COLUMN IF NOT EXISTS map_quadrant SMALLINT NULL;
 -- ALTER TABLE projects ADD COLUMN IF NOT EXISTS map_x NUMERIC(5,2) NULL;
 -- ALTER TABLE projects ADD COLUMN IF NOT EXISTS map_y NUMERIC(5,2) NULL;
+
+-- ============================================
+-- Migração: imagem de capa em atividades (Supabase Storage)
+-- ============================================
+-- Tabela cdt_activities (nome usada na aplicação):
+ALTER TABLE cdt_activities ADD COLUMN IF NOT EXISTS cover_image_url TEXT NULL;
+-- Se a tabela se chama activities (sem prefixo):
+-- ALTER TABLE activities ADD COLUMN IF NOT EXISTS cover_image_url TEXT NULL;
+
+-- Criar bucket no Supabase Dashboard: Storage > New bucket > "activity-covers" (public)
+-- Ou via SQL (Storage é gerenciado pelo Dashboard). Política: permitir leitura pública e upload autenticado.
+
+-- ============================================
+-- Migração: Canva em Equipe (Excalidraw)
+-- ============================================
+CREATE TABLE IF NOT EXISTS cdt_team_canvas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL DEFAULT 'default',
+  content JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_by UUID REFERENCES auth.users(id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cdt_team_canvas_name ON cdt_team_canvas(name);
+CREATE INDEX IF NOT EXISTS idx_cdt_team_canvas_updated_at ON cdt_team_canvas(updated_at DESC);
+-- Trigger updated_at
+DROP TRIGGER IF EXISTS update_cdt_team_canvas_updated_at ON cdt_team_canvas;
+CREATE TRIGGER update_cdt_team_canvas_updated_at BEFORE UPDATE ON cdt_team_canvas
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Permissão para o canva (inserir na tabela de permissões e associar aos papéis desejados)
+-- INSERT INTO cdt_permissions (id, name, display_name, description, category) VALUES (gen_random_uuid(), 'access_canva_equipe', 'Acessar Canva em Equipe', 'Permite acessar o quadro colaborativo Canva em Equipe', 'ferramentas') ON CONFLICT DO NOTHING;
 
 -- ============================================
 -- FIM DO SCRIPT

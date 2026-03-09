@@ -14,6 +14,29 @@ const QUADRANT_LABELS: Record<EisenhowerQuadrant, { title: string; sub?: string 
   4: { title: 'Nem urgente nem importante', sub: 'Eliminar ou depois' },
 }
 
+/** Cores do quadro de Eisenhower: Q1 vermelho, Q2 azul, Q3 âmbar, Q4 cinza */
+const QUADRANT_STYLES: Record<
+  EisenhowerQuadrant,
+  { bg: string; label: string }
+> = {
+  1: {
+    bg: 'bg-red-100 dark:bg-red-950/50 border-red-200 dark:border-red-800/50',
+    label: 'text-red-800 dark:text-red-200',
+  },
+  2: {
+    bg: 'bg-blue-100 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800/50',
+    label: 'text-blue-800 dark:text-blue-200',
+  },
+  3: {
+    bg: 'bg-amber-100 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/50',
+    label: 'text-amber-800 dark:text-amber-200',
+  },
+  4: {
+    bg: 'bg-slate-100 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50',
+    label: 'text-slate-600 dark:text-slate-400',
+  },
+}
+
 interface EisenhowerCanvasProps {
   projects: Project[]
   onProjectClick: (project: Project) => void
@@ -88,14 +111,20 @@ export function EisenhowerCanvas({
           onDrop={(e) => handleDrop(e, q)}
           onDragOver={handleDragOver}
           className={cn(
-            'relative min-h-0 overflow-hidden rounded-none bg-muted/40',
+            'relative min-h-0 overflow-hidden rounded-none border',
+            QUADRANT_STYLES[q].bg,
             q === 1 && 'rounded-tl-lg',
             q === 2 && 'rounded-tr-lg',
             q === 3 && 'rounded-bl-lg',
             q === 4 && 'rounded-br-lg'
           )}
         >
-          <div className="absolute left-2 top-2 z-0 text-xs font-medium text-muted-foreground">
+          <div
+            className={cn(
+              'absolute left-2 top-2 z-0 text-xs font-medium',
+              QUADRANT_STYLES[q].label
+            )}
+          >
             <span className="block">{QUADRANT_LABELS[q].title}</span>
             {QUADRANT_LABELS[q].sub && (
               <span className="text-[10px] opacity-80">{QUADRANT_LABELS[q].sub}</span>

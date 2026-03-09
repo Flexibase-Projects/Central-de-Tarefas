@@ -67,8 +67,15 @@ export function useActivities() {
         headers: getAuthHeaders(),
         body: JSON.stringify(updates),
       })
-      if (!response.ok) throw new Error('Failed to update activity')
-      const updatedActivity = await response.json()
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const err = body as { error?: string; code?: string; sql?: string }
+        if (response.status === 503 && err.code === 'MIGRATION_REQUIRED' && err.sql) {
+          throw new Error(`${err.error ?? 'Migração necessária'}\n\n${err.sql}`)
+        }
+        throw new Error(err.error ?? 'Falha ao atualizar atividade')
+      }
+      const updatedActivity = body
       setActivities(prev => prev.map(a => a.id === id ? updatedActivity : a))
       return updatedActivity
     } catch (err) {

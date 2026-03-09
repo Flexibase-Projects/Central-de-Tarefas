@@ -3,16 +3,14 @@ import {
   IconButton,
   Button,
   Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
   Box,
   Typography,
   CircularProgress,
   Tooltip,
   Badge,
+  Paper,
 } from '@mui/material'
-import { Notifications as NotificationsIcon, Check, CheckBox } from '@mui/icons-material'
+import { Notifications as NotificationsIcon, Check, DoneAll } from '@mui/icons-material'
 import { useNotifications } from '@/hooks/use-notifications'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -76,40 +74,72 @@ export function NotificationsDropdown() {
 
   return (
     <>
-      <Tooltip
-        title={
-          unreadCount > 0 ? (
-            <Box>
-              <Typography variant="body2" fontWeight={600}>Você tem {unreadCount} {unreadCount === 1 ? 'tarefa pendente' : 'tarefas pendentes'}</Typography>
-              {unreadByProject.length > 0 && (
-                <Box sx={{ mt: 0.5 }}>
-                  {unreadByProject.slice(0, 3).map((project, idx) => (
-                    <Typography key={idx} variant="caption" display="block" color="inherit" sx={{ opacity: 0.9 }}>
-                      • {project.count} TO-DO(s) em {project.name}
-                    </Typography>
-                  ))}
-                </Box>
-              )}
-            </Box>
-          ) : (
-            'Notificações'
-          )
-        }
+      {/* Botão flutuante global — canto superior direito */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 16,
+          right: 16,
+          zIndex: 1300,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        <IconButton
-          onClick={handleOpen}
-          color={unreadCount > 0 ? 'primary' : 'default'}
-          sx={{ position: 'relative' }}
-          aria-label="Notificações"
-          aria-controls={open ? 'notifications-menu' : undefined}
-          aria-haspopup="true"
-          aria-expanded={open ? 'true' : undefined}
+        <Tooltip
+          title={
+            unreadCount > 0 ? (
+              <Box>
+                <Typography variant="body2" fontWeight={600}>
+                  {unreadCount} {unreadCount === 1 ? 'notificação não lida' : 'notificações não lidas'}
+                </Typography>
+                {unreadByProject.length > 0 && (
+                  <Box sx={{ mt: 0.5 }}>
+                    {unreadByProject.slice(0, 3).map((project, idx) => (
+                      <Typography key={idx} variant="caption" display="block" sx={{ opacity: 0.9 }}>
+                        • {project.name}: {project.count}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              'Notificações'
+            )
+          }
         >
-          <Badge badgeContent={unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : 0} color="error">
-            <NotificationsIcon />
-          </Badge>
-        </IconButton>
-      </Tooltip>
+          <IconButton
+            onClick={handleOpen}
+            aria-label="Notificações"
+            aria-controls={open ? 'notifications-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={open ? 'true' : undefined}
+            sx={{
+              bgcolor: 'background.paper',
+              boxShadow: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              '&:hover': {
+                bgcolor: 'action.hover',
+                boxShadow: 3,
+              },
+              ...(unreadCount > 0 && {
+                color: 'primary.main',
+                borderColor: 'primary.light',
+              }),
+            }}
+          >
+            <Badge
+              badgeContent={unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : 0}
+              color="error"
+              max={99}
+            >
+              <NotificationsIcon />
+            </Badge>
+          </IconButton>
+        </Tooltip>
+      </Box>
+
       <Menu
         id="notifications-menu"
         anchorEl={anchorEl}
@@ -117,113 +147,182 @@ export function NotificationsDropdown() {
         onClose={handleClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{ sx: { width: 320, maxHeight: 440 } }}
+        PaperProps={{
+          sx: {
+            width: 360,
+            maxHeight: 'min(480px, 80vh)',
+            mt: 1.5,
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            border: '1px solid',
+            borderColor: 'divider',
+            overflow: 'hidden',
+          },
+        }}
+        MenuListProps={{ disablePadding: true }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-          <Typography variant="subtitle2" fontWeight={600}>Notificações</Typography>
-          {unreadNotifications.length > 0 && (
-            <Button size="small" startIcon={<Check />} onClick={markAllAsRead}>
-              Marcar todas como lidas
-            </Button>
-          )}
+        {/* Cabeçalho */}
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            bgcolor: 'action.hover',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
+              Notificações
+            </Typography>
+            {unreadNotifications.length > 0 && (
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<DoneAll sx={{ fontSize: 16 }} />}
+                onClick={markAllAsRead}
+                sx={{ textTransform: 'none', fontWeight: 600 }}
+              >
+                Marcar todas como lidas
+              </Button>
+            )}
+          </Box>
         </Box>
+
+        {/* Lista */}
         <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={24} />
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 6 }}>
+              <CircularProgress size={28} />
             </Box>
           ) : notifications.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ p: 3, textAlign: 'center' }}>
-              Nenhuma notificação
-            </Typography>
+            <Box sx={{ py: 6, px: 3, textAlign: 'center' }}>
+              <NotificationsIcon sx={{ fontSize: 48, color: 'action.disabled', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                Nenhuma notificação
+              </Typography>
+            </Box>
           ) : (
-            <>
+            <Box sx={{ py: 0.5 }}>
               {Object.entries(groupedNotifications.groups).map(([projectId, projectNotifications]) => {
                 const projectName = projectNotifications[0]?.message?.match(/projeto "([^"]+)"/)?.[1] || 'Projeto'
                 return (
                   <Box key={projectId}>
-                    <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover', borderBottom: 1, borderColor: 'divider' }}>
-                      <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                    <Box sx={{ px: 2, py: 0.75 }}>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         {projectName}
                       </Typography>
                     </Box>
                     {projectNotifications.map((notification) => (
-                      <MenuItem
+                      <NotificationItem
                         key={notification.id}
+                        notification={notification}
+                        onMarkRead={() => markAsRead(notification.id)}
                         onClick={() => handleNotificationClick(notification)}
-                        sx={{ py: 1.5, bgcolor: !notification.read ? 'action.selected' : undefined }}
-                      >
-                        <ListItemIcon sx={{ minWidth: 36 }}>
-                          <CheckBox fontSize="small" color={!notification.read ? 'primary' : 'inherit'} />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={notification.title}
-                          secondary={
-                            <>
-                              {notification.message && (
-                                <Typography component="span" variant="caption" color="text.secondary" sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {notification.message}
-                                </Typography>
-                              )}
-                              <Typography component="span" variant="caption" color="text.secondary">
-                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: ptBR })}
-                              </Typography>
-                            </>
-                          }
-                          primaryTypographyProps={{ fontWeight: !notification.read ? 600 : 400 }}
-                        />
-                        {!notification.read && (
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              markAsRead(notification.id)
-                            }}
-                          >
-                            <Check fontSize="small" />
-                          </IconButton>
-                        )}
-                      </MenuItem>
+                      />
                     ))}
                   </Box>
                 )
               })}
               {groupedNotifications.withoutProject.length > 0 && (
                 <Box>
+                  {groupedNotifications.withoutProject.length > 0 && (
+                    <Box sx={{ px: 2, py: 0.75 }}>
+                      <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Geral
+                      </Typography>
+                    </Box>
+                  )}
                   {groupedNotifications.withoutProject.map((notification) => (
-                    <MenuItem key={notification.id} sx={{ py: 1.5, bgcolor: !notification.read ? 'action.selected' : undefined }}>
-                      <ListItemIcon sx={{ minWidth: 36 }}>
-                        <CheckBox fontSize="small" color={!notification.read ? 'primary' : 'inherit'} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={notification.title}
-                        secondary={
-                          <>
-                            {notification.message && (
-                              <Typography component="span" variant="caption" color="text.secondary" display="block">
-                                {notification.message}
-                              </Typography>
-                            )}
-                            <Typography component="span" variant="caption" color="text.secondary">
-                              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: ptBR })}
-                            </Typography>
-                          </>
-                        }
-                        primaryTypographyProps={{ fontWeight: !notification.read ? 600 : 400 }}
-                      />
-                      {!notification.read && (
-                        <IconButton size="small" onClick={() => markAsRead(notification.id)}>
-                          <Check fontSize="small" />
-                        </IconButton>
-                      )}
-                    </MenuItem>
+                    <NotificationItem
+                      key={notification.id}
+                      notification={notification}
+                      onMarkRead={() => markAsRead(notification.id)}
+                      onClick={() => {}}
+                    />
                   ))}
                 </Box>
               )}
-            </>
+            </Box>
           )}
         </Box>
       </Menu>
     </>
+  )
+}
+
+function NotificationItem({
+  notification,
+  onMarkRead,
+  onClick,
+}: {
+  notification: Notification
+  onMarkRead: () => void
+  onClick: () => void
+}) {
+  const isUnread = !notification.read
+
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        mx: 1,
+        mb: 0.5,
+        borderRadius: 1.5,
+        overflow: 'hidden',
+        border: '1px solid',
+        borderColor: isUnread ? 'primary.light' : 'divider',
+        bgcolor: isUnread ? 'action.selected' : 'transparent',
+        cursor: notification.project_id ? 'pointer' : 'default',
+        transition: 'background-color 0.15s, border-color 0.15s',
+        '&:hover': {
+          bgcolor: 'action.hover',
+        },
+      }}
+      onClick={onClick}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 1.5 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="body2"
+            fontWeight={isUnread ? 600 : 500}
+            sx={{ lineHeight: 1.35 }}
+          >
+            {notification.title}
+          </Typography>
+          {notification.message && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: 'block',
+                mt: 0.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {notification.message}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true, locale: ptBR })}
+          </Typography>
+        </Box>
+        {isUnread && (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMarkRead()
+            }}
+            sx={{ flexShrink: 0, color: 'primary.main' }}
+            title="Marcar como lida"
+          >
+            <Check fontSize="small" />
+          </IconButton>
+        )}
+      </Box>
+    </Paper>
   )
 }

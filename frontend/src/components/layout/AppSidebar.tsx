@@ -12,6 +12,9 @@ import {
   ExitToApp,
   ChevronLeft,
   Menu,
+  BarChart,
+  Brush,
+  Flag,
 } from '@mui/icons-material';
 import { Box, IconButton, Tooltip, useTheme } from '@mui/material';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -26,13 +29,16 @@ const SIDEBAR_SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { title: 'Dashboard', url: '/', icon: Dashboard, permission: null },
       { title: 'Mapa', url: '/mapa', icon: Map, permission: null },
+      { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null },
+      { title: 'Indicadores', url: '/indicadores', icon: BarChart, permission: null },
     ],
   },
   {
-    title: 'LANÇAMENTOS',
+    title: 'FERRAMENTAS',
     items: [
       { title: 'Desenvolvimentos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos' },
       { title: 'Atividades', url: '/atividades', icon: CheckBox, permission: 'access_atividades' },
+      { title: 'Canva em Equipe', url: '/canva-equipe', icon: Brush, permission: null },
     ],
   },
   {
