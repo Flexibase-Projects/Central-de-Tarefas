@@ -4,6 +4,27 @@ import { useAuth } from '@/contexts/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
+type MigrationErrorBody = {
+  error?: string
+  code?: string
+  sql?: string
+  quickFixSql?: string
+  migrations?: string[]
+}
+
+function formatMigrationRequiredMessage(err: MigrationErrorBody): string {
+  const lines: string[] = [err.error ?? 'É necessário atualizar o banco de dados no Supabase.']
+  if (err.migrations?.length) {
+    lines.push(`Migrações completas (recomendado): ${err.migrations.join(', ')}`)
+  }
+  if (err.quickFixSql) {
+    lines.push('', 'Correção rápida — cole no Supabase → SQL Editor → Run:', '', err.quickFixSql)
+  } else if (err.sql) {
+    lines.push('', err.sql)
+  }
+  return lines.join('\n')
+}
+
 export function useActivities() {
   const { getAuthHeaders } = useAuth()
   const [activities, setActivities] = useState<Activity[]>([])
@@ -69,9 +90,9 @@ export function useActivities() {
       })
       const body = await response.json().catch(() => ({}))
       if (!response.ok) {
-        const err = body as { error?: string; code?: string; sql?: string }
-        if (response.status === 503 && err.code === 'MIGRATION_REQUIRED' && err.sql) {
-          throw new Error(`${err.error ?? 'Migração necessária'}\n\n${err.sql}`)
+        const err = body as MigrationErrorBody
+        if (response.status === 503 && err.code === 'MIGRATION_REQUIRED') {
+          throw new Error(formatMigrationRequiredMessage(err))
         }
         throw new Error(err.error ?? 'Falha ao atualizar atividade')
       }

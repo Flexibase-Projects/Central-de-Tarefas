@@ -37,6 +37,7 @@ export interface Comment {
   id: string;
   project_id: string | null;
   task_id: string | null;
+  activity_id?: string | null;
   content: string;
   created_at: string;
   created_by: string | null;
@@ -46,7 +47,8 @@ export interface Comment {
 
 export interface ProjectTodo {
   id: string;
-  project_id: string;
+  project_id: string | null;
+  activity_id?: string | null;
   title: string;
   completed: boolean;
   assigned_to: string | null;
@@ -151,4 +153,72 @@ export interface Notification {
   project_id: string | null;
   read: boolean;
   created_at: string;
+}
+
+/** Centro de custo */
+export interface Department {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CostItemStatus = 'analise' | 'ativo' | 'desativado' | 'cancelado';
+export type CostItemCategory = 'ferramenta' | 'licenca' | 'infraestrutura' | 'servico' | 'outro';
+
+export interface CostItem {
+  id: string;
+  name: string;
+  description: string | null;
+  amount: number;
+  currency: string;
+  status: CostItemStatus;
+  is_active: boolean;
+  category: CostItemCategory;
+  activities_description: string | null;
+  result_savings_description: string | null;
+  result_savings_amount: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DepartmentCost {
+  id: string;
+  department_id: string;
+  cost_id: string;
+  link_status: string | null;
+  created_at: string;
+}
+
+export interface DepartmentMember {
+  id: string;
+  department_id: string;
+  user_id: string;
+  individual_monthly_cost: number;
+  role_label: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CostMapLayoutRow {
+  entity_type: 'department' | 'cost' | 'person';
+  entity_id: string;
+  position_x: number;
+  position_y: number;
+  updated_at: string;
+}
+
+/** Organograma: uma linha (nome livre); reports_to_id aponta para id de outra linha */
+export interface UserOrgEntry {
+  id: string;
+  person_name: string;
+  reports_to_id: string | null;
+  job_title: string | null;
+  display_order: number;
+  department_id: string | null;
+  monthly_salary: number | null;
+  monthly_cost: number | null;
+  created_at: string;
+  updated_at: string;
 }

@@ -16,8 +16,13 @@ import {
   Flag,
   Person,
   TrendingUp,
+  OrgChartIcon,
+  DollarSign,
 } from '@/components/ui/icons';
-import { Box, Divider, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
+import { Avatar, Box, Divider, IconButton, Menu as MuiMenu, MenuItem, Tooltip, Typography, useTheme } from '@mui/material';
+import { UserLevelProfileDrawer } from '@/components/layout/UserLevelProfileDrawer';
+import { Sun, Moon } from 'lucide-react';
+import { useThemeMode } from '@/theme/ThemeProvider';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProgress } from '@/hooks/use-user-progress';
@@ -42,20 +47,22 @@ const SIDEBAR_SECTIONS: { title: string; items: NavItem[] }[] = [
       { title: 'Desenvolvimentos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos' },
       { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades' },
       { title: 'Canva em Equipe', url: '/canva-equipe', icon: Paintbrush, permission: null },
+      { title: 'Organograma', url: '/organograma', icon: OrgChartIcon, permission: null, requireRole: 'admin' },
+      { title: 'Custos', url: '/custos-departamento', icon: DollarSign, permission: null, requireRole: 'admin' },
     ],
   },
   {
     title: 'GESTÃO',
-    items: [
-      { title: 'Administração', url: '/admin', icon: Settings, permission: null, requireRole: 'admin' },
-    ],
+    items: [{ title: 'Configurações', url: '/configuracoes', icon: Settings, permission: null }],
   },
 ];
 
-// Footer gamification links (always shown)
-const FOOTER_NAV_ITEMS: { title: string; url: string; icon: React.ElementType }[] = [
-  { title: 'Conquistas', url: '/conquistas', icon: Trophy },
+// Submenu do card de nível (abre à direita ao clicar no card)
+const LEVEL_CARD_MENU_ITEMS: { title: string; url: string; icon: React.ElementType; iconStyle?: React.CSSProperties }[] = [
+  { title: 'Ver Meu Nível', url: '/perfil', icon: Person },
+  { title: 'Conquistas', url: '/conquistas', icon: Trophy, iconStyle: { color: '#F59E0B' } },
   { title: 'Progressão', url: '/niveis', icon: TrendingUp },
+  { title: 'Como Funciona?', url: '/tutorial', icon: HelpCircle },
 ];
 
 interface AppSidebarProps {
@@ -69,10 +76,13 @@ export function AppSidebar(props: AppSidebarProps = {}) {
   const navigate = useNavigate();
   const theme = useTheme();
   const isLight = theme.palette.mode === 'light';
+  const { mode, toggleTheme } = useThemeMode();
   const { hasPermission, hasRole } = usePermissions();
   const { logout, currentUser } = useAuth();
   const { data: progressData, loading: progressLoading } = useUserProgress();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const [levelMenuAnchor, setLevelMenuAnchor] = useState<HTMLElement | null>(null);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const isCollapsed = controlledCollapsed ?? internalCollapsed;
   const setIsCollapsed = (v: boolean) => {
     onCollapsedChange?.(v);
@@ -95,81 +105,15 @@ export function AppSidebar(props: AppSidebarProps = {}) {
     navigate('/login', { replace: true });
   };
 
-  const sidebarBg = isLight ? '#F1F5F9' : theme.palette.background.default;
+  const sidebarBg = isLight ? '#ffffff' : theme.palette.background.default;
   const borderColor = theme.palette.divider;
   const activeColor = theme.palette.primary.main;
   const hoverBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)';
 
-  const isActiveLink = (url: string) => location.pathname === url;
-
-  const renderNavLink = (
-    url: string,
-    icon: React.ElementType,
-    label: string,
-    iconStyle?: React.CSSProperties
-  ) => {
-    const Icon = icon;
-    const active = isActiveLink(url);
-    return (
-      <Box sx={{ position: 'relative' }}>
-        {active && (
-          <Box
-            sx={{
-              position: 'absolute',
-              left: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              height: '60%',
-              width: 3,
-              borderRadius: '0 2px 2px 0',
-              bgcolor: activeColor,
-              zIndex: 1,
-            }}
-          />
-        )}
-        <Link
-          to={url}
-          style={{
-            textDecoration: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            width: '100%',
-            borderRadius: 6,
-            padding: isCollapsed ? '7px 0' : '7px 10px',
-            justifyContent: isCollapsed ? 'center' : 'flex-start',
-            gap: 8,
-            backgroundColor: active
-              ? isLight ? 'rgba(37,99,235,0.08)' : 'rgba(96,165,250,0.12)'
-              : 'transparent',
-            color: active ? activeColor : 'inherit',
-            transition: 'background-color 0.15s, color 0.15s',
-          }}
-          onMouseOver={(e) => {
-            if (!active) e.currentTarget.style.backgroundColor = hoverBg;
-          }}
-          onMouseOut={(e) => {
-            if (!active) e.currentTarget.style.backgroundColor = 'transparent';
-          }}
-        >
-          <Icon size={16} style={{ flexShrink: 0, ...iconStyle }} />
-          {!isCollapsed && (
-            <Box
-              component="span"
-              sx={{
-                fontSize: 13,
-                fontWeight: active ? 500 : 400,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {label}
-            </Box>
-          )}
-        </Link>
-      </Box>
-    );
-  };
+  const isActiveLink = (url: string) =>
+    url === '/configuracoes'
+      ? location.pathname === '/configuracoes' || location.pathname.startsWith('/configuracoes/')
+      : location.pathname === url;
 
   return (
     <Box
@@ -182,7 +126,7 @@ export function AppSidebar(props: AppSidebarProps = {}) {
         flexDirection: 'column',
         borderRight: `1px solid ${borderColor}`,
         zIndex: 1200,
-        width: isCollapsed ? 64 : 240,
+        width: isCollapsed ? 72 : 256,
         transition: theme.transitions.create('width', { duration: 250 }),
         bgcolor: sidebarBg,
         color: 'text.primary',
@@ -191,8 +135,8 @@ export function AppSidebar(props: AppSidebarProps = {}) {
       {/* Header */}
       {isCollapsed ? (
         <Box sx={{ borderBottom: `1px solid ${borderColor}`, flexShrink: 0 }}>
-          <Box sx={{ minHeight: 52, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Box component="img" src="/logo.png" alt="CDT" sx={{ width: 28, height: 28, objectFit: 'contain' }} />
+          <Box sx={{ minHeight: 56, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="caption" fontWeight={700} sx={{ fontSize: 11, letterSpacing: 0.2 }}>CDT</Typography>
           </Box>
           <Tooltip title="Expandir" placement="right">
             <IconButton
@@ -208,24 +152,18 @@ export function AppSidebar(props: AppSidebarProps = {}) {
         <Box
           sx={{
             borderBottom: `1px solid ${borderColor}`,
-            minHeight: 52,
-            py: 1.5,
-            px: 2,
+            minHeight: 56,
+            py: 2,
+            px: 2.5,
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
             flexShrink: 0,
           }}
         >
-          <Box
-            component="img"
-            src="/logo.png"
-            alt="CDT"
-            sx={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0 }}
-          />
-          <Box sx={{ fontSize: 14, fontWeight: 600, letterSpacing: 0.4, color: 'text.primary', lineHeight: 1.25 }}>
-            CDT
-          </Box>
+          <Typography sx={{ fontSize: 14, fontWeight: 600, letterSpacing: 0.4, color: 'text.primary', lineHeight: 1.25 }}>
+            Central de Tarefas
+          </Typography>
           <Tooltip title="Recolher">
             <IconButton onClick={() => setIsCollapsed(true)} size="small" sx={{ ml: 'auto', mr: -0.5 }}>
               <ChevronLeft size={16} />
@@ -239,14 +177,14 @@ export function AppSidebar(props: AppSidebarProps = {}) {
         sx={{
           flex: 1,
           overflowY: 'auto',
-          py: 1.5,
-          px: isCollapsed ? 0.5 : 1.5,
+          py: 2.5,
+          px: isCollapsed ? 0.75 : 1.5,
         }}
       >
         {visibleSections.map((section, sectionIndex) => (
           <Box key={section.title}>
             {sectionIndex > 0 && (
-              <Divider sx={{ borderColor: borderColor, my: 1 }} />
+              <Divider sx={{ borderColor: borderColor, my: 2 }} />
             )}
             {!isCollapsed && (
               <Box
@@ -258,15 +196,15 @@ export function AppSidebar(props: AppSidebarProps = {}) {
                   letterSpacing: 1.2,
                   color: 'text.disabled',
                   mt: sectionIndex === 0 ? 0 : 0.5,
-                  px: 1,
+                  px: 1.5,
                   m: 0,
-                  mb: 0.5,
+                  mb: 1,
                 }}
               >
                 {section.title}
               </Box>
             )}
-            <Box component="nav" sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+            <Box component="nav" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: sectionIndex < visibleSections.length - 1 ? 2.5 : 0 }}>
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActiveLink(item.url);
@@ -295,9 +233,9 @@ export function AppSidebar(props: AppSidebarProps = {}) {
                         alignItems: 'center',
                         width: '100%',
                         borderRadius: 6,
-                        padding: isCollapsed ? '8px 0' : '7px 10px',
+                        padding: isCollapsed ? '10px 0' : '10px 12px',
                         justifyContent: isCollapsed ? 'center' : 'flex-start',
-                        gap: 8,
+                        gap: 12,
                         backgroundColor: active
                           ? isLight ? 'rgba(37,99,235,0.08)' : 'rgba(96,165,250,0.12)'
                           : 'transparent',
@@ -317,7 +255,7 @@ export function AppSidebar(props: AppSidebarProps = {}) {
                           component="span"
                           sx={{
                             fontSize: 13,
-                            fontWeight: active ? 500 : 400,
+                            fontWeight: 600,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -346,148 +284,166 @@ export function AppSidebar(props: AppSidebarProps = {}) {
       <Box
         sx={{
           borderTop: `1px solid ${borderColor}`,
-          p: 1,
+          p: 1.5,
           display: 'flex',
           flexDirection: 'column',
-          gap: 0.25,
+          gap: 0.5,
           flexShrink: 0,
         }}
       >
-        {/* XP Bar widget — links to /niveis */}
-        {!isCollapsed && (
-          <Tooltip title="Ver progressão de nível" placement="right">
-            <Link
-              to="/niveis"
-              style={{ display: 'block', textDecoration: 'none', color: 'inherit', marginBottom: 4 }}
-            >
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 1,
-                  px: 1,
-                  py: 0.75,
-                  borderRadius: 1.5,
-                  border: `1px solid ${borderColor}`,
-                  cursor: 'pointer',
-                  transition: 'border-color 0.15s, background-color 0.15s',
-                  '&:hover': {
-                    borderColor: theme.palette.secondary.main,
-                    bgcolor: isLight ? 'rgba(124,58,237,0.05)' : 'rgba(167,139,250,0.08)',
-                  },
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    bgcolor: isLight ? 'rgba(124,58,237,0.1)' : 'rgba(167,139,250,0.15)',
-                    color: 'secondary.main',
-                  }}
-                >
-                  <BarChart2 size={14} />
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <LevelXpBar progress={progressData} loading={progressLoading} compact />
-                  {progressData?.level != null && (() => {
-                    const t = getTierForLevel(progressData.level)
-                    return (
-                      <Typography
-                        variant="caption"
-                        sx={{ fontSize: 10, fontWeight: 600, color: t.color, lineHeight: 1, display: 'block', mt: 0.25 }}
-                      >
-                        {t.name}
-                      </Typography>
-                    )
-                  })()}
-                </Box>
+        {/* Seletor de tema — acima do nível */}
+        <Tooltip title={isCollapsed ? (mode === 'light' ? 'Modo escuro' : 'Modo claro') : undefined} placement="right">
+          <Box
+            component="button"
+            type="button"
+            onClick={toggleTheme}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              width: '100%',
+              px: isCollapsed ? 0 : 1,
+              py: 0.75,
+              borderRadius: 1.5,
+              border: `1px solid ${borderColor}`,
+              cursor: 'pointer',
+              bgcolor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',
+              color: 'text.secondary',
+              textAlign: 'left',
+              transition: 'border-color 0.15s, background-color 0.15s, color 0.15s',
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              mb: 0.5,
+              '&:hover': {
+                color: 'primary.main',
+                borderColor: theme.palette.primary.main,
+                bgcolor: isLight ? 'rgba(37,99,235,0.06)' : 'rgba(96,165,250,0.1)',
+              },
+            }}
+          >
+            <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+              {mode === 'light' ? <Moon size={16} style={{ flexShrink: 0 }} /> : <Sun size={16} style={{ flexShrink: 0 }} />}
+            </span>
+            {!isCollapsed && (
+              <Box component="span" sx={{ fontSize: 13, fontWeight: 600 }}>
+                {mode === 'light' ? 'Modo escuro' : 'Modo claro'}
               </Box>
-            </Link>
-          </Tooltip>
-        )}
-
-        {/* Gamification nav links: Conquistas + Progressão */}
-        {FOOTER_NAV_ITEMS.map((item) => {
-          const iconStyle: React.CSSProperties =
-            item.url === '/conquistas' ? { color: '#F59E0B' } : {}
-          const link = renderNavLink(item.url, item.icon, item.title, iconStyle)
-          return isCollapsed ? (
-            <Tooltip key={item.url} title={item.title} placement="right">
-              <Box>{link}</Box>
-            </Tooltip>
-          ) : (
-            <Box key={item.url}>{link}</Box>
-          )
-        })}
-
-        <Divider sx={{ borderColor: borderColor, my: 0.25 }} />
-
-        {/* Tutorial / Como Funciona */}
-        <Tooltip title={isCollapsed ? 'Como Funciona?' : undefined} placement="right">
-          <Box sx={{ position: 'relative' }}>
-            {location.pathname === '/tutorial' && (
-              <Box
-                sx={{
-                  position: 'absolute',
-                  left: 0,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  height: '60%',
-                  width: 3,
-                  borderRadius: '0 2px 2px 0',
-                  bgcolor: activeColor,
-                  zIndex: 1,
-                }}
-              />
             )}
-            <Link
-              to="/tutorial"
-              style={{
-                textDecoration: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                width: '100%',
-                borderRadius: 6,
-                padding: isCollapsed ? '7px 0' : '7px 10px',
-                justifyContent: isCollapsed ? 'center' : 'flex-start',
-                gap: 8,
-                backgroundColor: location.pathname === '/tutorial'
-                  ? isLight ? 'rgba(37,99,235,0.08)' : 'rgba(96,165,250,0.12)'
-                  : 'transparent',
-                color: location.pathname === '/tutorial' ? activeColor : 'inherit',
-                transition: 'background-color 0.15s',
-              }}
-              onMouseOver={(e) => {
-                if (location.pathname !== '/tutorial') e.currentTarget.style.backgroundColor = hoverBg;
-              }}
-              onMouseOut={(e) => {
-                if (location.pathname !== '/tutorial') e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <HelpCircle size={16} style={{ flexShrink: 0 }} />
-              {!isCollapsed && (
-                <Box
-                  component="span"
-                  sx={{
-                    fontSize: 13,
-                    fontWeight: location.pathname === '/tutorial' ? 500 : 400,
-                  }}
-                >
-                  Como Funciona?
-                </Box>
-              )}
-            </Link>
           </Box>
         </Tooltip>
 
-        <Divider sx={{ borderColor: borderColor, my: 0.25 }} />
+        {/* Card de nível — ao clicar abre submenu à direita com: Ver Meu Nível, Conquistas, Progressão, Como Funciona? */}
+        <Tooltip title={isCollapsed ? 'Nível e mais opções' : undefined} placement="right">
+          <Box
+            component="button"
+            type="button"
+            onClick={(e) => setLevelMenuAnchor(e.currentTarget)}
+            sx={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 1,
+              width: '100%',
+              px: isCollapsed ? 0 : 1,
+              py: 0.75,
+              borderRadius: 1.5,
+              border: `1px solid ${borderColor}`,
+              cursor: 'pointer',
+              bgcolor: 'transparent',
+              color: 'inherit',
+              textAlign: 'left',
+              transition: 'border-color 0.15s, background-color 0.15s',
+              '&:hover': {
+                borderColor: theme.palette.secondary.main,
+                bgcolor: isLight ? 'rgba(124,58,237,0.05)' : 'rgba(167,139,250,0.08)',
+              },
+              justifyContent: isCollapsed ? 'center' : 'flex-start',
+              mb: 0.5,
+            }}
+          >
+            <Box
+              component="span"
+              sx={{
+                width: 26,
+                height: 26,
+                borderRadius: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                bgcolor: isLight ? 'rgba(124,58,237,0.1)' : 'rgba(167,139,250,0.15)',
+                color: 'secondary.main',
+              }}
+            >
+              <span style={{ display: 'inline-flex' }}>
+                <BarChart2 size={14} />
+              </span>
+            </Box>
+            {!isCollapsed && (
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <LevelXpBar progress={progressData} loading={progressLoading} compact />
+                {progressData?.level != null && (() => {
+                  const t = getTierForLevel(progressData.level);
+                  return (
+                    <Typography
+                      variant="caption"
+                      sx={{ fontSize: 10, fontWeight: 600, color: t.color, lineHeight: 1, display: 'block', mt: 0.25 }}
+                    >
+                      {t.name}
+                    </Typography>
+                  );
+                })()}
+              </Box>
+            )}
+          </Box>
+        </Tooltip>
 
-        {/* User row: Perfil link + logout */}
+        <MuiMenu
+          anchorEl={levelMenuAnchor}
+          open={Boolean(levelMenuAnchor)}
+          onClose={() => setLevelMenuAnchor(null)}
+          anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+          slotProps={{
+            paper: {
+              sx: {
+                minWidth: 200,
+                mt: 0,
+                ml: 0.5,
+                borderRadius: 2,
+                boxShadow: theme.shadows[8],
+              },
+            },
+          }}
+        >
+          {LEVEL_CARD_MENU_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = location.pathname === item.url;
+            return (
+              <MenuItem
+                key={item.url}
+                onClick={() => {
+                  setLevelMenuAnchor(null);
+                  navigate(item.url);
+                }}
+                sx={{
+                  gap: 1.5,
+                  py: 1.25,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: active ? activeColor : 'text.primary',
+                }}
+              >
+                <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                  <Icon size={18} style={{ flexShrink: 0, ...item.iconStyle }} />
+                </span>
+                {item.title}
+              </MenuItem>
+            );
+          })}
+        </MuiMenu>
+
+        <Divider sx={{ borderColor: borderColor, my: 0.5 }} />
+
+        {/* User row: abre painel nível + indicadores; logout */}
         {!isCollapsed && currentUser ? (
           <Box
             sx={{
@@ -500,31 +456,34 @@ export function AppSidebar(props: AppSidebarProps = {}) {
               py: 0.5,
             }}
           >
-            <Tooltip title="Ver meu perfil" placement="right">
-              <Link
-                to="/perfil"
-                style={{
+            <Tooltip title="Meu perfil, nível e indicadores" placement="right">
+              <Box
+                component="button"
+                type="button"
+                onClick={() => setProfileDrawerOpen(true)}
+                sx={{
                   flex: 1,
                   minWidth: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: 0.75,
                   fontSize: 13,
-                  fontWeight: 400,
-                  color: isActiveLink('/perfil')
-                    ? activeColor
-                    : theme.palette.text.primary,
-                  textDecoration: 'none',
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: 'transparent',
+                  padding: '4px 6px',
+                  margin: '-4px -6px',
+                  borderRadius: 1,
+                  color: isActiveLink('/perfil') ? activeColor : theme.palette.text.primary,
                   overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  transition: 'color 0.15s',
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.color = activeColor; }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.color = isActiveLink('/perfil')
-                    ? activeColor
-                    : theme.palette.text.primary;
+                  textAlign: 'left',
+                  transition: 'color 0.15s, background-color 0.15s',
+                  '&:hover': {
+                    color: activeColor,
+                    bgcolor: hoverBg,
+                  },
                 }}
               >
                 <Person size={14} style={{ flexShrink: 0 }} />
@@ -534,7 +493,7 @@ export function AppSidebar(props: AppSidebarProps = {}) {
                 >
                   {currentUser.name}
                 </Box>
-              </Link>
+              </Box>
             </Tooltip>
             <Tooltip title="Sair" placement="right">
               <IconButton
@@ -542,6 +501,44 @@ export function AppSidebar(props: AppSidebarProps = {}) {
                 sx={{
                   borderRadius: 1,
                   p: 0.5,
+                  color: 'error.main',
+                  '&:hover': { bgcolor: 'error.light', color: 'error.dark' },
+                }}
+                size="small"
+              >
+                <LogOut size={16} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ) : currentUser ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, width: '100%' }}>
+            <Tooltip title="Meu perfil, nível e indicadores" placement="right">
+              <IconButton
+                onClick={() => setProfileDrawerOpen(true)}
+                size="small"
+                sx={{
+                  borderRadius: 2,
+                  p: 0.25,
+                  border: `1px solid ${borderColor}`,
+                  '&:hover': { bgcolor: hoverBg },
+                }}
+              >
+                <Avatar
+                  src={currentUser.avatar_url ?? undefined}
+                  sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700 }}
+                >
+                  {currentUser.name?.[0]?.toUpperCase() ?? '?'}
+                </Avatar>
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Sair" placement="right">
+              <IconButton
+                onClick={handleLogout}
+                sx={{
+                  width: '100%',
+                  borderRadius: 1,
+                  justifyContent: 'center',
+                  py: 0.5,
                   color: 'error.main',
                   '&:hover': { bgcolor: 'error.light', color: 'error.dark' },
                 }}
@@ -568,11 +565,13 @@ export function AppSidebar(props: AppSidebarProps = {}) {
               size="small"
             >
               <LogOut size={16} />
-              {!isCollapsed && <Box component="span" sx={{ fontSize: 13, fontWeight: 400 }}>Sair</Box>}
+              {!isCollapsed && <Box component="span" sx={{ fontSize: 13, fontWeight: 600 }}>Sair</Box>}
             </IconButton>
           </Tooltip>
         )}
       </Box>
+
+      <UserLevelProfileDrawer open={profileDrawerOpen} onClose={() => setProfileDrawerOpen(false)} />
     </Box>
   );
 }

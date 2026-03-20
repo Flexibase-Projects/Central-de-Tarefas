@@ -23,7 +23,7 @@
 @layer base {
   :root {
     /* === shadcn/ui tokens (HSL) === */
-    --background: 210 40% 98%;          /* #F8FAFC slate-50 */
+    --background: 0 0% 100%;            /* #FFFFFF */
     --foreground: 222 47% 11%;          /* #0F172A slate-900 */
     --card: 0 0% 100%;                  /* #FFFFFF */
     --card-foreground: 222 47% 11%;
@@ -45,7 +45,7 @@
     --radius: 0.5rem;
 
     /* Sidebar */
-    --sidebar-background: 210 40% 96%;
+    --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-primary: 221 83% 53%;
     --sidebar-primary-foreground: 0 0% 100%;

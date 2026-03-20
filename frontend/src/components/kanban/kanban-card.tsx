@@ -36,7 +36,7 @@ const STATUS_STRIPE: Record<string, string> = {
 export function KanbanCard({ project, onClick }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: project.id });
   const { getCommitsCount } = useGitHub();
-  const { todos } = useTodos(project.id);
+  const { todos } = useTodos({ projectId: project.id });
   const { users } = useUsersList();
   const theme = useTheme();
   const isLight = theme.palette.mode === 'light';
@@ -213,7 +213,7 @@ export function KanbanCard({ project, onClick }: KanbanCardProps) {
                   px: 0.875,
                   py: 0.375,
                   borderRadius: 1,
-                  bgcolor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.04)',
+                  bgcolor: isLight ? 'background.default' : 'rgba(255,255,255,0.04)',
                   border: `1px solid ${theme.palette.divider}`,
                 }}
               >

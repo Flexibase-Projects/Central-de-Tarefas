@@ -74,71 +74,57 @@ export function NotificationsDropdown() {
 
   return (
     <>
-      {/* Botão flutuante global — canto superior direito */}
-      <Box
-        sx={{
-          position: 'fixed',
-          top: 16,
-          right: 16,
-          zIndex: 1300,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+      <Tooltip
+        title={
+          unreadCount > 0 ? (
+            <Box>
+              <Typography variant="body2" fontWeight={600}>
+                {unreadCount} {unreadCount === 1 ? 'notificação não lida' : 'notificações não lidas'}
+              </Typography>
+              {unreadByProject.length > 0 && (
+                <Box sx={{ mt: 0.5 }}>
+                  {unreadByProject.slice(0, 3).map((project, idx) => (
+                    <Typography key={idx} variant="caption" display="block" sx={{ opacity: 0.9 }}>
+                      • {project.name}: {project.count}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          ) : (
+            'Notificações'
+          )
+        }
       >
-        <Tooltip
-          title={
-            unreadCount > 0 ? (
-              <Box>
-                <Typography variant="body2" fontWeight={600}>
-                  {unreadCount} {unreadCount === 1 ? 'notificação não lida' : 'notificações não lidas'}
-                </Typography>
-                {unreadByProject.length > 0 && (
-                  <Box sx={{ mt: 0.5 }}>
-                    {unreadByProject.slice(0, 3).map((project, idx) => (
-                      <Typography key={idx} variant="caption" display="block" sx={{ opacity: 0.9 }}>
-                        • {project.name}: {project.count}
-                      </Typography>
-                    ))}
-                  </Box>
-                )}
-              </Box>
-            ) : (
-              'Notificações'
-            )
-          }
+        <IconButton
+          onClick={handleOpen}
+          aria-label="Notificações"
+          aria-controls={open ? 'notifications-menu' : undefined}
+          aria-haspopup="true"
+          aria-expanded={open ? 'true' : undefined}
+          size="small"
+          sx={{
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            '&:hover': {
+              bgcolor: 'action.hover',
+            },
+            ...(unreadCount > 0 && {
+              color: 'primary.main',
+              borderColor: 'primary.light',
+            }),
+          }}
         >
-          <IconButton
-            onClick={handleOpen}
-            aria-label="Notificações"
-            aria-controls={open ? 'notifications-menu' : undefined}
-            aria-haspopup="true"
-            aria-expanded={open ? 'true' : undefined}
-            sx={{
-              bgcolor: 'background.paper',
-              boxShadow: 2,
-              border: '1px solid',
-              borderColor: 'divider',
-              '&:hover': {
-                bgcolor: 'action.hover',
-                boxShadow: 3,
-              },
-              ...(unreadCount > 0 && {
-                color: 'primary.main',
-                borderColor: 'primary.light',
-              }),
-            }}
+          <Badge
+            badgeContent={unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : 0}
+            color="error"
+            max={99}
           >
-            <Badge
-              badgeContent={unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : 0}
-              color="error"
-              max={99}
-            >
-              <Bell size={24} />
-            </Badge>
-          </IconButton>
-        </Tooltip>
-      </Box>
+            <Bell size={18} />
+          </Badge>
+        </IconButton>
+      </Tooltip>
 
       <Menu
         id="notifications-menu"

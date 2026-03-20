@@ -38,14 +38,9 @@ export default function Login() {
     <Fade in timeout={280}>
       <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: 400 }}>
         {/* Logo */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-          <Box
-            component="img"
-            src="/logo.png"
-            alt="CDT"
-            sx={{ height: 56, width: 'auto', objectFit: 'contain' }}
-          />
-        </Box>
+        <Typography variant="h5" fontWeight={700} textAlign="center" sx={{ mb: 3, letterSpacing: '-0.02em' }}>
+          Central de Tarefas
+        </Typography>
 
         <Typography variant="h4" fontWeight={700} textAlign="center" sx={{ mb: 0.5, letterSpacing: '-0.015em' }}>
           Bem-vindo(a)
@@ -184,19 +179,6 @@ export default function Login() {
         />
 
         <Box sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-          <Box
-            component="img"
-            src="/logo.png"
-            alt="CDT"
-            sx={{
-              height: 72,
-              width: 'auto',
-              objectFit: 'contain',
-              mb: 3,
-              filter: 'brightness(0) invert(1)',
-              opacity: 0.95,
-            }}
-          />
           <Typography
             variant="h4"
             fontWeight={700}

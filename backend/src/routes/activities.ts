@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { Activity } from '../types/index.js';
 import { hasRole } from '../services/permissions.js';
@@ -9,6 +9,7 @@ import {
   getLinkedAchievementReward,
   unlockLinkedAchievementIfNeeded,
 } from '../services/gamification.js';
+import { gamificationMigration503Payload } from '../constants/gamificationMigrationSql.js';
 
 const router = express.Router();
 const ACTIVITY_COVERS_BUCKET = 'activity-covers';
@@ -308,15 +309,22 @@ router.put('/:id', async (req, res) => {
       .select()
       .single();
 
-    if (error && (error.code === 'PGRST204' || /column.*does not exist|cover_image_url/i.test(String(error.message))) && updateData.cover_image_url !== undefined) {
-      return res.status(503).json({
-        error: 'To save cover image, add the required DB column first.',
-        code: 'MIGRATION_REQUIRED',
-        sql: 'ALTER TABLE cdt_activities ADD COLUMN IF NOT EXISTS cover_image_url TEXT NULL;',
-      });
+    if (error) {
+      const msg = String(error.message || '');
+      if (error.code === 'PGRST204' || /column.*does not exist/i.test(msg)) {
+        if (/xp_reward|deadline_bonus_percent|achievement_id|completed_at/.test(msg)) {
+          return res.status(503).json(gamificationMigration503Payload());
+        }
+        if (updateData.cover_image_url !== undefined && /cover_image_url/i.test(msg)) {
+          return res.status(503).json({
+            error: 'To save cover image, add the required DB column first.',
+            code: 'MIGRATION_REQUIRED',
+            sql: 'ALTER TABLE cdt_activities ADD COLUMN IF NOT EXISTS cover_image_url TEXT NULL;',
+          });
+        }
+      }
+      throw error;
     }
-
-    if (error) throw error;
     if (!data) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -352,6 +360,10 @@ router.put('/:id', async (req, res) => {
     res.json(data);
   } catch (error: any) {
     console.error('Error updating activity:', error);
+    const msg = String(error?.message || '');
+    if (/column.*xp_reward|column.*deadline_bonus_percent|column.*achievement_id|column.*completed_at/.test(msg)) {
+      return res.status(503).json(gamificationMigration503Payload());
+    }
     res.status(500).json({ error: error.message || 'Failed to update activity' });
   }
 });

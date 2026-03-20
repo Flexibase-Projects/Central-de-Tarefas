@@ -9,7 +9,7 @@ export default function CanvaEquipe() {
     import('@excalidraw/excalidraw').then((mod) => setExcalidrawComponent(() => mod.Excalidraw))
   }, [])
   const { data, loading, saving, error, saveContent } = useTeamCanvas()
-  const theme = 'dark'
+  const theme = 'light'
 
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: Record<string, unknown>) => {
@@ -28,6 +28,7 @@ export default function CanvaEquipe() {
         // Excalidraw espera appState.collaborators como array; ao carregar do backend pode vir como objeto ou undefined
         const appState = {
           ...rawAppState,
+          theme: 'light',
           collaborators: Array.isArray(rawAppState.collaborators)
             ? rawAppState.collaborators
             : [],

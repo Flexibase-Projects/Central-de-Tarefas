@@ -20,7 +20,7 @@ export function createAppTheme(mode: PaletteMode) {
         contrastText: '#FFFFFF',
       },
       background: {
-        default: light ? '#F8FAFC' : '#0F172A',
+        default: light ? '#FFFFFF' : '#0F172A',
         paper: light ? '#FFFFFF' : '#1E293B',
       },
       text: {
@@ -85,7 +85,7 @@ export function createAppTheme(mode: PaletteMode) {
       MuiCssBaseline: {
         styleOverrides: {
           body: {
-            backgroundColor: light ? '#F8FAFC' : '#0F172A',
+            backgroundColor: light ? '#FFFFFF' : '#0F172A',
           },
         },
       },

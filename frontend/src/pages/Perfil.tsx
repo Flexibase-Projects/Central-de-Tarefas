@@ -106,7 +106,7 @@ function StatCard({
         p: 2,
         borderRadius: 2,
         border: `1px solid ${theme.palette.divider}`,
-        bgcolor: isLight ? '#F8FAFC' : 'rgba(255,255,255,0.03)',
+        bgcolor: isLight ? 'background.default' : 'rgba(255,255,255,0.03)',
         textAlign: 'center',
       }}
     >

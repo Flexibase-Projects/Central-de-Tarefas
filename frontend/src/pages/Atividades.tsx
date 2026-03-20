@@ -11,7 +11,7 @@ import { Activity } from '@/types'
 import { Project } from '@/types'
 
 export default function Atividades() {
-  const { activities, loading, createActivity, updateActivity, moveActivity } = useActivities()
+  const { activities, loading, createActivity, updateActivity, moveActivity, deleteActivity } = useActivities()
   const { hasRole } = usePermissions()
   const isAdmin = hasRole('admin')
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
@@ -34,12 +34,17 @@ export default function Atividades() {
   }))
 
   const handleProjectClick = (project: Project) => {
-    if (!isAdmin) return
     const activity = activities.find((a) => a.id === project.id)
     if (activity) {
       setSelectedActivity(activity)
       setIsActivityDialogOpen(true)
     }
+  }
+
+  const handleDeleteActivity = async (activityId: string) => {
+    await deleteActivity(activityId)
+    setSelectedActivity(null)
+    setIsActivityDialogOpen(false)
   }
 
   const handleProjectMove = async (projectId: string, newStatus: Project['status']) => {
@@ -85,8 +90,23 @@ export default function Atividades() {
 
   return (
     <ProtectedRoute permission="access_atividades">
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        <Box sx={{ flex: 1, overflow: 'hidden', px: 3, pt: 2, pb: 3 }}>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+        <Box sx={{ flexShrink: 0, px: 3, pt: 2.5, pb: 1.5 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 700,
+              color: 'text.primary',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Atividades
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+            Kanban de atividades da equipe — arraste os cards entre as colunas e abra um card para ver detalhes, to-dos e comentários.
+          </Typography>
+        </Box>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', px: 3, pt: 0.5, pb: 3 }}>
           <KanbanBoard
             projects={projectsAsActivities}
             onProjectMove={handleProjectMove}
@@ -116,6 +136,7 @@ export default function Atividades() {
           open={isActivityDialogOpen}
           onOpenChange={setIsActivityDialogOpen}
           onUpdate={handleUpdateActivity}
+          onDelete={isAdmin ? handleDeleteActivity : undefined}
         />
       </Box>
     </ProtectedRoute>

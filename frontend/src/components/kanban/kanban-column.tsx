@@ -63,7 +63,7 @@ export function KanbanColumn({
             border: `1px solid ${highlight ? theme.palette.primary.main : theme.palette.divider}`,
             bgcolor: highlight
               ? isLight ? 'rgba(37,99,235,0.04)' : 'rgba(96,165,250,0.06)'
-              : isLight ? '#F8FAFC' : 'rgba(255,255,255,0.02)',
+              : isLight ? 'background.paper' : 'rgba(255,255,255,0.02)',
             overflowY: 'auto',
             overflowX: 'hidden',
             transition: 'border-color 0.15s ease, background-color 0.15s ease',

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback, memo, useMemo } from 'react'
 import * as React from 'react'
 import {
   Box,
@@ -6,22 +6,22 @@ import {
   IconButton,
   Checkbox,
   FormControl,
+  InputLabel,
   Select,
   MenuItem,
   LinearProgress,
   Typography,
   InputAdornment,
   Chip,
-  Collapse,
   Tooltip,
+  Autocomplete,
 } from '@mui/material'
 import { Trash2, GripVertical, Plus } from '@/components/ui/icons'
-import { ProjectTodo } from '@/types'
-import { useTodos } from '@/hooks/use-todos'
+import type { ProjectTodo, User } from '@/types'
+import { useTodos, type TodosScope, type SharedProjectTodosApi } from '@/hooks/use-todos'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useUsersList } from '@/hooks/use-users-list'
 import { useAchievements } from '@/hooks/use-achievements'
-import { CircularProgress } from '@mui/material'
 import {
   DndContext,
   closestCenter,
@@ -41,7 +41,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 // ---------------------------------------------------------------------------
-// XP float animation â€” spawns a floating "+N XP" label at the click position
+// XP float animation — spawns a floating "+N XP" label at the click position
 // ---------------------------------------------------------------------------
 function formatXp(value: number): string {
   if (!Number.isFinite(value)) return '0.00'
@@ -61,9 +61,13 @@ function triggerXpFloat(xp: number, event: React.MouseEvent | null) {
 // ---------------------------------------------------------------------------
 // Interfaces
 // ---------------------------------------------------------------------------
-interface TodoListProps {
-  projectId: string
+type TodoListProps = (
+  | { projectId: string; activityId?: never }
+  | { activityId: string; projectId?: never }
+) & {
   highlightedTodoId?: string | null
+  /** Mesmo retorno de useTodos no pai — evita GET duplicado (ex.: diálogo da atividade). */
+  sharedTodos?: SharedProjectTodosApi
 }
 
 interface TodoItemProps {
@@ -71,8 +75,8 @@ interface TodoItemProps {
   onToggle: (id: string, completed: boolean, event: React.MouseEvent) => void
   onDelete: (id: string) => void
   onAssign: (id: string, userId: string | null) => void
-  assignedUserName?: string | null
-  users: Array<{ id: string; name: string }>
+  users: User[]
+  usersLoading: boolean
   isHighlighted?: boolean
   canManage: boolean
 }
@@ -80,7 +84,16 @@ interface TodoItemProps {
 // ---------------------------------------------------------------------------
 // TodoItem
 // ---------------------------------------------------------------------------
-function TodoItem({ todo, onToggle, onDelete, onAssign, users, isHighlighted, canManage }: TodoItemProps) {
+const TodoItem = memo(function TodoItem({
+  todo,
+  onToggle,
+  onDelete,
+  onAssign,
+  users,
+  usersLoading,
+  isHighlighted,
+  canManage,
+}: TodoItemProps) {
   const {
     attributes,
     listeners,
@@ -214,7 +227,7 @@ function TodoItem({ todo, onToggle, onDelete, onAssign, users, isHighlighted, ca
               <Tooltip title="Tem conquista vinculada" arrow>
                 <Chip
                   size="small"
-                  label="ðŸ†"
+                  label="🏆"
                   sx={{
                     height: 18,
                     fontSize: 11,
@@ -231,23 +244,28 @@ function TodoItem({ todo, onToggle, onDelete, onAssign, users, isHighlighted, ca
         )}
       </Box>
 
-      <FormControl size="small" sx={{ minWidth: 140 }} disabled={todo.completed || !canManage}>
-        <Select
-          value={todo.assigned_to || ''}
-          onChange={(e) => onAssign(todo.id, e.target.value || null)}
-          displayEmpty
-          sx={{ fontSize: 12, height: 28 }}
-        >
-          <MenuItem value="">Sem responsÃ¡vel</MenuItem>
-          {users.length === 0 ? (
-            <MenuItem disabled>Carregando usuÃ¡rios...</MenuItem>
-          ) : (
-            users.map((user) => (
-              <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
-            ))
-          )}
-        </Select>
-      </FormControl>
+      <Autocomplete
+        size="small"
+        sx={{ minWidth: 168, maxWidth: 220, flexShrink: 0 }}
+        disabled={todo.completed || !canManage}
+        loading={usersLoading}
+        options={users}
+        getOptionLabel={(u) => u.name || u.email || u.id}
+        isOptionEqualToValue={(a, b) => a.id === b.id}
+        value={users.find((u) => u.id === todo.assigned_to) ?? null}
+        onChange={(_, v) => onAssign(todo.id, v?.id ?? null)}
+        renderInput={(params) => (
+          <TextField {...params} placeholder="Responsável" size="small" />
+        )}
+        slotProps={{
+          popper: {
+            disablePortal: true,
+            placement: 'bottom-start',
+            sx: { zIndex: (t) => t.zIndex.modal + 2 },
+          },
+        }}
+        noOptionsText={usersLoading ? 'Carregando usuários…' : 'Nenhum usuário'}
+      />
 
       {canManage && (
         <IconButton className="delete-btn" size="small" onClick={() => onDelete(todo.id)} sx={{ opacity: 0 }}>
@@ -256,16 +274,28 @@ function TodoItem({ todo, onToggle, onDelete, onAssign, users, isHighlighted, ca
       )}
     </Box>
   )
-}
+})
 
 // ---------------------------------------------------------------------------
 // TodoList
 // ---------------------------------------------------------------------------
-export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
-  const { todos, loading, createTodo, updateTodo, deleteTodo, reorderTodos } =
-    useTodos(projectId)
+export function TodoList(props: TodoListProps) {
+  const { highlightedTodoId, sharedTodos } = props
+  const activityIdKey = 'activityId' in props ? props.activityId : undefined
+  const projectIdKey = 'projectId' in props ? props.projectId : undefined
+  const scope: TodosScope | null = useMemo(() => {
+    if (activityIdKey) return { activityId: activityIdKey }
+    if (projectIdKey) return { projectId: projectIdKey }
+    return null
+  }, [activityIdKey, projectIdKey])
+
+  const projectId = 'projectId' in props ? props.projectId : undefined
+  const activityId = 'activityId' in props ? props.activityId : undefined
+
+  const internal = useTodos(sharedTodos ? null : scope)
+  const { todos, loading, createTodo, updateTodo, deleteTodo, reorderTodos } = sharedTodos ?? internal
   const { hasRole } = usePermissions()
-  const { users, error: usersError } = useUsersList()
+  const { users, loading: usersLoading, error: usersError } = useUsersList()
   const { achievements } = useAchievements()
   const isAdmin = hasRole('admin')
   const canCreateTodo = isAdmin
@@ -273,18 +303,17 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
   // Basic creation state
   const [newTodoTitle, setNewTodoTitle] = useState('')
 
-  // Advanced creation state
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [newTodoXp, setNewTodoXp] = useState(1)
   const [newTodoDeadline, setNewTodoDeadline] = useState('')
   const [newTodoDeadlineBonusPercent, setNewTodoDeadlineBonusPercent] = useState(0)
   const [newTodoAchievementId, setNewTodoAchievementId] = useState<string | null>(null)
+  const [newTodoAssignee, setNewTodoAssignee] = useState<User | null>(null)
   const linkedAchievements = achievements.filter(
     (a) => (a.mode ?? 'global_auto') === 'linked_item'
   )
 
   if (usersError) {
-    console.error('Erro ao carregar usuÃ¡rios:', usersError)
+    console.error('Erro ao carregar usuários:', usersError)
   }
 
   // Progress
@@ -314,14 +343,26 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
     }
   }
 
+  const canSubmitNewTodo =
+    Boolean(newTodoTitle.trim()) &&
+    Boolean(newTodoDeadline) &&
+    newTodoXp >= 0.01 &&
+    newTodoAssignee != null
+
   const handleCreateTodo = async () => {
-    if (!newTodoTitle.trim()) return
+    if (!canSubmitNewTodo || !newTodoAssignee) return
     try {
+      const deadlineIso = newTodoDeadline
+        ? new Date(`${newTodoDeadline}T12:00:00`).toISOString()
+        : undefined
       await createTodo({
-        project_id: projectId,
+        ...(projectId
+          ? { project_id: projectId }
+          : { activity_id: activityId as string }),
         title: newTodoTitle.trim(),
+        assigned_to: newTodoAssignee.id,
         xp_reward: newTodoXp,
-        deadline: newTodoDeadline || undefined,
+        deadline: deadlineIso,
         deadline_bonus_percent: newTodoDeadlineBonusPercent,
         achievement_id: newTodoAchievementId || undefined,
       })
@@ -330,43 +371,51 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
       setNewTodoDeadline('')
       setNewTodoDeadlineBonusPercent(0)
       setNewTodoAchievementId(null)
-      setShowAdvanced(false)
+      setNewTodoAssignee(null)
     } catch (error) {
       console.error('Error creating todo:', error)
     }
   }
 
-  const handleAssign = async (todoId: string, userId: string | null) => {
-    try {
-      await updateTodo(todoId, { assigned_to: userId })
-    } catch (error) {
-      console.error('Error assigning todo:', error)
-    }
-  }
-
-  const handleToggle = async (id: string, completed: boolean, event: React.MouseEvent) => {
-    try {
-      // Trigger XP float when completing (not un-completing)
-      if (completed) {
-        const todo = todos.find((t) => t.id === id)
-        const xp = todo?.xp_reward
-        if (xp && xp > 0) {
-          triggerXpFloat(xp, event)
-        }
+  const handleAssign = useCallback(
+    async (todoId: string, userId: string | null) => {
+      try {
+        await updateTodo(todoId, { assigned_to: userId })
+      } catch (error) {
+        console.error('Error assigning todo:', error)
       }
-      await updateTodo(id, { completed })
-    } catch (error) {
-      console.error('Error updating todo:', error)
-    }
-  }
+    },
+    [updateTodo]
+  )
 
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteTodo(id)
-    } catch (error) {
-      console.error('Error deleting todo:', error)
-    }
-  }
+  const handleToggle = useCallback(
+    async (id: string, completed: boolean, event: React.MouseEvent) => {
+      try {
+        if (completed) {
+          const todo = todos.find((t) => t.id === id)
+          const xp = todo?.xp_reward
+          if (xp && xp > 0) {
+            triggerXpFloat(xp, event)
+          }
+        }
+        await updateTodo(id, { completed })
+      } catch (error) {
+        console.error('Error updating todo:', error)
+      }
+    },
+    [todos, updateTodo]
+  )
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      try {
+        await deleteTodo(id)
+      } catch (error) {
+        console.error('Error deleting todo:', error)
+      }
+    },
+    [deleteTodo]
+  )
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -378,14 +427,14 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
           </Box>
           <LinearProgress variant="determinate" value={progressPercentage} sx={{ height: 8, borderRadius: 1 }} />
           <Typography variant="caption" color="text.secondary" display="block" textAlign="center" sx={{ mt: 0.5 }}>
-            {completedCount} de {totalCount} concluÃ­dos
+            {completedCount} de {totalCount} concluídos
           </Typography>
         </Box>
       )}
 
             {isAdmin ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
             <TextField
               size="small"
               fullWidth
@@ -394,79 +443,72 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  handleCreateTodo()
+                  if (canSubmitNewTodo) void handleCreateTodo()
                 }
               }}
-              placeholder="Adicionar novo item..."
+              placeholder="Título do to-do…"
               disabled={!canCreateTodo}
+              label="Título"
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <Tooltip title="Opcoes avancadas" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={() => setShowAdvanced((prev) => !prev)}
-                        disabled={!canCreateTodo}
-                        sx={{
-                          color: showAdvanced ? 'primary.main' : 'text.secondary',
-                          mr: 0.5,
-                        }}
-                      >
-                        <Typography sx={{ fontSize: 14, lineHeight: 1 }}>⚙</Typography>
-                      </IconButton>
+                    <Tooltip title={canSubmitNewTodo ? 'Adicionar' : 'Preencha prazo, XP e responsável'} arrow>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={() => void handleCreateTodo()}
+                          disabled={!canCreateTodo || !canSubmitNewTodo}
+                        >
+                          <Plus size={24} />
+                        </IconButton>
+                      </span>
                     </Tooltip>
-                    <IconButton
-                      size="small"
-                      onClick={handleCreateTodo}
-                      disabled={!canCreateTodo || !newTodoTitle.trim()}
-                    >
-                      <Plus size={24} />
-                    </IconButton>
                   </InputAdornment>
                 ),
               }}
             />
           </Box>
 
-          <Collapse in={showAdvanced}>
-            <Box
-              sx={{
-                display: 'flex',
-                gap: 1,
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                px: 1,
-                py: 1,
-                borderRadius: 1,
-                bgcolor: 'action.hover',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.25,
+              p: 1.5,
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 0.4 }}>
+              Configurações do to-do (obrigatórias para lançar)
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <TextField
-                label="XP Base"
+                label="XP base"
                 type="number"
                 size="small"
+                required
                 value={newTodoXp}
                 onChange={(e) =>
                   setNewTodoXp(Math.max(0.01, Math.min(500, Number(e.target.value))))
                 }
                 inputProps={{ min: 0.01, max: 500, step: 0.01 }}
-                sx={{ width: 100 }}
+                sx={{ width: 110 }}
               />
-
               <TextField
                 label="Prazo"
                 type="date"
                 size="small"
+                required
                 value={newTodoDeadline}
                 onChange={(e) => setNewTodoDeadline(e.target.value)}
                 InputLabelProps={{ shrink: true }}
-                sx={{ width: 150 }}
+                sx={{ width: 158 }}
               />
-
               <TextField
-                label="% Bonus Prazo"
+                label="% bônus prazo"
                 type="number"
                 size="small"
                 value={newTodoDeadlineBonusPercent}
@@ -476,14 +518,15 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
                 inputProps={{ min: 0, max: 500, step: 0.01 }}
                 sx={{ width: 130 }}
               />
-
-              <FormControl size="small" sx={{ minWidth: 220 }}>
+              <FormControl size="small" sx={{ minWidth: 200, flex: 1 }}>
+                <InputLabel id="new-todo-achievement-label">Conquista (opcional)</InputLabel>
                 <Select
+                  labelId="new-todo-achievement-label"
+                  label="Conquista (opcional)"
                   value={newTodoAchievementId ?? ''}
                   onChange={(e) => setNewTodoAchievementId(e.target.value || null)}
-                  displayEmpty
                 >
-                  <MenuItem value="">Sem conquista vinculada</MenuItem>
+                  <MenuItem value="">Nenhuma</MenuItem>
                   {linkedAchievements.map((achievement) => (
                     <MenuItem key={achievement.id} value={achievement.id}>
                       {achievement.name}
@@ -492,7 +535,33 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
                 </Select>
               </FormControl>
             </Box>
-          </Collapse>
+            <Autocomplete
+              size="small"
+              fullWidth
+              options={users}
+              loading={usersLoading}
+              value={newTodoAssignee}
+              onChange={(_, v) => setNewTodoAssignee(v)}
+              getOptionLabel={(u) => u.name || u.email}
+              isOptionEqualToValue={(a, b) => a.id === b.id}
+              renderInput={(params) => (
+                <TextField {...params} label="Responsável" required placeholder="Busque por nome…" />
+              )}
+              slotProps={{
+                popper: {
+                  disablePortal: true,
+                  placement: 'bottom-start',
+                  sx: { zIndex: (t) => t.zIndex.modal + 2 },
+                },
+              }}
+              noOptionsText={usersLoading ? 'Carregando usuários…' : 'Nenhum usuário'}
+            />
+            {!canSubmitNewTodo && newTodoTitle.trim() && (
+              <Typography variant="caption" color="warning.main">
+                Informe prazo, XP válido e um responsável para adicionar o to-do.
+              </Typography>
+            )}
+          </Box>
         </Box>
       ) : (
         <Typography variant="caption" color="text.secondary">
@@ -500,9 +569,12 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
         </Typography>
       )}
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-          <CircularProgress size={24} />
+      {loading && todos.length === 0 ? (
+        <Box sx={{ py: 2 }}>
+          <LinearProgress sx={{ mb: 1, borderRadius: 1 }} />
+          <Typography variant="body2" color="text.secondary" textAlign="center">
+            Carregando to-dos…
+          </Typography>
         </Box>
       ) : todos.length === 0 ? (
         <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ py: 2 }}>
@@ -512,43 +584,43 @@ export function TodoList({ projectId, highlightedTodoId }: TodoListProps) {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              {todos.map((todo) => {
-                const assignedUser = users.find((u) => u.id === todo.assigned_to)
-                return (
-                  <TodoItem
-                    key={todo.id}
-                    todo={todo}
-                    onToggle={handleToggle}
-                    onDelete={handleDelete}
-                    onAssign={handleAssign}
-                    assignedUserName={assignedUser?.name || null}
-                    users={users}
-                    isHighlighted={highlightedTodoId === todo.id}
-                    canManage={isAdmin}
-                  />
-                )
-              })}
+              {loading && (
+                <LinearProgress sx={{ mb: 0.5, borderRadius: 1 }} color="primary" variant="indeterminate" />
+              )}
+              {todos.map((todo) => (
+                <TodoItem
+                  key={todo.id}
+                  todo={todo}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                  onAssign={handleAssign}
+                  users={users}
+                  usersLoading={usersLoading}
+                  isHighlighted={highlightedTodoId === todo.id}
+                  canManage={isAdmin}
+                />
+              ))}
             </Box>
           </SortableContext>
         </DndContext>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {todos.map((todo) => {
-            const assignedUser = users.find((u) => u.id === todo.assigned_to)
-            return (
-              <TodoItem
-                key={todo.id}
-                todo={todo}
-                onToggle={handleToggle}
-                onDelete={handleDelete}
-                onAssign={handleAssign}
-                assignedUserName={assignedUser?.name || null}
-                users={users}
-                isHighlighted={highlightedTodoId === todo.id}
-                canManage={false}
-              />
-            )
-          })}
+          {loading && (
+            <LinearProgress sx={{ mb: 0.5, borderRadius: 1 }} color="primary" variant="indeterminate" />
+          )}
+          {todos.map((todo) => (
+            <TodoItem
+              key={todo.id}
+              todo={todo}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+              onAssign={handleAssign}
+              users={users}
+              usersLoading={usersLoading}
+              isHighlighted={highlightedTodoId === todo.id}
+              canManage={false}
+            />
+          ))}
         </Box>
       )}
     </Box>

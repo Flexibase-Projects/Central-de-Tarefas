@@ -1,6 +1,7 @@
-﻿import express from 'express';
+import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { hasRole } from '../services/permissions.js';
+import { gamificationMigration503Payload } from '../constants/gamificationMigrationSql.js';
 import {
   calculateItemCompletionXp,
   awardTodoCompletionXp,
@@ -42,6 +43,25 @@ async function ensureAdmin(req: express.Request, res: express.Response): Promise
   return requesterId;
 }
 
+// Listar to-dos de uma atividade (sem projeto) — antes de GET /:projectId
+router.get('/by-activity/:activityId', async (req, res) => {
+  try {
+    const { activityId } = req.params;
+
+    const { data, error } = await supabase
+      .from('cdt_project_todos')
+      .select('*')
+      .eq('activity_id', activityId)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error: any) {
+    console.error('Error fetching activity todos:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch activity todos' });
+  }
+});
+
 // Get all todos for a project
 router.get('/:projectId', async (req, res) => {
   try {
@@ -61,7 +81,7 @@ router.get('/:projectId', async (req, res) => {
   }
 });
 
-// Create a new todo (admin only)
+// Create a new todo (admin only) — project_id OU activity_id (exatamente um)
 router.post('/', async (req, res) => {
   try {
     const requesterId = await ensureAdmin(req, res);
@@ -69,6 +89,7 @@ router.post('/', async (req, res) => {
 
     const {
       project_id,
+      activity_id,
       title,
       assigned_to,
       xp_reward,
@@ -77,24 +98,40 @@ router.post('/', async (req, res) => {
       deadline_bonus_percent,
     } = req.body;
 
-    if (!project_id || !title) {
-      return res.status(400).json({ error: 'project_id and title are required' });
+    const hasProject = Boolean(project_id);
+    const hasActivity = Boolean(activity_id);
+    if (!title || (hasProject === hasActivity)) {
+      return res.status(400).json({
+        error: 'Informe title e exatamente um entre project_id ou activity_id',
+      });
     }
 
-    const { data: maxTodo } = await supabase
-      .from('cdt_project_todos')
-      .select('sort_order')
-      .eq('project_id', project_id)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single();
-
-    const sort_order = maxTodo ? maxTodo.sort_order + 1 : 0;
+    let sort_order = 0;
+    if (hasProject) {
+      const { data: maxTodo } = await supabase
+        .from('cdt_project_todos')
+        .select('sort_order')
+        .eq('project_id', project_id)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      sort_order = maxTodo ? maxTodo.sort_order + 1 : 0;
+    } else {
+      const { data: maxTodo } = await supabase
+        .from('cdt_project_todos')
+        .select('sort_order')
+        .eq('activity_id', activity_id)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      sort_order = maxTodo ? maxTodo.sort_order + 1 : 0;
+    }
 
     const { data, error } = await supabase
       .from('cdt_project_todos')
       .insert({
-        project_id,
+        project_id: hasProject ? project_id : null,
+        activity_id: hasActivity ? activity_id : null,
         title,
         completed: false,
         assigned_to: assigned_to || null,
@@ -111,26 +148,45 @@ router.post('/', async (req, res) => {
     if (error) throw error;
 
     if (assigned_to) {
-      const { data: project } = await supabase
-        .from('cdt_projects')
-        .select('name')
-        .eq('id', project_id)
-        .single();
+      let contextLabel = 'Projeto';
+      let contextName = 'Projeto';
+      let notifProjectId: string | null = hasProject ? project_id : null;
+
+      if (hasProject) {
+        const { data: project } = await supabase
+          .from('cdt_projects')
+          .select('name')
+          .eq('id', project_id)
+          .single();
+        contextName = project?.name || 'Projeto';
+      } else {
+        const { data: act } = await supabase
+          .from('cdt_activities')
+          .select('name')
+          .eq('id', activity_id)
+          .single();
+        contextLabel = 'Atividade';
+        contextName = act?.name || 'Atividade';
+      }
 
       await supabase.from('cdt_notifications').insert({
         user_id: assigned_to,
         type: 'todo_assigned',
         title: 'Novo TO-DO para voce!',
-        message: `Voce foi atribuido ao TODO "${title}" no projeto "${project?.name || 'Projeto'}"`,
+        message: `Voce foi atribuido ao TODO "${title}" na ${contextLabel.toLowerCase()} "${contextName}"`,
         related_id: data.id,
         related_type: 'todo',
-        project_id,
+        project_id: notifProjectId,
       });
     }
 
     res.status(201).json(data);
   } catch (error: any) {
     console.error('Error creating todo:', error);
+    const msg = String(error?.message || '');
+    if (/column.*(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline).*does not exist/i.test(msg)) {
+      return res.status(503).json(gamificationMigration503Payload());
+    }
     res.status(500).json({ error: error.message || 'Failed to create todo' });
   }
 });
@@ -151,7 +207,7 @@ router.put('/:id', async (req, res) => {
     const { data: currentTodo, error: currentTodoError } = await supabase
       .from('cdt_project_todos')
       .select(
-        'id, title, assigned_to, project_id, completed, xp_reward, deadline, achievement_id, deadline_bonus_percent, completed_at',
+        'id, title, assigned_to, project_id, activity_id, completed, xp_reward, deadline, achievement_id, deadline_bonus_percent, completed_at',
       )
       .eq('id', id)
       .single();
@@ -249,26 +305,38 @@ router.put('/:id', async (req, res) => {
           .eq('user_id', currentTodo.assigned_to);
       }
 
-      const { data: project } = await supabase
-        .from('cdt_projects')
-        .select('name')
-        .eq('id', currentTodo.project_id)
-        .single();
+      let contextLabel = 'projeto';
+      let contextName = 'Projeto';
+      const pid = currentTodo.project_id as string | null;
+      const aid = currentTodo.activity_id as string | null;
+
+      if (pid) {
+        const { data: project } = await supabase.from('cdt_projects').select('name').eq('id', pid).single();
+        contextName = project?.name || 'Projeto';
+      } else if (aid) {
+        const { data: act } = await supabase.from('cdt_activities').select('name').eq('id', aid).single();
+        contextLabel = 'atividade';
+        contextName = act?.name || 'Atividade';
+      }
 
       await supabase.from('cdt_notifications').insert({
         user_id: assigned_to,
         type: 'todo_assigned',
         title: 'Novo TO-DO para voce!',
-        message: `Voce foi atribuido ao TODO "${title || data.title}" no projeto "${project?.name || 'Projeto'}"`,
+        message: `Voce foi atribuido ao TODO "${title || data.title}" na ${contextLabel} "${contextName}"`,
         related_id: id,
         related_type: 'todo',
-        project_id: currentTodo.project_id || null,
+        project_id: pid || null,
       });
     }
 
     res.json(data);
   } catch (error: any) {
     console.error('Error updating todo:', error);
+    const msg = String(error?.message || '');
+    if (/column.*(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline).*does not exist/i.test(msg)) {
+      return res.status(503).json(gamificationMigration503Payload());
+    }
     res.status(500).json({ error: error.message || 'Failed to update todo' });
   }
 });
@@ -297,6 +365,34 @@ router.delete('/:id', async (req, res) => {
   } catch (error: any) {
     console.error('Error deleting todo:', error);
     res.status(500).json({ error: error.message || 'Failed to delete todo' });
+  }
+});
+
+// Reorder activity todos (admin only)
+router.post('/reorder-activity', async (req, res) => {
+  try {
+    const requesterId = await ensureAdmin(req, res);
+    if (!requesterId) return;
+
+    const { activity_id, todo_ids } = req.body;
+
+    if (!activity_id || !Array.isArray(todo_ids)) {
+      return res.status(400).json({ error: 'activity_id and todo_ids array are required' });
+    }
+
+    const updates = todo_ids.map((todoId: string, index: number) =>
+      supabase
+        .from('cdt_project_todos')
+        .update({ sort_order: index })
+        .eq('id', todoId)
+        .eq('activity_id', activity_id),
+    );
+
+    await Promise.all(updates);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Error reordering activity todos:', error);
+    res.status(500).json({ error: error.message || 'Failed to reorder activity todos' });
   }
 });
 

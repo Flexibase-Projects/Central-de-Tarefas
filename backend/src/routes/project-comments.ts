@@ -3,6 +3,28 @@ import { supabase } from '../config/supabase.js';
 
 const router = express.Router();
 
+// Comentários de uma atividade (antes de /:projectId para não capturar "by-activity")
+router.get('/by-activity/:activityId', async (req, res) => {
+  try {
+    const { activityId } = req.params;
+
+    const { data, error } = await supabase
+      .from('cdt_comments')
+      .select('*')
+      .eq('activity_id', activityId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json(data || []);
+  } catch (error: any) {
+    console.error('Error fetching activity comments:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch activity comments' });
+  }
+});
+
 // Get all comments for a project
 router.get('/:projectId', async (req, res) => {
   try {
@@ -25,19 +47,25 @@ router.get('/:projectId', async (req, res) => {
   }
 });
 
-// Create a new comment
+// Create a new comment (projeto OU atividade)
 router.post('/', async (req, res) => {
   try {
-    const { project_id, content, author_name, author_email } = req.body;
+    const { project_id, activity_id, content, author_name, author_email } = req.body;
 
-    if (!project_id || !content) {
-      return res.status(400).json({ error: 'project_id and content are required' });
+    const hasProject = Boolean(project_id);
+    const hasActivity = Boolean(activity_id);
+    if (!content || hasProject === hasActivity) {
+      return res.status(400).json({
+        error: 'content e exatamente um entre project_id ou activity_id são obrigatórios',
+      });
     }
 
     const { data, error } = await supabase
       .from('cdt_comments')
       .insert({
-        project_id,
+        project_id: hasProject ? project_id : null,
+        activity_id: hasActivity ? activity_id : null,
+        task_id: null,
         content,
         author_name: author_name || null,
         author_email: author_email || null,

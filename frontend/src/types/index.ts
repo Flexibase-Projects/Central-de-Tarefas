@@ -47,6 +47,7 @@ export interface Comment {
   id: string
   project_id: string | null
   task_id: string | null
+  activity_id?: string | null
   content: string
   created_at: string
   created_by: string | null
@@ -57,7 +58,8 @@ export interface Comment {
 
 export interface ProjectTodo {
   id: string
-  project_id: string
+  project_id: string | null
+  activity_id?: string | null
   title: string
   completed: boolean
   assigned_to: string | null

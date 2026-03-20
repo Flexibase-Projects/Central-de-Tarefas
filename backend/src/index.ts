@@ -50,6 +50,11 @@ import indicatorsRoutes from './routes/indicators.js';
 import teamCanvasRoutes from './routes/team-canvas.js';
 import progressRoutes from './routes/progress.js';
 import achievementsRoutes from './routes/achievements.js';
+import orgRoutes from './routes/org.js';
+import departmentsRoutes from './routes/departments.js';
+import costItemsRoutes from './routes/cost-items.js';
+import costMapRoutes from './routes/cost-map.js';
+import costManagementSummaryRoutes from './routes/cost-management-summary.js';
 import { authMiddleware } from './middleware/auth.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from './utils/supabase-errors.js';
 
@@ -181,6 +186,11 @@ app.use('/api/indicators', indicatorsRoutes);
 app.use('/api/team-canvas', teamCanvasRoutes);
 app.use('/api/me/progress', progressRoutes);
 app.use('/api/achievements', achievementsRoutes);
+app.use('/api/org', orgRoutes);
+app.use('/api/departments', departmentsRoutes);
+app.use('/api/cost-items', costItemsRoutes);
+app.use('/api/cost-map', costMapRoutes);
+app.use('/api/cost-management', costManagementSummaryRoutes);
 
 // Tratamento de payload too large (413) em JSON para o cliente
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {

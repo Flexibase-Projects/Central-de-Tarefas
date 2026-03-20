@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Box,
   Button,
@@ -12,7 +12,6 @@ import {
   IconButton,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Table,
   TableBody,
@@ -76,14 +75,29 @@ export function UsersTable() {
   const [selectedRoleId, setSelectedRoleId] = useState('')
   const [givingAccessId, setGivingAccessId] = useState<string | null>(null)
 
+  const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false)
+  const [authSearch, setAuthSearch] = useState('')
+
   const roleItems = useMemo(
     () => roles.map((role) => ({ id: role.id, name: role.name, display_name: role.display_name })),
     [roles],
   )
 
-  useEffect(() => {
+  const filteredAuthList = useMemo(() => {
+    if (!authSearch.trim()) return authList
+    const q = authSearch.trim().toLowerCase()
+    return authList.filter(
+      (u) =>
+        u.email.toLowerCase().includes(q) ||
+        (u.name && u.name.toLowerCase().includes(q)),
+    )
+  }, [authList, authSearch])
+
+  const handleOpenNewUser = () => {
+    setAuthSearch('')
+    setIsNewUserDialogOpen(true)
     fetchAuthList()
-  }, [fetchAuthList])
+  }
 
   const handleCreate = () => {
     setEditingUser(null)
@@ -167,93 +181,11 @@ export function UsersTable() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
-          Usuarios do Supabase Auth
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Quem ja possui conta de login. Libere acesso e defina o cargo no momento da aprovacao.
-        </Typography>
-
-        {authListLoading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-            <CircularProgress size={24} />
-          </Box>
-        ) : (
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'action.hover' }}>
-                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Cadastro</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600 }}>
-                    Acao
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {authList.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                      <Typography color="text.secondary">Nenhum usuario encontrado no Auth.</Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  authList.map((authUser) => (
-                    <TableRow key={authUser.id} hover>
-                      <TableCell>{authUser.email}</TableCell>
-                      <TableCell>{authUser.name || '-'}</TableCell>
-                      <TableCell>
-                        <Typography variant="caption" color="text.secondary">
-                          {authUser.created_at
-                            ? formatDistanceToNow(new Date(authUser.created_at), {
-                                addSuffix: true,
-                                locale: ptBR,
-                              })
-                            : '-'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={authUser.in_cdt ? 'Com acesso' : 'Sem acesso'}
-                          size="small"
-                          color={authUser.in_cdt ? 'success' : 'default'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {authUser.in_cdt ? (
-                          <Typography variant="caption" color="text.secondary">
-                            Ja no sistema
-                          </Typography>
-                        ) : (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<UserPlus size={18} />}
-                            disabled={Boolean(givingAccessId)}
-                            onClick={() => handleOpenGiveAccess(authUser)}
-                          >
-                            Liberar acesso
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
-      </Paper>
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h6" fontWeight={600}>
           Usuarios com acesso
         </Typography>
-        <Button variant="contained" size="small" onClick={handleCreate} startIcon={<Plus size={20} />}>
+        <Button variant="contained" size="small" onClick={handleOpenNewUser} startIcon={<Plus size={20} />}>
           Novo Usuario
         </Button>
       </Box>
@@ -326,8 +258,119 @@ export function UsersTable() {
         </Table>
       </Box>
 
+      <Dialog
+        open={isNewUserDialogOpen}
+        onClose={() => setIsNewUserDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { minHeight: '60vh' } }}
+      >
+        <DialogTitle>Novo usuario — buscar no Supabase Auth</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Usuarios que ja possuem conta de login. Pesquise por email ou nome e libere acesso ou defina acao.
+          </Typography>
+          <TextField
+            size="small"
+            placeholder="Pesquisar por email ou nome..."
+            value={authSearch}
+            onChange={(e) => setAuthSearch(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+          />
+          {authListLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Cadastro</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      Acao
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredAuthList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                        <Typography color="text.secondary">
+                          {authList.length === 0
+                            ? 'Nenhum usuario encontrado no Auth.'
+                            : 'Nenhum resultado para a pesquisa.'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredAuthList.map((authUser) => (
+                      <TableRow key={authUser.id} hover>
+                        <TableCell>{authUser.email}</TableCell>
+                        <TableCell>{authUser.name || '-'}</TableCell>
+                        <TableCell>
+                          <Typography variant="caption" color="text.secondary">
+                            {authUser.created_at
+                              ? formatDistanceToNow(new Date(authUser.created_at), {
+                                  addSuffix: true,
+                                  locale: ptBR,
+                                })
+                              : '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={authUser.in_cdt ? 'Com acesso' : 'Sem acesso'}
+                            size="small"
+                            color={authUser.in_cdt ? 'success' : 'default'}
+                            variant="outlined"
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          {authUser.in_cdt ? (
+                            <Typography variant="caption" color="text.secondary">
+                              Ja no sistema
+                            </Typography>
+                          ) : (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<UserPlus size={18} />}
+                              disabled={Boolean(givingAccessId)}
+                              onClick={() => handleOpenGiveAccess(authUser)}
+                            >
+                              Liberar acesso
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => {
+              setIsNewUserDialogOpen(false)
+              handleCreate()
+            }}
+          >
+            Criar usuario manualmente
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button onClick={() => setIsNewUserDialogOpen(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={isUserDialogOpen} onClose={() => setIsUserDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingUser ? 'Editar Usuario' : 'Novo Usuario'}</DialogTitle>
+        <DialogTitle>{editingUser ? 'Editar Usuario' : 'Criar usuario manualmente'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField

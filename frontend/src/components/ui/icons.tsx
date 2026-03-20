@@ -50,6 +50,8 @@ import {
   ListChecks,
   Clock,
   TrendingUp,
+  CircleDollarSign,
+  Network,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 
@@ -75,6 +77,8 @@ export { ExternalLink, Calendar, Lock, Archive, Tag, ChevronDown, ChevronUp, Fil
 export { Star, Medal, Sparkles }
 export const ClockIcon = withThin(Clock)
 export { Clock, TrendingUp }
+export const DollarSign = withThin(CircleDollarSign)
+export const OrgChartIcon = withThin(Network)
 
 // Alias para compatibilidade com nomes do backend (achievements)
 export const EmojiEvents = Trophy

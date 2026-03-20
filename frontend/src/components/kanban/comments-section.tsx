@@ -1,15 +1,15 @@
-import { useState } from 'react'
-import { Box, TextField, Button, Typography, Avatar, IconButton, CircularProgress } from '@mui/material'
+import { useState, useMemo } from 'react'
+import { Box, TextField, Button, Typography, Avatar, IconButton, CircularProgress, LinearProgress } from '@mui/material'
 import { Send, Trash2 } from '@/components/ui/icons'
 import { Comment } from '@/types'
-import { useProjectComments } from '@/hooks/use-project-comments'
+import { useProjectComments, type CommentsScope } from '@/hooks/use-project-comments'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDistanceToNow } from 'date-fns'
 import { TierBadge } from '@/components/gamification/TierBadge'
 
-interface CommentsSectionProps {
-  projectId: string
-}
+type CommentsSectionProps =
+  | { projectId: string; activityId?: never }
+  | { activityId: string; projectId?: never }
 
 interface CommentItemProps {
   comment: Comment
@@ -53,8 +53,15 @@ function CommentItem({ comment, onDelete }: CommentItemProps) {
   )
 }
 
-export function CommentsSection({ projectId }: CommentsSectionProps) {
-  const { comments, loading, createComment, deleteComment } = useProjectComments(projectId)
+export function CommentsSection(props: CommentsSectionProps) {
+  const activityId = 'activityId' in props ? props.activityId : undefined
+  const projectId = 'projectId' in props ? props.projectId : undefined
+  const scope: CommentsScope | null = useMemo(() => {
+    if (activityId) return { activityId }
+    if (projectId) return { projectId }
+    return null
+  }, [activityId, projectId])
+  const { comments, loading, createComment, deleteComment } = useProjectComments(scope)
   const { currentUser } = useAuth()
   const [newComment, setNewComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -65,7 +72,6 @@ export function CommentsSection({ projectId }: CommentsSectionProps) {
     setIsSubmitting(true)
     try {
       await createComment({
-        project_id: projectId,
         content: newComment.trim(),
         author_name: currentUser?.name || 'Usuário Anônimo',
         author_email: currentUser?.email || null,
@@ -88,6 +94,7 @@ export function CommentsSection({ projectId }: CommentsSectionProps) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {loading && comments.length === 0 && <LinearProgress sx={{ borderRadius: 1 }} />}
       <Box>
         <TextField
           multiline
@@ -112,10 +119,10 @@ export function CommentsSection({ projectId }: CommentsSectionProps) {
         </Box>
       </Box>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-          <CircularProgress size={24} />
-        </Box>
+      {loading && comments.length === 0 ? (
+        <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ py: 2 }}>
+          Carregando comentários…
+        </Typography>
       ) : comments.length === 0 ? (
         <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ py: 2 }}>
           Nenhum comentário ainda. Seja o primeiro a comentar!

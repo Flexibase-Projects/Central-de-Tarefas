@@ -64,11 +64,10 @@ export function MapProjectBubble({
               fontWeight: 700,
               cursor: 'grab',
               boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
-              transition: 'box-shadow 0.2s, transform 0.15s',
+              transition: 'box-shadow 0.2s, background-color 0.15s',
               '&:hover': {
                 boxShadow: '0 4px 16px rgba(37,99,235,0.4)',
                 bgcolor: 'primary.light',
-                transform: 'scale(1.06)',
               },
               '&:active': {
                 cursor: 'grabbing',
