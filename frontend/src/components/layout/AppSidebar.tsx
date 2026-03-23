@@ -19,7 +19,7 @@ import {
   OrgChartIcon,
   DollarSign,
 } from '@/components/ui/icons';
-import { Avatar, Box, Divider, IconButton, Menu as MuiMenu, MenuItem, Tooltip, Typography, useTheme } from '@mui/material';
+import { Avatar, Badge, Box, Divider, IconButton, Menu as MuiMenu, MenuItem, Tooltip, Typography, useTheme } from '@mui/material';
 import { UserLevelProfileDrawer } from '@/components/layout/UserLevelProfileDrawer';
 import { Sun, Moon } from 'lucide-react';
 import { useThemeMode } from '@/theme/ThemeProvider';
@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUserProgress } from '@/hooks/use-user-progress';
 import { LevelXpBar } from '@/components/master-mode/LevelXpBar';
 import { getTierForLevel } from '@/utils/tier';
+import { useMyPendingTodosCount } from '@/hooks/use-my-pending-todos';
 
 type NavItem = { title: string; url: string; icon: React.ElementType; permission: string | null; requireRole?: string };
 
@@ -53,7 +54,7 @@ const SIDEBAR_SECTIONS: { title: string; items: NavItem[] }[] = [
   },
   {
     title: 'GESTÃO',
-    items: [{ title: 'Configurações', url: '/configuracoes', icon: Settings, permission: null }],
+    items: [{ title: 'Configurações', url: '/configuracoes', icon: Settings, permission: null, requireRole: 'admin' }],
   },
 ];
 
@@ -83,6 +84,7 @@ export function AppSidebar(props: AppSidebarProps = {}) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const [levelMenuAnchor, setLevelMenuAnchor] = useState<HTMLElement | null>(null);
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const { count: pendingTodosCount } = useMyPendingTodosCount();
   const isCollapsed = controlledCollapsed ?? internalCollapsed;
   const setIsCollapsed = (v: boolean) => {
     onCollapsedChange?.(v);
@@ -136,7 +138,16 @@ export function AppSidebar(props: AppSidebarProps = {}) {
       {isCollapsed ? (
         <Box sx={{ borderBottom: `1px solid ${borderColor}`, flexShrink: 0 }}>
           <Box sx={{ minHeight: 56, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Typography variant="caption" fontWeight={700} sx={{ fontSize: 11, letterSpacing: 0.2 }}>CDT</Typography>
+            <Tooltip title={pendingTodosCount ? `${pendingTodosCount} TO-DO${pendingTodosCount > 1 ? 's' : ''} pendente${pendingTodosCount > 1 ? 's' : ''}` : 'CDT'} placement="right">
+              <Badge
+                badgeContent={pendingTodosCount ?? 0}
+                color="warning"
+                max={99}
+                sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 16, height: 16 } }}
+              >
+                <Typography variant="caption" fontWeight={700} sx={{ fontSize: 11, letterSpacing: 0.2 }}>CDT</Typography>
+              </Badge>
+            </Tooltip>
           </Box>
           <Tooltip title="Expandir" placement="right">
             <IconButton
@@ -164,6 +175,28 @@ export function AppSidebar(props: AppSidebarProps = {}) {
           <Typography sx={{ fontSize: 14, fontWeight: 600, letterSpacing: 0.4, color: 'text.primary', lineHeight: 1.25 }}>
             Central de Tarefas
           </Typography>
+          {pendingTodosCount != null && pendingTodosCount > 0 && (
+            <Tooltip title={`${pendingTodosCount} TO-DO${pendingTodosCount > 1 ? 's' : ''} pendente${pendingTodosCount > 1 ? 's' : ''} para você`} arrow>
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  px: 0.9,
+                  py: 0.2,
+                  borderRadius: 10,
+                  bgcolor: 'warning.main',
+                  color: 'warning.contrastText',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ✓ {pendingTodosCount}
+              </Box>
+            </Tooltip>
+          )}
           <Tooltip title="Recolher">
             <IconButton onClick={() => setIsCollapsed(true)} size="small" sx={{ ml: 'auto', mr: -0.5 }}>
               <ChevronLeft size={16} />

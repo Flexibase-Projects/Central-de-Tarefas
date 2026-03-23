@@ -53,12 +53,14 @@ interface EisenhowerCanvasProps {
   projects: Project[]
   onProjectClick: (project: Project) => void
   onPositionChange: (projectId: string, position: ProjectMapPosition) => void
+  readOnly?: boolean
 }
 
 export function EisenhowerCanvas({
   projects,
   onProjectClick,
   onPositionChange,
+  readOnly = false,
 }: EisenhowerCanvasProps) {
   const noPositionIndex = useMemo(() => {
     const arr = projects.filter(
@@ -97,6 +99,7 @@ export function EisenhowerCanvas({
   }
 
   const handleDrop = (e: React.DragEvent, quadrant: EisenhowerQuadrant) => {
+    if (readOnly) return
     e.preventDefault()
     const projectId = e.dataTransfer.getData('application/project-id')
     if (!projectId) return
@@ -110,6 +113,7 @@ export function EisenhowerCanvas({
   }
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (readOnly) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
   }
@@ -177,6 +181,7 @@ export function EisenhowerCanvas({
                 y={position.y}
                 onDragStart={handleDragStart}
                 onClick={onProjectClick}
+                readOnly={readOnly}
               />
             ))}
           </Box>

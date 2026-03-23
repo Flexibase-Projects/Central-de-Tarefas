@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useProjects } from '@/hooks/use-projects'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Project } from '@/types'
 
 const STATUS_LABELS: Record<Project['status'], string> = {
@@ -39,14 +40,14 @@ function GitHubIconSmall() {
   )
 }
 
-function SortableProjectCard({ project, index }: { project: Project; index: number }) {
+function SortableProjectCard({ project, index, canDrag }: { project: Project; index: number; canDrag: boolean }) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     isDragging,
-  } = useSortable({ id: project.id })
+  } = useSortable({ id: project.id, disabled: !canDrag })
   const { getCommitsCount } = useGitHub()
   const [commitsCount, setCommitsCount] = useState<number | null>(null)
 
@@ -79,21 +80,23 @@ function SortableProjectCard({ project, index }: { project: Project; index: numb
         px: 1.5,
         py: 1,
         opacity: isDragging ? 0.6 : 1,
-        cursor: 'grab',
+        cursor: canDrag ? 'grab' : 'default',
         border: '1px solid',
         borderColor: 'divider',
-        '&:active': { cursor: 'grabbing' },
+        ...(canDrag && { '&:active': { cursor: 'grabbing' } }),
         '&:hover': { bgcolor: 'action.hover' },
         willChange: isDragging ? 'transform' : undefined,
       }}
     >
-      <Box
-        {...attributes}
-        {...listeners}
-        sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary' }}
-      >
-        <GripVertical size={20} />
-      </Box>
+      {canDrag && (
+        <Box
+          {...attributes}
+          {...listeners}
+          sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary' }}
+        >
+          <GripVertical size={20} />
+        </Box>
+      )}
       <Typography variant="body2" color="text.secondary" sx={{ minWidth: 24 }}>
         {index + 1}.
       </Typography>
@@ -135,6 +138,8 @@ function SortableProjectCard({ project, index }: { project: Project; index: numb
 
 export default function Prioridades() {
   const { projects, loading, error, updatePriorityOrder } = useProjects()
+  const { hasRole } = useAuth()
+  const isAdmin = hasRole('admin')
   const [savingOrder, setSavingOrder] = useState(false)
 
   const sensors = useSensors(
@@ -184,7 +189,9 @@ export default function Prioridades() {
           Prioridades
         </Typography>
         <Typography color="text.secondary" variant="body2">
-          Arraste os cards para ordenar: o item no topo é o mais importante. A ordem é salva automaticamente.
+          {isAdmin
+            ? 'Arraste os cards para ordenar: o item no topo é o mais importante. A ordem é salva automaticamente.'
+            : 'Prioridades dos projetos definidas pelo administrador.'}
         </Typography>
         {savingOrder && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
@@ -215,7 +222,7 @@ export default function Prioridades() {
             >
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {projects.map((project, index) => (
-                  <SortableProjectCard key={project.id} project={project} index={index} />
+                  <SortableProjectCard key={project.id} project={project} index={index} canDrag={isAdmin} />
                 ))}
               </Box>
             </SortableContext>

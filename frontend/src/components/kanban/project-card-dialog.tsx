@@ -179,7 +179,7 @@ export function ProjectCardDialog({
                       <CheckSquare size={18} /> TO-DO
                     </Typography>
                     <Paper variant="outlined" sx={{ p: 2 }}>
-                      <TodoList projectId={project.id} highlightedTodoId={highlightedTodoId} />
+                      <TodoList projectId={project.id} highlightedTodoId={highlightedTodoId} contextName={project.name} />
                     </Paper>
                   </Box>
                   <Box>

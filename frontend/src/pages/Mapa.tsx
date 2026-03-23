@@ -3,10 +3,13 @@ import { Box, CircularProgress, Typography } from '@mui/material'
 import { useProjects } from '@/hooks/use-projects'
 import { ProjectCardDialog } from '@/components/kanban/project-card-dialog'
 import { EisenhowerCanvas } from '@/components/mapa/eisenhower-canvas'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Project } from '@/types'
 
 export default function Mapa() {
   const { projects, loading, error, updateProject, updateProjectWithOptimisticPosition, deleteProject } = useProjects()
+  const { hasRole } = useAuth()
+  const isAdmin = hasRole('admin')
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -85,7 +88,9 @@ export default function Mapa() {
           Mapa
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-          Matriz de Eisenhower — organize projetos por urgência e importância.
+          {isAdmin
+            ? 'Matriz de Eisenhower — organize projetos por urgência e importância.'
+            : 'Matriz de Eisenhower — visualize a organização dos projetos.'}
         </Typography>
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, px: 3, pb: 3 }}>
@@ -106,6 +111,7 @@ export default function Mapa() {
             projects={projects}
             onProjectClick={handleProjectClick}
             onPositionChange={handlePositionChange}
+            readOnly={!isAdmin}
           />
         </Box>
       </Box>

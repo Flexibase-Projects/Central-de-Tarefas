@@ -34,6 +34,8 @@ import {
   type DashboardMetricCardProps,
 } from '@/components/dashboard/indicator-widgets'
 import { useIndicators } from '@/hooks/use-indicators'
+import { useAuth } from '@/contexts/AuthContext'
+import { useMyPendingTodosCount } from '@/hooks/use-my-pending-todos'
 import type { ProjectIndicator, ActivityIndicator } from '@/types'
 
 const cell = dashboardTableCellSx
@@ -42,38 +44,50 @@ export default function Dashboard() {
   const theme = useTheme()
   const isLight = theme.palette.mode === 'light'
   const { data, loading, error, refresh } = useIndicators()
+  const { currentUser, hasRole } = useAuth()
+  const isAdmin = hasRole('admin')
+  const { count: pendingCount } = useMyPendingTodosCount()
 
+  // Dados do próprio usuário na lista by_user
+  const myIndicators = useMemo(
+    () => data?.by_user?.find((u) => u.user_id === currentUser?.id) ?? null,
+    [data?.by_user, currentUser?.id],
+  )
+
+  // Mapa id -> nome (usado para exibir responsáveis)
   const userNameById = useMemo(() => {
     const map = new Map<string, string>()
     data?.by_user?.forEach((u) => map.set(u.user_id, u.name))
     return map
   }, [data?.by_user])
 
-  const activitiesOpen = useMemo(
-    () => data?.by_activity?.filter((a) => a.status !== 'done').length ?? 0,
-    [data?.by_activity]
-  )
+  // Atividades abertas: admin vê todas; usuário vê só as suas
+  const activitiesOpen = useMemo(() => {
+    const list = data?.by_activity?.filter((a) => a.status !== 'done') ?? []
+    return isAdmin ? list : list.filter((a) => a.assigned_to === currentUser?.id)
+  }, [data?.by_activity, isAdmin, currentUser?.id])
 
   const team = data?.team
-  const todosPending = team ? Math.max(0, team.total_todos_created - team.total_todos_completed) : 0
+
+  // Totais para os cards: admin usa totais do time; usuário usa seus próprios
+  const todosCreated = isAdmin ? (team?.total_todos_created ?? 0) : (myIndicators?.todos_created ?? 0)
+  const todosCompleted = isAdmin ? (team?.total_todos_completed ?? 0) : (myIndicators?.todos_completed ?? 0)
+  const comments = isAdmin ? (team?.total_comments ?? 0) : (myIndicators?.comments_count ?? 0)
+  const todosPending = Math.max(0, todosCreated - todosCompleted)
   const completionRatePct =
-    team && team.total_todos_created > 0
-      ? Math.round((team.total_todos_completed / team.total_todos_created) * 100)
-      : null
+    todosCreated > 0 ? Math.round((todosCompleted / todosCreated) * 100) : null
 
   const topProjects = useMemo(() => {
     const list = data?.by_project ?? []
     return [...list].sort((a, b) => b.todos_count - a.todos_count).slice(0, 5)
   }, [data?.by_project])
 
-  const openActivitiesPreview = useMemo(() => {
-    const list = data?.by_activity ?? []
-    return list.filter((a) => a.status !== 'done').slice(0, 8)
-  }, [data?.by_activity])
+  const openActivitiesPreview = useMemo(
+    () => activitiesOpen.slice(0, 8),
+    [activitiesOpen],
+  )
 
-  const maxTodoBar = team
-    ? Math.max(1, team.total_todos_created, team.total_todos_completed)
-    : 1
+  const maxTodoBar = Math.max(1, todosCreated, todosCompleted)
 
   const metrics: DashboardMetricCardProps[] = team
     ? [
@@ -86,29 +100,29 @@ export default function Dashboard() {
           caption: 'Cadastrados no sistema',
         },
         {
-          label: 'Atividades em aberto',
-          value: activitiesOpen,
+          label: isAdmin ? 'Atividades em aberto' : 'Minhas atividades abertas',
+          value: activitiesOpen.length,
           icon: ClipboardList,
           iconColor: isLight ? '#D97706' : '#FBBF24',
           iconBg: isLight ? 'rgba(217,119,6,0.1)' : 'rgba(251,191,36,0.12)',
-          caption: `${team.total_activities} no total`,
+          caption: isAdmin ? `${team.total_activities} no total` : `${team.total_activities} no sistema`,
         },
         {
-          label: 'Comentários',
-          value: team.total_comments,
+          label: isAdmin ? 'Comentários' : 'Meus comentários',
+          value: comments,
           icon: MessageCircleIcon,
           iconColor: isLight ? '#7C3AED' : '#A78BFA',
           iconBg: isLight ? 'rgba(124,58,237,0.1)' : 'rgba(167,139,250,0.12)',
         },
         {
-          label: 'TO-DOs concluídos',
-          value: team.total_todos_completed,
+          label: isAdmin ? 'TO-DOs concluídos' : 'Meus TO-DOs concluídos',
+          value: todosCompleted,
           icon: CheckCircle,
           iconColor: isLight ? '#059669' : '#34D399',
           iconBg: isLight ? 'rgba(5,150,105,0.1)' : 'rgba(52,211,153,0.12)',
           caption:
-            team.total_todos_created > 0
-              ? `${todosPending} pendentes · ${team.total_todos_created} criados${
+            todosCreated > 0
+              ? `${todosPending} pendentes · ${todosCreated} criados${
                   completionRatePct != null ? ` · ${completionRatePct}% concluídos` : ''
                 }`
               : undefined,
@@ -133,7 +147,9 @@ export default function Dashboard() {
             Dashboard
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Indicadores do time em tempo real — mesma base da página Indicadores
+            {isAdmin
+              ? 'Indicadores do time em tempo real — mesma base da página Indicadores'
+              : 'Seus indicadores em tempo real'}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -161,6 +177,17 @@ export default function Dashboard() {
         </Box>
       </Box>
 
+      {/* Banner de TO-DOs pendentes */}
+      {pendingCount != null && pendingCount > 0 && (
+        <Alert
+          severity="info"
+          icon={<CheckCircle fontSize="inherit" />}
+          sx={{ mb: 2.5, borderRadius: 2, fontWeight: 500 }}
+        >
+          Você tem <strong>{pendingCount} TO-DO{pendingCount > 1 ? 's' : ''}</strong> pendente{pendingCount > 1 ? 's' : ''} atribuído{pendingCount > 1 ? 's' : ''} a você.
+        </Alert>
+      )}
+
       {error ? (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => void refresh()}>
           {error}
@@ -186,19 +213,14 @@ export default function Dashboard() {
             ))}
           </Box>
 
-          {team && (team.total_todos_created > 0 || team.total_todos_completed > 0) ? (
+          {(todosCreated > 0 || todosCompleted > 0) ? (
             <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
               <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5 }}>
-                TO-DOs do time
+                {isAdmin ? 'TO-DOs do time' : 'Meus TO-DOs'}
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <DashboardBarRow label="Criados" value={team.total_todos_created} max={maxTodoBar} color="primary.main" />
-                <DashboardBarRow
-                  label="Concluídos"
-                  value={team.total_todos_completed}
-                  max={maxTodoBar}
-                  color="success.main"
-                />
+                <DashboardBarRow label="Criados" value={todosCreated} max={maxTodoBar} color="primary.main" />
+                <DashboardBarRow label="Concluídos" value={todosCompleted} max={maxTodoBar} color="success.main" />
               </Box>
             </Paper>
           ) : null}
@@ -271,7 +293,7 @@ export default function Dashboard() {
             <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
               <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
                 <Typography variant="subtitle2" fontWeight={600}>
-                  Atividades em aberto
+                  {isAdmin ? 'Atividades em aberto' : 'Minhas atividades em aberto'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Até 8 itens — veja todas em Indicadores
@@ -283,13 +305,15 @@ export default function Dashboard() {
                     <TableRow sx={{ bgcolor: 'action.hover' }}>
                       <TableCell sx={{ ...cell, fontWeight: 600 }}>Atividade</TableCell>
                       <TableCell sx={{ ...cell, fontWeight: 600 }}>Status</TableCell>
-                      <TableCell sx={{ ...cell, fontWeight: 600 }}>Responsável</TableCell>
+                      {isAdmin && (
+                        <TableCell sx={{ ...cell, fontWeight: 600 }}>Responsável</TableCell>
+                      )}
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {openActivitiesPreview.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} sx={cell}>
+                        <TableCell colSpan={isAdmin ? 3 : 2} sx={cell}>
                           <Typography variant="body2" color="text.secondary">
                             Nenhuma atividade pendente.
                           </Typography>
@@ -306,11 +330,13 @@ export default function Dashboard() {
                           <TableCell sx={cell}>
                             <DashboardStatusChip status={a.status} />
                           </TableCell>
-                          <TableCell sx={cell}>
-                            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 140 }}>
-                              {a.assigned_to ? userNameById.get(a.assigned_to) ?? '—' : '—'}
-                            </Typography>
-                          </TableCell>
+                          {isAdmin && (
+                            <TableCell sx={cell}>
+                              <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 140 }}>
+                                {a.assigned_to ? userNameById.get(a.assigned_to) ?? '—' : '—'}
+                              </Typography>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     )}

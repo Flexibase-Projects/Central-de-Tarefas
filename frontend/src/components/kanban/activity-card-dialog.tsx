@@ -306,7 +306,7 @@ export function ActivityCardDialog({
                       <CheckSquare size={18} /> TO-DO
                     </Typography>
                     <Paper variant="outlined" sx={(t) => ({ ...sectionPaperSx(t) })}>
-                      <TodoList activityId={activity.id} sharedTodos={activityTodosApi} />
+                      <TodoList activityId={activity.id} sharedTodos={activityTodosApi} contextName={activity.name} />
                     </Paper>
                   </Box>
 

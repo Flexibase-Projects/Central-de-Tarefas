@@ -7,11 +7,14 @@ import { CreateProjectDialog } from '@/components/kanban/create-project-dialog'
 import { useProjects } from '@/hooks/use-projects'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { RequirePermission } from '@/components/auth/RequirePermission'
+import { usePermissions } from '@/hooks/use-permissions'
 import { Project } from '@/types'
 import { useSearchParams } from 'react-router-dom'
 
 export default function Desenvolvimentos() {
   const { projects, loading, createProject, updateProject, moveProject, deleteProject } = useProjects()
+  const { hasRole } = usePermissions()
+  const isAdmin = hasRole('admin')
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
@@ -127,7 +130,7 @@ export default function Desenvolvimentos() {
           open={isProjectDialogOpen}
           onOpenChange={setIsProjectDialogOpen}
           onUpdate={handleUpdateProject}
-          onDelete={handleDeleteProject}
+          onDelete={isAdmin ? handleDeleteProject : undefined}
           highlightedTodoId={highlightedTodoId}
         />
       </Box>

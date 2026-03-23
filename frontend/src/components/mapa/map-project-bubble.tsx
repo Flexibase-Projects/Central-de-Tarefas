@@ -14,6 +14,7 @@ interface MapProjectBubbleProps {
   y: number
   onDragStart: (e: React.DragEvent, projectId: string) => void
   onClick: (project: Project) => void
+  readOnly?: boolean
 }
 
 export function MapProjectBubble({
@@ -23,6 +24,7 @@ export function MapProjectBubble({
   y,
   onDragStart,
   onClick,
+  readOnly = false,
 }: MapProjectBubbleProps) {
   return (
     <TooltipProvider delayDuration={300}>
@@ -32,8 +34,8 @@ export function MapProjectBubble({
             component="span"
             role="button"
             tabIndex={0}
-            draggable
-            onDragStart={(e) => onDragStart(e, project.id)}
+            draggable={!readOnly}
+            onDragStart={readOnly ? undefined : (e) => onDragStart(e, project.id)}
             onClick={(e) => {
               e.stopPropagation()
               onClick(project)
@@ -62,16 +64,16 @@ export function MapProjectBubble({
               color: '#fff',
               fontSize: 13,
               fontWeight: 700,
-              cursor: 'grab',
+              cursor: readOnly ? 'pointer' : 'grab',
               boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
               transition: 'box-shadow 0.2s, background-color 0.15s',
               '&:hover': {
                 boxShadow: '0 4px 16px rgba(37,99,235,0.4)',
                 bgcolor: 'primary.light',
               },
-              '&:active': {
-                cursor: 'grabbing',
-              },
+              ...(!readOnly && {
+                '&:active': { cursor: 'grabbing' },
+              }),
             }}
           >
             {abbreviation}

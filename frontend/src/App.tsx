@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Box, CircularProgress } from '@mui/material'
 import { AuthProvider } from './contexts/AuthContext'
 import { AuthGuard } from './components/auth/AuthGuard'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import MainLayout from './components/layout/MainLayout'
 import Login from './pages/Login'
 
@@ -64,14 +65,17 @@ function App() {
                       <Route path="/conquistas" element={<Conquistas />} />
                       <Route path="/niveis" element={<Niveis />} />
                       <Route path="/tutorial" element={<Tutorial />} />
-                      <Route path="/organograma" element={<Organograma />} />
-                      <Route path="/custos-departamento" element={<CustosDepartamento />} />
+                      <Route path="/organograma" element={<ProtectedRoute role="admin"><Organograma /></ProtectedRoute>} />
+                      <Route path="/custos-departamento" element={<ProtectedRoute role="admin"><CustosDepartamento /></ProtectedRoute>} />
                       <Route path="/configuracoes/organograma" element={<Navigate to="/organograma" replace />} />
                       <Route
                         path="/configuracoes/custos-departamento"
                         element={<Navigate to="/custos-departamento" replace />}
                       />
-                      <Route path="/configuracoes" element={<ConfiguracoesLayout />}>
+                      <Route
+                        path="/configuracoes"
+                        element={<ProtectedRoute role="admin"><ConfiguracoesLayout /></ProtectedRoute>}
+                      >
                         <Route index element={<ConfiguracoesHub />} />
                         <Route path="administracao" element={<Administracao />} />
                       </Route>

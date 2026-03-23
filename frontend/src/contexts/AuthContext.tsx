@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { User, Role, Permission } from '@/types';
+import { User, Role, Permission, UserWithRole } from '@/types';
 import { supabase } from '@/lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
@@ -24,6 +24,14 @@ interface AuthContextType {
   refreshUserData: () => Promise<void>;
   /** Headers para requisicoes a API (Authorization Bearer + x-user-id) */
   getAuthHeaders: () => Record<string, string>;
+  /** Usuário real autenticado (nunca muda no modo visualização) */
+  realUser: User | null;
+  realUserRole: Role | null;
+  /** Modo "Ver como usuário" — apenas para administradores */
+  isViewingAs: boolean;
+  viewAsUser: UserWithRole | null;
+  startViewingAs: (user: UserWithRole) => Promise<void>;
+  stopViewingAs: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -92,6 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<Role | null>(null);
   const [userPermissions, setUserPermissions] = useState<Permission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Estado do modo "Ver como usuário"
+  const [viewAsUser, setViewAsUser] = useState<UserWithRole | null>(null);
+  const [viewAsRole, setViewAsRole] = useState<Role | null>(null);
+  const [viewAsPermissions, setViewAsPermissions] = useState<Permission[]>([]);
 
   const clearLocalAuth = useCallback(() => {
     setCurrentUser(null);
@@ -190,17 +203,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return headers;
   }, [session?.access_token, currentUser?.id]);
 
-  const hasPermission = (permission: string): boolean =>
-    userPermissions.some((p) => p.name === permission);
+  const startViewingAs = useCallback(
+    async (user: UserWithRole) => {
+      setViewAsUser(user);
+      const role = user.role ?? null;
+      setViewAsRole(role);
 
-  const hasRole = (role: string): boolean => userRole?.name === role;
+      if (role?.id && session?.access_token) {
+        try {
+          const res = await fetch(`${API_URL}/api/roles/${role.id}`, {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setViewAsPermissions(data.permissions || []);
+            return;
+          }
+        } catch {
+          // silently fall through
+        }
+      }
+      setViewAsPermissions(user.permissions || []);
+    },
+    [session?.access_token],
+  );
+
+  const stopViewingAs = useCallback(() => {
+    setViewAsUser(null);
+    setViewAsRole(null);
+    setViewAsPermissions([]);
+  }, []);
+
+  const isViewingAs = viewAsUser !== null;
+
+  // Quando em modo visualização, currentUser/role/permissions refletem o usuário visto
+  const effectiveUser = isViewingAs ? (viewAsUser as User) : currentUser;
+  const effectiveRole = isViewingAs ? viewAsRole : userRole;
+  const effectivePermissions = isViewingAs ? viewAsPermissions : userPermissions;
+
+  const hasPermission = (permission: string): boolean =>
+    effectivePermissions.some((p) => p.name === permission);
+
+  const hasRole = (role: string): boolean => effectiveRole?.name === role;
 
   return (
     <AuthContext.Provider
       value={{
-        currentUser,
-        userRole,
-        userPermissions,
+        currentUser: effectiveUser,
+        userRole: effectiveRole,
+        userPermissions: effectivePermissions,
         isLoading,
         session,
         login,
@@ -209,6 +263,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasRole,
         refreshUserData,
         getAuthHeaders,
+        realUser: currentUser,
+        realUserRole: userRole,
+        isViewingAs,
+        viewAsUser,
+        startViewingAs,
+        stopViewingAs,
       }}
     >
       {children}

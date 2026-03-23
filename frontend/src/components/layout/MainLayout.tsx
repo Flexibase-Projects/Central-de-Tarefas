@@ -1,7 +1,10 @@
 import { ReactNode, useState } from 'react'
-import { Box, useTheme } from '@mui/material'
+import { Box, useTheme, Alert } from '@mui/material'
 import { AppSidebar } from './AppSidebar'
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown'
+import { ViewAsUserButton } from './ViewAsUserButton'
+import { useAuth } from '@/contexts/AuthContext'
+import { TodoCompleteToast } from '@/components/achievements/TodoCompleteToast'
 
 const HEADER_HEIGHT = 59
 
@@ -13,6 +16,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const sidebarWidth = sidebarCollapsed ? 72 : 256
   const theme = useTheme()
+  const { isViewingAs, viewAsUser, stopViewingAs } = useAuth()
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -29,6 +33,17 @@ function MainLayoutContent({ children }: MainLayoutProps) {
           overflow: 'hidden',
         }}
       >
+        {/* Faixa de aviso do modo "Ver como usuário" */}
+        {isViewingAs && viewAsUser && (
+          <Alert
+            severity="warning"
+            onClose={stopViewingAs}
+            sx={{ borderRadius: 0, py: 0.25, '& .MuiAlert-message': { py: 0.5 } }}
+          >
+            Você está visualizando o sistema como <strong>{viewAsUser.name}</strong>. Clique no × para sair deste modo.
+          </Alert>
+        )}
+
         {/* Header padrão — mesma altura do header da sidebar (59px) */}
         <Box
           sx={{
@@ -43,6 +58,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
             bgcolor: 'background.default',
           }}
         >
+          <ViewAsUserButton />
           <NotificationsDropdown />
         </Box>
         <Box
@@ -59,5 +75,10 @@ function MainLayoutContent({ children }: MainLayoutProps) {
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  return <MainLayoutContent>{children}</MainLayoutContent>
+  return (
+    <>
+      <MainLayoutContent>{children}</MainLayoutContent>
+      <TodoCompleteToast />
+    </>
+  )
 }
