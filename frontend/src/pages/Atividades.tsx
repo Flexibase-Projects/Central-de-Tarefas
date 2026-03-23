@@ -40,6 +40,7 @@ export default function Atividades() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false)
+  const [highlightedTodoId, setHighlightedTodoId] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
 
   const projectsAsActivities: Project[] = activities.map((activity) => ({
@@ -77,6 +78,10 @@ export default function Atividades() {
       if (activity) {
         setSelectedActivity(activity)
         setIsActivityDialogOpen(true)
+        if (todoId) {
+          setHighlightedTodoId(todoId)
+          window.setTimeout(() => setHighlightedTodoId(null), 3000)
+        }
       }
       setSearchParams({}, { replace: true })
     }
@@ -210,6 +215,7 @@ export default function Atividades() {
           onOpenChange={setIsActivityDialogOpen}
           onUpdate={handleUpdateActivity}
           onDelete={isAdmin ? handleDeleteActivity : undefined}
+          highlightedTodoId={highlightedTodoId}
         />
       </Box>
     </ProtectedRoute>

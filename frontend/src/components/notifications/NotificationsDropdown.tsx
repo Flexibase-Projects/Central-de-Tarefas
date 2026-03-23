@@ -62,7 +62,7 @@ export function NotificationsDropdown() {
     const map = new Map<string, { name: string; count: number }>()
     unreadNotifications.forEach((notification) => {
       if (notification.project_id) {
-        const name = notification.message?.match(/projeto "([^"]+)"/)?.[1] || 'Projeto'
+        const name = notification.message?.match(/(?:projeto|atividade) "([^"]+)"/i)?.[1] || 'Projeto'
         const current = map.get(notification.project_id)
         if (current) current.count++
         else map.set(notification.project_id, { name, count: 1 })
@@ -217,7 +217,7 @@ export function NotificationsDropdown() {
           ) : (
             <Box sx={{ py: 0.5 }}>
               {Object.entries(groupedNotifications.groups).map(([projectId, projectNotifications]) => {
-                const projectName = projectNotifications[0]?.message?.match(/projeto "([^"]+)"/)?.[1] || 'Projeto'
+                const projectName = projectNotifications[0]?.message?.match(/(?:projeto|atividade) "([^"]+)"/i)?.[1] || 'Projeto'
                 return (
                   <Box key={projectId}>
                     <Box sx={{ px: 2, py: 0.75 }}>
