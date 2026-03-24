@@ -2,6 +2,7 @@ import { useState, useCallback, memo, useMemo } from 'react'
 import * as React from 'react'
 import {
   Box,
+  Button,
   TextField,
   IconButton,
   Checkbox,
@@ -51,6 +52,18 @@ type TodoMutationResponse = {
   todo: TodoEntity
   xpDelta?: number | null
   xpAction?: string | null
+  gamificationWarning?: {
+    error?: string
+    code?: string
+  } | null
+}
+
+function isAwardedXpAction(action: string | null | undefined) {
+  return action === 'awarded' || action === 'retroactive' || action === 'retro_awarded'
+}
+
+function isRevertedXpAction(action: string | null | undefined) {
+  return action === 'reversed' || action === 'reverted'
 }
 
 function formatXp(value: number): string {
@@ -130,6 +143,9 @@ const TodoItem = memo(function TodoItem({
   const [shouldHighlight, setShouldHighlight] = React.useState(false)
   const [editingXp, setEditingXp] = React.useState(false)
   const [xpInputVal, setXpInputVal] = React.useState<string>('')
+  const [expandedTitle, setExpandedTitle] = React.useState(false)
+  const [titleOverflowing, setTitleOverflowing] = React.useState(false)
+  const titleRef = React.useRef<HTMLParagraphElement | null>(null)
 
   const mine = Boolean(todo.assigned_to && todo.assigned_to === currentUserId)
   const pendingXp = isXpPending(todo)
@@ -152,6 +168,21 @@ const TodoItem = memo(function TodoItem({
     }
     setShouldHighlight(false)
   }, [isHighlighted])
+
+  React.useEffect(() => {
+    const node = titleRef.current
+    if (!node) return
+
+    if (expandedTitle) return
+
+    const checkOverflow = () => {
+      setTitleOverflowing(node.scrollHeight - node.clientHeight > 1)
+    }
+
+    checkOverflow()
+    window.addEventListener('resize', checkOverflow)
+    return () => window.removeEventListener('resize', checkOverflow)
+  }, [todo.title, expandedTitle])
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -253,11 +284,40 @@ const TodoItem = memo(function TodoItem({
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
+          ref={titleRef}
           variant="body2"
-          sx={{ ...(todo.completed && { textDecoration: 'line-through', color: 'text.secondary' }) }}
+          sx={{
+            display: '-webkit-box',
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: expandedTitle ? 'unset' : 2,
+            overflow: 'hidden',
+            whiteSpace: expandedTitle ? 'pre-wrap' : 'normal',
+            wordBreak: 'break-word',
+            ...(todo.completed && { textDecoration: 'line-through', color: 'text.secondary' }),
+          }}
         >
           {todo.title}
         </Typography>
+
+        {titleOverflowing && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setExpandedTitle((prev) => !prev)}
+            sx={{
+              mt: 0.25,
+              px: 0,
+              minWidth: 0,
+              alignSelf: 'flex-start',
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              textTransform: 'none',
+            }}
+          >
+            {expandedTitle ? 'Ver menos' : 'Ver mais'}
+          </Button>
+        )}
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5, alignItems: 'center' }}>
           {mine && (
@@ -458,6 +518,27 @@ export function TodoList(props: TodoListProps) {
   const completedCount = visibleTodos.filter((t) => t.completed).length
   const totalCount = visibleTodos.length
   const progressPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+  const shouldScrollTodos = totalCount > 5
+  const todoListContainerSx = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0.5,
+    maxHeight: shouldScrollTodos ? 380 : 'none',
+    overflowY: shouldScrollTodos ? 'auto' : 'visible',
+    pr: shouldScrollTodos ? 0.5 : 0,
+    scrollBehavior: 'smooth',
+    scrollbarWidth: 'thin',
+    '&::-webkit-scrollbar': {
+      width: 8,
+    },
+    '&::-webkit-scrollbar-thumb': {
+      backgroundColor: 'rgba(148,163,184,0.45)',
+      borderRadius: 999,
+    },
+    '&::-webkit-scrollbar-track': {
+      backgroundColor: 'transparent',
+    },
+  } as const
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -537,7 +618,7 @@ export function TodoList(props: TodoListProps) {
     async (todoId: string, xp: number) => {
       try {
         const result = await updateTodo(todoId, { xp_reward: xp }) as TodoMutationResponse
-        if ((result.xpAction === 'retroactive' || result.xpAction === 'awarded') && Number(result.xpDelta ?? 0) > 0) {
+        if (isAwardedXpAction(result.xpAction) && Number(result.xpDelta ?? 0) > 0) {
           triggerXpFloat(Number(result.xpDelta ?? 0), null)
         }
       } catch (error) {
@@ -555,11 +636,19 @@ export function TodoList(props: TodoListProps) {
         const action = result.xpAction ?? 'none'
         const todoTitle = result.todo?.title ?? visibleTodos.find((t) => t.id === id)?.title ?? 'TO-DO'
 
-        if ((action === 'awarded' || action === 'retroactive') && xpDelta > 0) {
-          triggerXpFloat(xpDelta, event)
-          fireTodoCompleteToast({ title: todoTitle, xp: xpDelta })
-        } else if (action === 'reversed' && xpDelta !== 0) {
+        if (completed) {
+          if (isAwardedXpAction(action) && xpDelta > 0) {
+            triggerXpFloat(xpDelta, event)
+            fireTodoCompleteToast({ title: todoTitle, xp: xpDelta })
+          } else {
+            fireTodoCompleteToast({ title: todoTitle, xp: 0 })
+          }
+        } else if (isRevertedXpAction(action) && xpDelta !== 0) {
           triggerXpDeduction(Math.abs(xpDelta), event)
+        }
+
+        if (result.gamificationWarning?.code === 'MIGRATION_REQUIRED') {
+          console.warn('Gamificação indisponível para este to-do:', result.gamificationWarning.error)
         }
       } catch (error) {
         console.error('Error updating todo:', error)
@@ -775,7 +864,7 @@ export function TodoList(props: TodoListProps) {
       ) : isAdmin ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={visibleTodos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Box sx={todoListContainerSx}>
               {loading && (
                 <LinearProgress sx={{ mb: 0.5, borderRadius: 1 }} color="primary" variant="indeterminate" />
               )}
@@ -799,7 +888,7 @@ export function TodoList(props: TodoListProps) {
           </SortableContext>
         </DndContext>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Box sx={todoListContainerSx}>
           {loading && (
             <LinearProgress sx={{ mb: 0.5, borderRadius: 1 }} color="primary" variant="indeterminate" />
           )}

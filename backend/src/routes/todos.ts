@@ -35,12 +35,34 @@ type TodoRecord = {
   completed_at?: string | null;
 };
 
+const OPTIONAL_TODO_COLUMNS = [
+  'assigned_at',
+  'xp_reward',
+  'deadline',
+  'achievement_id',
+  'deadline_bonus_percent',
+  'completed_at',
+] as const;
+
+type OptionalTodoColumn = (typeof OPTIONAL_TODO_COLUMNS)[number];
+
 function getRequesterId(req: express.Request): string | null {
   return (
     ((req as express.Request & { userId?: string }).userId ?? null) ||
     (req.headers['x-user-id'] as string | undefined) ||
     null
   );
+}
+
+function getPrivilegeRequesterId(req: express.Request): string | null {
+  return (
+    ((req as express.Request & { realUserId?: string }).realUserId ?? null) ||
+    getRequesterId(req)
+  );
+}
+
+function getAuthRequesterId(req: express.Request): string | null {
+  return ((req as express.Request & { authUserId?: string }).authUserId ?? null) || null;
 }
 
 function parseDecimal(value: unknown, fallback: number): number {
@@ -56,18 +78,179 @@ function hasPositiveXp(value: unknown): boolean {
   return parseDecimal(value, 0) > 0;
 }
 
+function getMissingOptionalTodoColumn(error: unknown): OptionalTodoColumn | null {
+  const msg = String((error as { message?: string } | null)?.message || '');
+
+  const quoted = msg.match(/'([^']+)' column/i)?.[1];
+  if (quoted && OPTIONAL_TODO_COLUMNS.includes(quoted as OptionalTodoColumn)) {
+    return quoted as OptionalTodoColumn;
+  }
+
+  for (const column of OPTIONAL_TODO_COLUMNS) {
+    if (
+      msg.includes(column) &&
+      (/does not exist/i.test(msg) || /Could not find/i.test(msg) || /schema cache/i.test(msg))
+    ) {
+      return column;
+    }
+  }
+
+  return null;
+}
+
+function isMissingSchemaEntity(message: string, entity: string): boolean {
+  return (
+    message.includes(entity) &&
+    (/does not exist/i.test(message) || /Could not find/i.test(message) || /schema cache/i.test(message))
+  );
+}
+
+function isGamificationSchemaError(error: unknown): boolean {
+  const msg = String((error as { message?: string } | null)?.message || '');
+
+  return (
+    /column.*(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline|assigned_at).*does not exist/i.test(msg) ||
+    /Could not find the '(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline|assigned_at)' column/i.test(msg) ||
+    isMissingSchemaEntity(msg, 'cdt_user_xp_log') ||
+    isMissingSchemaEntity(msg, 'cdt_user_achievements') ||
+    isMissingSchemaEntity(msg, 'cdt_achievements')
+  );
+}
+
+function omitOptionalColumn<T extends Record<string, unknown>>(payload: T, column: OptionalTodoColumn): T {
+  const next = { ...payload };
+  delete next[column];
+  return next;
+}
+
+function isCreatedByFkError(error: unknown): boolean {
+  const msg = String((error as { message?: string } | null)?.message || '');
+  const code = String((error as { code?: string } | null)?.code || '');
+  return (
+    code === '23503' &&
+    (/created_by/i.test(msg) || /project_todos_created_by_fkey/i.test(msg) || /foreign key/i.test(msg))
+  );
+}
+
+async function insertTodoCompat(insertData: Record<string, unknown>, options?: { authUserId?: string | null }) {
+  let payload = { ...insertData };
+  const removed = new Set<string>();
+  let retriedCreatedBy = false;
+  let clearedCreatedBy = false;
+
+  while (true) {
+    const result = await supabase.from('cdt_project_todos').insert(payload).select().single();
+    if (!result.error) return result;
+
+    if (
+      !retriedCreatedBy &&
+      options?.authUserId &&
+      payload.created_by !== options.authUserId &&
+      isCreatedByFkError(result.error)
+    ) {
+      retriedCreatedBy = true;
+      payload = {
+        ...payload,
+        created_by: options.authUserId,
+      };
+      continue;
+    }
+
+    if (!clearedCreatedBy && payload.created_by != null && isCreatedByFkError(result.error)) {
+      clearedCreatedBy = true;
+      payload = {
+        ...payload,
+        created_by: null,
+      };
+      continue;
+    }
+
+    const missingColumn = getMissingOptionalTodoColumn(result.error);
+    if (!missingColumn || removed.has(missingColumn) || !(missingColumn in payload)) {
+      return result;
+    }
+
+    removed.add(missingColumn);
+    payload = omitOptionalColumn(payload, missingColumn);
+  }
+}
+
+async function updateTodoCompat(id: string, updateData: Record<string, unknown>) {
+  let payload = { ...updateData };
+  const removed = new Set<string>();
+
+  while (true) {
+    const result = await supabase
+      .from('cdt_project_todos')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (!result.error) return result;
+
+    const missingColumn = getMissingOptionalTodoColumn(result.error);
+    if (!missingColumn || removed.has(missingColumn) || !(missingColumn in payload)) {
+      return result;
+    }
+
+    removed.add(missingColumn);
+    payload = omitOptionalColumn(payload, missingColumn);
+  }
+}
+
+async function getTodoByIdCompat(id: string) {
+  const columns: string[] = [
+    'id',
+    'title',
+    'project_id',
+    'activity_id',
+    'created_by',
+    'assigned_to',
+    'assigned_at',
+    'completed',
+    'xp_reward',
+    'deadline',
+    'achievement_id',
+    'deadline_bonus_percent',
+    'completed_at',
+  ];
+
+  const removed = new Set<string>();
+
+  while (true) {
+    const result = await supabase
+      .from('cdt_project_todos')
+      .select(columns.join(', '))
+      .eq('id', id)
+      .single();
+
+    if (!result.error) return result;
+
+    const missingColumn = getMissingOptionalTodoColumn(result.error);
+    if (!missingColumn || removed.has(missingColumn)) {
+      return result;
+    }
+
+    removed.add(missingColumn);
+    const index = columns.indexOf(missingColumn);
+    if (index >= 0) columns.splice(index, 1);
+  }
+}
+
 async function ensureAdmin(req: express.Request, res: express.Response): Promise<string | null> {
   const requesterId = getRequesterId(req);
+  const privilegeUserId = getPrivilegeRequesterId(req);
   if (!requesterId) {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
-  const isAdmin = await hasRole(requesterId, 'admin');
+  const isAdmin = privilegeUserId ? await hasRole(privilegeUserId, 'admin') : false;
   if (!isAdmin) {
     res.status(403).json({ error: 'Only admins can perform this action.' });
     return null;
   }
-  return requesterId;
+  return privilegeUserId;
 }
 
 async function getNextSortOrder(params: {
@@ -152,6 +335,7 @@ router.get('/:projectId', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
+    const authRequesterId = getAuthRequesterId(req);
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -182,9 +366,8 @@ router.post('/', async (req, res) => {
       activityId: hasActivity ? activity_id : null,
     });
 
-    const { data, error } = await supabase
-      .from('cdt_project_todos')
-      .insert({
+    const { data, error } = await insertTodoCompat(
+      {
         project_id: hasProject ? project_id : null,
         activity_id: hasActivity ? activity_id : null,
         title,
@@ -198,9 +381,9 @@ router.post('/', async (req, res) => {
         achievement_id: isAdmin ? (achievement_id || null) : null,
         deadline_bonus_percent: isAdmin ? parseDecimal(deadline_bonus_percent, 0) : 0,
         completed_at: null,
-      })
-      .select()
-      .single();
+      },
+      { authUserId: authRequesterId },
+    );
 
     if (error) throw error;
 
@@ -228,7 +411,10 @@ router.post('/', async (req, res) => {
   } catch (error: any) {
     console.error('Error creating todo:', error);
     const msg = String(error?.message || '');
-    if (/column.*(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline|assigned_at).*does not exist/i.test(msg)) {
+    if (
+      /column.*(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline|assigned_at).*does not exist/i.test(msg) ||
+      /Could not find the '(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline|assigned_at)' column/i.test(msg)
+    ) {
       return res.status(503).json(gamificationMigration503Payload());
     }
     res.status(500).json({ error: error.message || 'Failed to create todo' });
@@ -248,13 +434,7 @@ router.put('/:id', async (req, res) => {
     const { title, completed, assigned_to, xp_reward, deadline, achievement_id, deadline_bonus_percent } = req.body;
     const incomingKeys = Object.keys(req.body as Record<string, unknown>);
 
-    const { data: currentTodo, error: currentTodoError } = await supabase
-      .from('cdt_project_todos')
-      .select(
-        'id, title, project_id, activity_id, created_by, assigned_to, assigned_at, completed, xp_reward, deadline, achievement_id, deadline_bonus_percent, completed_at',
-      )
-      .eq('id', id)
-      .single();
+    const { data: currentTodo, error: currentTodoError } = await getTodoByIdCompat(id);
 
     if (currentTodoError) throw currentTodoError;
     if (!currentTodo) {
@@ -305,62 +485,67 @@ router.put('/:id', async (req, res) => {
       updateData.completed_at = null;
     }
 
-    const { data: updatedTodoRaw, error } = await supabase
-      .from('cdt_project_todos')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
+    const { data: updatedTodoRaw, error } = await updateTodoCompat(id, updateData);
 
     if (error) throw error;
 
     const updatedTodo = updatedTodoRaw as TodoRecord;
     let xpDelta = 0;
     let xpAction: 'none' | 'awarded' | 'reverted' | 'retro_awarded' = 'none';
+    let gamificationWarning: ReturnType<typeof gamificationMigration503Payload> | null = null;
 
-    if (transitionedToCompleted && updatedTodo.assigned_to) {
-      const xpAmount = await calculateTodoAwardXp(updatedTodo);
-      const awarded = await awardTodoCompletionXp({
-        userId: updatedTodo.assigned_to,
-        todoId: updatedTodo.id,
-        xpAmount,
-      });
+    try {
+      if (transitionedToCompleted && updatedTodo.assigned_to) {
+        const xpAmount = await calculateTodoAwardXp(updatedTodo);
+        const awarded = await awardTodoCompletionXp({
+          userId: updatedTodo.assigned_to,
+          todoId: updatedTodo.id,
+          xpAmount,
+        });
 
-      if (awarded.awarded) {
-        xpDelta = awarded.xpDelta;
-        xpAction = 'awarded';
-        await unlockLinkedAchievementIfNeeded(updatedTodo.assigned_to, updatedTodo.achievement_id ?? null);
-        await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to);
+        if (awarded.awarded) {
+          xpDelta = awarded.xpDelta;
+          xpAction = 'awarded';
+          await unlockLinkedAchievementIfNeeded(updatedTodo.assigned_to, updatedTodo.achievement_id ?? null);
+          await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to);
+        }
+      } else if (transitionedToOpen && existingTodo.assigned_to) {
+        const reverted = await revertTodoCompletionXp({
+          userId: existingTodo.assigned_to,
+          todoId: existingTodo.id,
+        });
+
+        if (reverted.reverted) {
+          xpDelta = reverted.xpDelta;
+          xpAction = 'reverted';
+        }
+      } else if (
+        isAdmin &&
+        updatedTodo.completed === true &&
+        !hadXpConfigured &&
+        hasPositiveXp(updatedTodo.xp_reward) &&
+        updatedTodo.assigned_to
+      ) {
+        const xpAmount = await calculateTodoAwardXp(updatedTodo);
+        const retroAwarded = await awardTodoCompletionXp({
+          userId: updatedTodo.assigned_to,
+          todoId: updatedTodo.id,
+          xpAmount,
+        });
+
+        if (retroAwarded.awarded) {
+          xpDelta = retroAwarded.xpDelta;
+          xpAction = 'retro_awarded';
+          await unlockLinkedAchievementIfNeeded(updatedTodo.assigned_to, updatedTodo.achievement_id ?? null);
+          await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to);
+        }
       }
-    } else if (transitionedToOpen && existingTodo.assigned_to) {
-      const reverted = await revertTodoCompletionXp({
-        userId: existingTodo.assigned_to,
-        todoId: existingTodo.id,
-      });
-
-      if (reverted.reverted) {
-        xpDelta = reverted.xpDelta;
-        xpAction = 'reverted';
-      }
-    } else if (
-      isAdmin &&
-      updatedTodo.completed === true &&
-      !hadXpConfigured &&
-      hasPositiveXp(updatedTodo.xp_reward) &&
-      updatedTodo.assigned_to
-    ) {
-      const xpAmount = await calculateTodoAwardXp(updatedTodo);
-      const retroAwarded = await awardTodoCompletionXp({
-        userId: updatedTodo.assigned_to,
-        todoId: updatedTodo.id,
-        xpAmount,
-      });
-
-      if (retroAwarded.awarded) {
-        xpDelta = retroAwarded.xpDelta;
-        xpAction = 'retro_awarded';
-        await unlockLinkedAchievementIfNeeded(updatedTodo.assigned_to, updatedTodo.achievement_id ?? null);
-        await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to);
+    } catch (gamificationError: any) {
+      if (isGamificationSchemaError(gamificationError)) {
+        console.warn('Gamification skipped while updating todo due to missing schema:', gamificationError?.message || gamificationError);
+        gamificationWarning = gamificationMigration503Payload();
+      } else {
+        throw gamificationError;
       }
     }
 
@@ -391,11 +576,12 @@ router.put('/:id', async (req, res) => {
       todo: updatedTodo,
       xpDelta,
       xpAction,
+      ...(gamificationWarning ? { gamificationWarning } : {}),
     });
   } catch (error: any) {
     console.error('Error updating todo:', error);
     const msg = String(error?.message || '');
-    if (/column.*(xp_reward|deadline_bonus_percent|achievement_id|completed_at|deadline|assigned_at).*does not exist/i.test(msg)) {
+    if (isGamificationSchemaError(error)) {
       return res.status(503).json(gamificationMigration503Payload());
     }
     res.status(500).json({ error: error.message || 'Failed to update todo' });

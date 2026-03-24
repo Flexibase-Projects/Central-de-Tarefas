@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ProjectTodo } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -34,6 +34,115 @@ type TodoMutationResponse = {
   xpAction?: string | null
 }
 
+const todosCache = new Map<string, TodoEntity[]>()
+const todosInFlight = new Map<string, Promise<TodoEntity[]>>()
+let activeTodosUserKey: string | null = null
+
+function resetTodoCacheForUser(userKey: string | null) {
+  if (activeTodosUserKey === userKey) return
+  activeTodosUserKey = userKey
+  todosCache.clear()
+  todosInFlight.clear()
+}
+
+function getScopeKey(scope: TodosScope, userKey: string | null): string {
+  if ('projectId' in scope) return `project:${scope.projectId}:${userKey ?? 'anon'}`
+  return `activity:${scope.activityId}:${userKey ?? 'anon'}`
+}
+
+function getTodosUrl(scope: TodosScope): string {
+  if ('projectId' in scope) {
+    return API_URL ? `${API_URL}/api/todos/${scope.projectId}` : `/api/todos/${scope.projectId}`
+  }
+  return API_URL ? `${API_URL}/api/todos/by-activity/${scope.activityId}` : `/api/todos/by-activity/${scope.activityId}`
+}
+
+async function getResponseError(response: Response, fallback: string): Promise<Error> {
+  try {
+    const data = await response.json()
+    const message =
+      (typeof data?.error === 'string' && data.error) ||
+      (typeof data?.message === 'string' && data.message) ||
+      fallback
+    return new Error(message)
+  } catch {
+    return new Error(fallback)
+  }
+}
+
+async function fetchTodosForScope(
+  scope: TodosScope,
+  getAuthHeaders: () => Record<string, string>,
+  userKey: string | null,
+  options?: { force?: boolean },
+): Promise<TodoEntity[]> {
+  const cacheKey = getScopeKey(scope, userKey)
+
+  if (!options?.force && todosCache.has(cacheKey)) {
+    return todosCache.get(cacheKey) ?? []
+  }
+
+  if (!options?.force && todosInFlight.has(cacheKey)) {
+    return todosInFlight.get(cacheKey) ?? Promise.resolve([])
+  }
+
+  const promise = (async () => {
+    const response = await fetch(getTodosUrl(scope), { headers: getAuthHeaders() })
+    if (!response.ok) {
+      throw await getResponseError(response, 'Failed to fetch todos')
+    }
+    const data = await response.json()
+    const normalized = Array.isArray(data) ? (data as TodoEntity[]) : []
+    todosCache.set(cacheKey, normalized)
+    return normalized
+  })()
+
+  todosInFlight.set(cacheKey, promise)
+
+  try {
+    return await promise
+  } finally {
+    todosInFlight.delete(cacheKey)
+  }
+}
+
+export function usePrefetchTodos(scopes: TodosScope[]) {
+  const { currentUser, getAuthHeaders } = useAuth()
+
+  const normalizedScopes = useMemo(() => {
+    const unique = new Map<string, TodosScope>()
+    for (const scope of scopes) {
+      unique.set(getScopeKey(scope, currentUser?.id ?? null), scope)
+    }
+    return Array.from(unique.values())
+  }, [scopes, currentUser?.id])
+
+  useEffect(() => {
+    resetTodoCacheForUser(currentUser?.id ?? null)
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!currentUser?.id || normalizedScopes.length === 0) return
+
+    let cancelled = false
+
+    const run = async () => {
+      for (const scope of normalizedScopes) {
+        if (cancelled) break
+        void fetchTodosForScope(scope, getAuthHeaders, currentUser.id).catch(() => {
+          // Prefetch falha de forma silenciosa; o carregamento normal do dialog continua como fallback.
+        })
+      }
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+    }
+  }, [normalizedScopes, getAuthHeaders, currentUser?.id])
+}
+
 function unwrapTodoMutation(payload: unknown): TodoMutationResponse {
   if (payload && typeof payload === 'object' && 'todo' in payload) {
     const mutation = payload as TodoMutationResponse
@@ -47,22 +156,37 @@ function unwrapTodoMutation(payload: unknown): TodoMutationResponse {
   }
 }
 
+function updateCachedTodos(
+  scopeKey: string | null,
+  updater: (prev: TodoEntity[]) => TodoEntity[],
+) {
+  if (!scopeKey) return
+  const previous = todosCache.get(scopeKey) ?? []
+  todosCache.set(scopeKey, updater(previous))
+}
+
 export function useTodos(scope: TodosScope | null) {
-  const { getAuthHeaders } = useAuth()
+  const { currentUser, getAuthHeaders } = useAuth()
   const projectId = scope && 'projectId' in scope ? scope.projectId : null
   const activityId = scope && 'activityId' in scope ? scope.activityId : null
   const hasScope = Boolean(projectId || activityId)
+  const userKey = currentUser?.id ?? null
+  const scopeKey = scope ? getScopeKey(scope, userKey) : null
 
-  const [todos, setTodos] = useState<TodoEntity[]>([])
-  const [loading, setLoading] = useState(() => hasScope)
+  const [todos, setTodos] = useState<TodoEntity[]>(() => (scopeKey ? (todosCache.get(scopeKey) ?? []) : []))
+  const [loading, setLoading] = useState(() => (scopeKey && todosCache.has(scopeKey) ? false : hasScope))
   const [error, setError] = useState<string | null>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   /** Ignora respostas de fetch antigo quando projectId/activityId mudam ou há refetch rápido */
   const fetchGenerationRef = useRef(0)
 
+  useEffect(() => {
+    resetTodoCacheForUser(userKey)
+  }, [userKey])
+
   const fetchTodos = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (projectId == null && activityId == null) {
+    async (options?: { silent?: boolean; force?: boolean }) => {
+      if (!scope) {
         fetchGenerationRef.current += 1
         setTodos([])
         setLoading(false)
@@ -75,20 +199,9 @@ export function useTodos(scope: TodosScope | null) {
       try {
         if (!silent) setLoading(true)
         setError(null)
-        const url = projectId
-          ? API_URL
-            ? `${API_URL}/api/todos/${projectId}`
-            : `/api/todos/${projectId}`
-          : API_URL
-            ? `${API_URL}/api/todos/by-activity/${activityId}`
-            : `/api/todos/by-activity/${activityId}`
-        const response = await fetch(url, { headers: getAuthHeaders() })
-        if (!response.ok) {
-          throw new Error('Failed to fetch todos')
-        }
-        const data = await response.json()
+        const data = await fetchTodosForScope(scope, getAuthHeaders, userKey, { force: options?.force })
         if (generation !== fetchGenerationRef.current) return
-        setTodos(Array.isArray(data) ? data : [])
+        setTodos(data)
       } catch (err) {
         if (generation !== fetchGenerationRef.current) return
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
@@ -100,8 +213,20 @@ export function useTodos(scope: TodosScope | null) {
         }
       }
     },
-    [projectId, activityId, getAuthHeaders],
+    [scope, getAuthHeaders, userKey],
   )
+
+  useEffect(() => {
+    if (!scopeKey) return
+    const cached = todosCache.get(scopeKey)
+    if (cached) {
+      setTodos(cached)
+      setLoading(false)
+    } else {
+      setTodos([])
+      setLoading(hasScope)
+    }
+  }, [scopeKey, hasScope])
 
   useEffect(() => {
     void fetchTodos()
@@ -229,7 +354,7 @@ export function useTodos(scope: TodosScope | null) {
           body: JSON.stringify(todo),
         })
         if (!response.ok) {
-          throw new Error('Failed to create todo')
+          throw await getResponseError(response, 'Failed to create todo')
         }
         const payload = await response.json()
         const newTodo = unwrapTodoMutation(payload).todo
@@ -238,9 +363,9 @@ export function useTodos(scope: TodosScope | null) {
         if (newTodo.activity_id) invalidateTodosForActivity(newTodo.activity_id)
         return newTodo
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-        setError(errorMessage)
-        throw err
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError(errorMessage)
+      throw err
       }
     },
     [getAuthHeaders]
@@ -248,6 +373,42 @@ export function useTodos(scope: TodosScope | null) {
 
   const updateTodo = useCallback(
     async (id: string, updates: Partial<ProjectTodo>) => {
+      const previousTodos = todos
+      const optimisticTimestamp = new Date().toISOString()
+      const optimisticTodo = previousTodos.find((todo) => todo.id === id)
+      const hasOptimisticUpdate = Boolean(optimisticTodo)
+
+      if (hasOptimisticUpdate) {
+        const nextTodos = previousTodos.map((todo) => {
+          if (todo.id !== id) return todo
+
+          const mergedAssignedTo = updates.assigned_to !== undefined ? updates.assigned_to ?? null : todo.assigned_to
+          const mergedCompleted = updates.completed !== undefined ? Boolean(updates.completed) : todo.completed
+
+          return {
+            ...todo,
+            ...updates,
+            assigned_to: mergedAssignedTo,
+            completed: mergedCompleted,
+            assigned_at:
+              updates.assigned_to !== undefined
+                ? mergedAssignedTo
+                  ? optimisticTimestamp
+                  : null
+                : todo.assigned_at ?? null,
+            completed_at:
+              updates.completed === true
+                ? optimisticTimestamp
+                : updates.completed === false
+                  ? null
+                  : todo.completed_at ?? null,
+          }
+        })
+
+        setTodos(nextTodos)
+        updateCachedTodos(scopeKey, () => nextTodos)
+      }
+
       try {
         const url = API_URL ? `${API_URL}/api/todos/${id}` : `/api/todos/${id}`
         const response = await fetch(url, {
@@ -256,20 +417,28 @@ export function useTodos(scope: TodosScope | null) {
           body: JSON.stringify(updates),
         })
         if (!response.ok) {
-          throw new Error('Failed to update todo')
+          throw await getResponseError(response, 'Failed to update todo')
         }
         const payload = unwrapTodoMutation(await response.json())
-        setTodos((prev) => prev.map((todo) => (todo.id === id ? payload.todo : todo)))
+        setTodos((prev) => {
+          const next = prev.map((todo) => (todo.id === id ? payload.todo : todo))
+          updateCachedTodos(scopeKey, () => next)
+          return next
+        })
         if (projectId) invalidateTodosForProject(projectId)
         if (activityId) invalidateTodosForActivity(activityId)
         return payload
       } catch (err) {
+        if (hasOptimisticUpdate) {
+          setTodos(previousTodos)
+          updateCachedTodos(scopeKey, () => previousTodos)
+        }
         const errorMessage = err instanceof Error ? err.message : 'Unknown error'
         setError(errorMessage)
         throw err
       }
     },
-    [getAuthHeaders, projectId, activityId]
+    [getAuthHeaders, projectId, activityId, todos, scopeKey]
   )
 
   const deleteTodo = useCallback(
@@ -281,7 +450,7 @@ export function useTodos(scope: TodosScope | null) {
           headers: getAuthHeaders(),
         })
         if (!response.ok) {
-          throw new Error('Failed to delete todo')
+          throw await getResponseError(response, 'Failed to delete todo')
         }
         setTodos((prev) => prev.filter((todo) => todo.id !== id))
         if (projectId) invalidateTodosForProject(projectId)
@@ -311,7 +480,7 @@ export function useTodos(scope: TodosScope | null) {
             }),
           })
           if (!response.ok) {
-            throw new Error('Failed to reorder todos')
+            throw await getResponseError(response, 'Failed to reorder todos')
           }
           invalidateTodosForProject(projectId)
         } else if (activityId) {
@@ -325,7 +494,7 @@ export function useTodos(scope: TodosScope | null) {
             }),
           })
           if (!response.ok) {
-            throw new Error('Failed to reorder activity todos')
+            throw await getResponseError(response, 'Failed to reorder activity todos')
           }
           invalidateTodosForActivity(activityId)
         }

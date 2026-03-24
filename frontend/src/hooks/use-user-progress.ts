@@ -53,6 +53,20 @@ export function useUserProgress() {
     }
   }, [fetchProgress])
 
+  useEffect(() => {
+    const handler = () => {
+      void fetchProgress()
+    }
+
+    window.addEventListener('cdt-todo-completed', handler)
+    window.addEventListener('cdt-activities-invalidated', handler)
+
+    return () => {
+      window.removeEventListener('cdt-todo-completed', handler)
+      window.removeEventListener('cdt-activities-invalidated', handler)
+    }
+  }, [fetchProgress])
+
   const notifyXpAwarded = useCallback((xpAwarded: number) => {
     setPendingXp(xpAwarded)
   }, [])
