@@ -1,91 +1,58 @@
 import React from 'react'
 import {
-  Box,
-  Drawer,
-  Typography,
   Avatar,
-  LinearProgress,
-  IconButton,
-  Divider,
+  Box,
   Button,
   CircularProgress,
-  useTheme,
+  Divider,
+  Typography,
 } from '@mui/material'
-import { X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserProgress } from '@/hooks/use-user-progress'
 import { useIndicators } from '@/hooks/use-indicators'
 import { useProfileDrawerActions } from '@/hooks/use-profile-drawer-actions'
-import { getTierForLevel } from '@/utils/tier'
 import { TierBadge } from '@/components/gamification/TierBadge'
+import { LevelXpBar } from '@/components/master-mode/LevelXpBar'
 import { Person, BarChart2, ExternalLink, MessageCircleIcon, List, CheckCircle, ClipboardList } from '@/components/ui/icons'
+import SidePanel from '@/components/system/SidePanel'
+import AppSurface from '@/components/system/AppSurface'
+import SectionHeader from '@/components/system/SectionHeader'
 
 function StatTile({
   icon: Icon,
   label,
   value,
-  iconColor,
 }: {
   icon: React.ElementType
   label: string
   value: number
-  iconColor: string
 }) {
-  const theme = useTheme()
-  const isLight = theme.palette.mode === 'light'
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.25,
-        p: 1.25,
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: isLight ? 'divider' : 'rgba(255,255,255,0.08)',
-        bgcolor: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(0,0,0,0.28)',
-        transition: 'border-color 0.15s, background-color 0.15s',
-        '&:hover': {
-          borderColor: isLight ? 'primary.main' : 'rgba(88,101,242,0.45)',
-          bgcolor: isLight ? 'rgba(37,99,235,0.04)' : 'rgba(88,101,242,0.08)',
-        },
-      }}
-    >
+    <AppSurface compact surface="subtle" sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
       <Box
         sx={{
-          width: 36,
-          height: 36,
-          borderRadius: 1.25,
+          width: 34,
+          height: 34,
+          borderRadius: 'var(--radius-sm)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          bgcolor: isLight ? `${iconColor}14` : `${iconColor}22`,
-          color: iconColor,
+          bgcolor: 'action.hover',
+          color: 'primary.main',
         }}
       >
-        <Icon size={18} />
+        <Icon size={16} />
       </Box>
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography
-          variant="caption"
-          sx={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: 0.6,
-            textTransform: 'uppercase',
-            color: 'text.secondary',
-            display: 'block',
-            mb: 0.25,
-          }}
-        >
+        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', display: 'block', mb: 0.2 }}>
           {label}
         </Typography>
-        <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
           {value}
         </Typography>
       </Box>
-    </Box>
+    </AppSurface>
   )
 }
 
@@ -95,275 +62,125 @@ export interface UserLevelProfileDrawerProps {
 }
 
 export function UserLevelProfileDrawer({ open, onClose }: UserLevelProfileDrawerProps) {
-  const theme = useTheme()
-  const isLight = theme.palette.mode === 'light'
   const { currentUser } = useAuth()
-  const { goPerfil, goIndicadores, handleLogout } = useProfileDrawerActions({ onClose })
+  const { goPerfil, goIndicadores, goWorkspaces, handleLogout } = useProfileDrawerActions({ onClose })
   const { data: progress, loading: progressLoading } = useUserProgress()
   const { data: indicators, loading: indicatorsLoading, error: indicatorsError } = useIndicators()
 
-  const tier = progress ? getTierForLevel(progress.level) : getTierForLevel(1)
-  const xpPercent = progress
-    ? Math.min(100, ((progress.xpInCurrentLevel ?? 0) / Math.max(1, progress.xpForNextLevel ?? 1)) * 100)
-    : 0
   const personal = indicators?.personal ?? null
-
-  const panelBg = isLight ? theme.palette.background.paper : '#1e1f22'
-  const bannerGradient = isLight
-    ? `linear-gradient(135deg, ${tier.color}35 0%, ${theme.palette.primary.main}28 50%, ${tier.color}20 100%)`
-    : `linear-gradient(125deg, ${tier.color}55 0%, #1b2838 35%, #171a21 70%, ${tier.color}25 100%)`
 
   if (!currentUser) return null
 
   return (
-    <Drawer
-      anchor="right"
+    <SidePanel
       open={open}
       onClose={onClose}
-      slotProps={{
-        paper: {
-          sx: {
-            width: { xs: '100%', sm: 400 },
-            maxWidth: '100vw',
-            zIndex: (t) => t.zIndex.drawer + 2,
-            bgcolor: panelBg,
-            borderLeft: '1px solid',
-            borderColor: isLight ? 'divider' : 'rgba(255,255,255,0.06)',
-            display: 'flex',
-            flexDirection: 'column',
-          },
-        },
-      }}
+      title="Perfil rapido"
+      description="Resumo do seu progresso e dos seus indicadores no workspace atual."
+      footer={
+        <>
+          <Button variant="text" onClick={goWorkspaces}>
+            Workspaces
+          </Button>
+          <Button variant="outlined" onClick={goIndicadores} startIcon={<ExternalLink size={16} />}>
+            Indicadores
+          </Button>
+          <Button variant="contained" onClick={goPerfil}>
+            Perfil completo
+          </Button>
+        </>
+      }
     >
-      <Box
-        sx={{
-          position: 'relative',
-          flexShrink: 0,
-          background: bannerGradient,
-          borderBottom: '1px solid',
-          borderColor: isLight ? 'divider' : 'rgba(255,255,255,0.06)',
-          pt: 2,
-          pb: 2.5,
-          px: 2,
-        }}
-      >
-        <IconButton
-          size="small"
-          onClick={onClose}
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            color: isLight ? 'text.secondary' : 'rgba(255,255,255,0.7)',
-            bgcolor: isLight ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.35)',
-            '&:hover': { bgcolor: isLight ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.5)' },
-          }}
-          aria-label="Fechar"
-        >
-          <X size={18} />
-        </IconButton>
-
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, pr: 4 }}>
+      <AppSurface sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Avatar
             src={currentUser.avatar_url ?? undefined}
             sx={{
-              width: 88,
-              height: 88,
-              fontSize: 34,
+              width: 68,
+              height: 68,
+              fontSize: 24,
               fontWeight: 800,
-              border: '3px solid',
-              borderColor: isLight ? 'background.paper' : '#2b2d31',
-              boxShadow: `0 0 0 2px ${tier.color}88, 0 8px 24px rgba(0,0,0,0.35)`,
-              bgcolor: isLight ? 'primary.light' : 'primary.dark',
+              bgcolor: 'action.hover',
             }}
           >
-            {currentUser.name?.[0]?.toUpperCase() ?? <Person size={40} />}
+            {currentUser.name?.[0]?.toUpperCase() ?? <Person size={30} />}
           </Avatar>
 
-          <Box sx={{ flex: 1, minWidth: 0, pb: 0.5 }}>
-            <Typography variant="h6" fontWeight={800} noWrap sx={{ letterSpacing: '-0.02em', textShadow: isLight ? 'none' : '0 1px 8px rgba(0,0,0,0.5)' }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="h4" sx={{ mb: 0.3 }} noWrap>
               {currentUser.name}
             </Typography>
-            <Typography
-              variant="caption"
-              color={isLight ? 'text.secondary' : 'rgba(255,255,255,0.55)'}
-              noWrap
-              display="block"
-              sx={{ mb: 0.75 }}
-            >
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ mb: 0.9 }}>
               {currentUser.email}
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-              <TierBadge level={progress?.level ?? 1} size="sm" showTierName />
-            </Box>
-          </Box>
-
-          <Box
-            sx={{
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              flexShrink: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: `linear-gradient(145deg, ${tier.color}dd, ${tier.color}88)`,
-              border: '2px solid',
-              borderColor: isLight ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
-              boxShadow: `0 0 16px ${tier.glowColor}`,
-            }}
-          >
-            <Typography variant="h5" fontWeight={900} sx={{ color: '#fff', lineHeight: 1, textShadow: '0 1px 2px rgba(0,0,0,0.4)' }}>
-              {progress?.level ?? 1}
-            </Typography>
-            <Typography sx={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.9)', letterSpacing: 0.5 }}>
-              LVL
-            </Typography>
+            <TierBadge level={progress?.level ?? 1} size="sm" showTierName />
           </Box>
         </Box>
-      </Box>
+      </AppSurface>
 
-      <Box sx={{ flex: 1, overflow: 'auto', px: 2, py: 2 }}>
-        <Typography
-          variant="overline"
-          sx={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: 1,
-            color: 'text.secondary',
-            display: 'block',
-            mb: 1,
-          }}
-        >
-          Progressão
-        </Typography>
+      <AppSurface sx={{ mb: 2 }}>
+        <SectionHeader
+          title="Progressao"
+          description="Nivel, XP e entregas concluidas."
+          sx={{ pb: 1 }}
+        />
 
-        {progressLoading && !progress ? (
-          <LinearProgress sx={{ borderRadius: 1, mb: 2 }} />
-        ) : progress ? (
-          <>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+        <LevelXpBar progress={progress} loading={progressLoading} />
+
+        {progress ? (
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              <strong style={{ color: 'var(--text-primary)' }}>{progress.totalXp}</strong> XP total
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              <strong style={{ color: 'var(--text-primary)' }}>{progress.completedTodos}</strong> to-dos
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              <strong style={{ color: 'var(--text-primary)' }}>{progress.completedActivities}</strong> atividades
+            </Typography>
+            {progress.streakDays != null && progress.streakDays > 0 ? (
               <Typography variant="caption" color="text.secondary">
-                {progress.xpInCurrentLevel} / {progress.xpForNextLevel} XP
+                <strong style={{ color: 'var(--text-primary)' }}>{progress.streakDays}</strong> dias de streak
               </Typography>
-              <Typography variant="caption" sx={{ color: tier.color, fontWeight: 700 }}>
-                {Math.round(xpPercent)}%
-              </Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={xpPercent}
-              sx={{
-                height: 8,
-                borderRadius: 999,
-                mb: 1,
-                bgcolor: isLight ? 'action.hover' : 'rgba(255,255,255,0.08)',
-                '& .MuiLinearProgress-bar': {
-                  borderRadius: 999,
-                  background: `linear-gradient(90deg, ${tier.color}aa, ${tier.color})`,
-                  boxShadow: `0 0 10px ${tier.glowColor}`,
-                },
-              }}
-            />
-            {progress.streakDays != null && progress.streakDays > 0 && (
-              <Typography variant="caption" sx={{ color: '#F59E0B', fontWeight: 700, display: 'block', mb: 2 }}>
-                🔥 {progress.streakDays} dias de streak
-              </Typography>
-            )}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-              <Typography variant="caption" color="text.secondary">
-                <strong style={{ color: theme.palette.text.primary }}>{progress.totalXp}</strong> XP total
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                <strong style={{ color: theme.palette.text.primary }}>{progress.completedTodos}</strong> to-dos ·{' '}
-                <strong style={{ color: theme.palette.text.primary }}>{progress.completedActivities}</strong> atividades
-              </Typography>
-            </Box>
-          </>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Progresso indisponível no momento.
-          </Typography>
-        )}
+            ) : null}
+          </Box>
+        ) : null}
+      </AppSurface>
 
-        <Divider sx={{ my: 2, borderColor: isLight ? undefined : 'rgba(255,255,255,0.06)' }} />
-
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-          <Typography
-            variant="overline"
-            sx={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 1,
-              color: 'text.secondary',
-            }}
-          >
-            Indicadores · você
-          </Typography>
-          {indicatorsLoading && <CircularProgress size={18} thickness={5} />}
-        </Box>
+      <AppSurface>
+        <SectionHeader
+          title="Indicadores"
+          description="Recorte da sua atividade recente."
+          sx={{ pb: 1 }}
+          actions={indicatorsLoading ? <CircularProgress size={16} /> : null}
+        />
 
         {indicatorsError ? (
-          <Typography variant="caption" color="error">
+          <Typography variant="body2" color="error">
             {indicatorsError}
           </Typography>
         ) : personal ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-            <StatTile icon={MessageCircleIcon} label="Comentários" value={personal.commentsCount} iconColor="#5865F2" />
-            <StatTile icon={List} label="TO-DOs atribuídos" value={personal.todosAssignedTotal} iconColor="#3BA55D" />
-            <StatTile icon={CheckCircle} label="TO-DOs concluídos" value={personal.todosAssignedCompleted} iconColor="#57F287" />
-            <StatTile icon={ClipboardList} label="TO-DOs pendentes" value={personal.todosAssignedOpen} iconColor="#F59E0B" />
+            <StatTile icon={MessageCircleIcon} label="Comentarios" value={personal.commentsCount} />
+            <StatTile icon={List} label="To-dos atribuidos" value={personal.todosAssignedTotal} />
+            <StatTile icon={CheckCircle} label="To-dos concluidos" value={personal.todosAssignedCompleted} />
+            <StatTile icon={ClipboardList} label="To-dos pendentes" value={personal.todosAssignedOpen} />
             <Box sx={{ gridColumn: '1 / -1' }}>
-              <StatTile icon={BarChart2} label="Atividades atribuídas" value={personal.activitiesAssigned} iconColor="#00BFFF" />
+              <StatTile icon={BarChart2} label="Atividades atribuidas" value={personal.activitiesAssigned} />
             </Box>
           </Box>
         ) : !indicatorsLoading ? (
-          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-            Ainda não há linha sua na tabela de indicadores do time. Continue usando a Central — os números aparecem em{' '}
-            <Button size="small" onClick={goIndicadores} sx={{ textTransform: 'none', p: 0, minWidth: 0, verticalAlign: 'baseline' }}>
-              Indicadores
-            </Button>
-            .
+          <Typography variant="body2" color="text.secondary">
+            Ainda nao ha linha sua na tabela de indicadores do time.
           </Typography>
         ) : null}
-      </Box>
 
-      <Box
-        sx={{
-          flexShrink: 0,
-          p: 2,
-          pt: 1,
-          borderTop: '1px solid',
-          borderColor: isLight ? 'divider' : 'rgba(255,255,255,0.06)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 1,
-          bgcolor: isLight ? 'action.hover' : 'rgba(0,0,0,0.25)',
-        }}
-      >
-        <Button fullWidth variant="contained" onClick={goPerfil} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2 }}>
-          Perfil completo
-        </Button>
-        <Button
-          fullWidth
-          variant="outlined"
-          onClick={goIndicadores}
-          startIcon={<ExternalLink size={16} />}
-          sx={{ fontWeight: 600, textTransform: 'none', borderRadius: 2 }}
-        >
-          Ver meus indicadores
-        </Button>
-        <Button
-          fullWidth
-          variant="text"
-          color="error"
-          onClick={handleLogout}
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
-        >
+        <Divider sx={{ my: 2 }} />
+
+        <Button fullWidth variant="text" color="error" onClick={handleLogout}>
           Desconectar
         </Button>
-      </Box>
-    </Drawer>
+      </AppSurface>
+    </SidePanel>
   )
 }

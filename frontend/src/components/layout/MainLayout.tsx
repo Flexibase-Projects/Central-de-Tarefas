@@ -1,5 +1,5 @@
-import { ReactNode, useState } from 'react'
-import { Box, useTheme, Alert } from '@mui/material'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { Avatar, Box, Stack, Typography, Alert } from '@mui/material'
 import { AppSidebar } from './AppSidebar'
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown'
 import { ViewAsUserButton } from './ViewAsUserButton'
@@ -10,8 +10,14 @@ import { TodoCompleteToast } from '@/components/achievements/TodoCompleteToast'
 import { UserLevelProfileDrawer } from './UserLevelProfileDrawer'
 import { HeaderProfileButton } from './HeaderProfileButton'
 import { HeaderCollapsedSidebarTools } from './HeaderCollapsedSidebarTools'
+import type { WorkspaceMember } from '@/types'
+import { getApiBase } from '@/lib/api'
+import StatusToken from '@/components/system/StatusToken'
 
-const HEADER_HEIGHT = 59
+const API_URL = getApiBase()
+const HEADER_HEIGHT = 60
+const SIDEBAR_EXPANDED_WIDTH = 248
+const SIDEBAR_COLLAPSED_WIDTH = 72
 
 interface MainLayoutProps {
   children: ReactNode
@@ -20,14 +26,43 @@ interface MainLayoutProps {
 function MainLayoutContent({ children }: MainLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false)
-  const sidebarWidth = sidebarCollapsed ? 72 : 256
-  const theme = useTheme()
-  const { isViewingAs, viewAsUser, stopViewingAs, currentUser } = useAuth()
+  const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([])
+  const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+  const { isViewingAs, viewAsUser, stopViewingAs, currentUser, currentWorkspace, getAuthHeaders } = useAuth()
   const { data: progressData, loading: progressLoading } = useUserProgress()
   const { count: pendingTodosCount } = useMyPendingTodosCount()
 
+  useEffect(() => {
+    let mounted = true
+    const run = async () => {
+      if (!currentWorkspace?.id) {
+        if (mounted) setWorkspaceMembers([])
+        return
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/workspaces/current/members`, {
+          headers: getAuthHeaders(),
+        })
+        const body = (await response.json().catch(() => [])) as WorkspaceMember[]
+        if (!mounted || !response.ok || !Array.isArray(body)) return
+        setWorkspaceMembers(body)
+      } catch {
+        if (mounted) setWorkspaceMembers([])
+      }
+    }
+
+    void run()
+    return () => {
+      mounted = false
+    }
+  }, [currentWorkspace?.id, getAuthHeaders])
+
+  const visibleMembers = useMemo(() => workspaceMembers.slice(0, 4), [workspaceMembers])
+  const overflowMembers = Math.max(0, workspaceMembers.length - visibleMembers.length)
+
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppSidebar
         isCollapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
@@ -35,6 +70,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
         progressData={progressData}
         progressLoading={progressLoading}
       />
+
       <Box
         component="main"
         sx={{
@@ -43,47 +79,34 @@ function MainLayoutContent({ children }: MainLayoutProps) {
           flexDirection: 'column',
           minHeight: '100vh',
           ml: `${sidebarWidth}px`,
-          transition: (theme) => theme.transitions.create('margin', { duration: 250 }),
+          transition: (theme) => theme.transitions.create('margin', { duration: 180 }),
           overflow: 'hidden',
         }}
       >
-        {/* Faixa de aviso do modo "Ver como usuário" */}
-        {isViewingAs && viewAsUser && (
+        {isViewingAs && viewAsUser ? (
           <Alert
             severity="warning"
             onClose={stopViewingAs}
-            sx={{ borderRadius: 0, py: 0.25, '& .MuiAlert-message': { py: 0.5 } }}
+            sx={{ borderRadius: 0, py: 0.2, '& .MuiAlert-message': { py: 0.55 } }}
           >
-            Você está visualizando o sistema como <strong>{viewAsUser.name}</strong>. Clique no × para sair deste modo.
+            Visualizando como <strong>{viewAsUser.name}</strong>.
           </Alert>
-        )}
+        ) : null}
 
-        {/* Header padrão — mesma altura do header da sidebar (59px) */}
         <Box
           sx={{
-            height: HEADER_HEIGHT,
             minHeight: HEADER_HEIGHT,
-            maxHeight: HEADER_HEIGHT,
-            flexShrink: 0,
+            px: { xs: 1.25, md: 2 },
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 1.5,
-            px: 2,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-            bgcolor: 'background.default',
+            gap: 2,
           }}
         >
-          <Box
-            sx={{
-              minWidth: 0,
-              flex: '0 1 auto',
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              height: '100%',
-            }}
-          >
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
             {sidebarCollapsed ? (
               <HeaderCollapsedSidebarTools
                 pendingTodosCount={pendingTodosCount}
@@ -91,28 +114,60 @@ function MainLayoutContent({ children }: MainLayoutProps) {
                 progressLoading={progressLoading}
               />
             ) : null}
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0, ml: 'auto' }}>
+
+            <Box sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }} noWrap>
+                  {currentWorkspace?.name || 'Workspace'}
+                </Typography>
+                {currentWorkspace?.role_display_name ? (
+                  <StatusToken tone="neutral">
+                    {currentWorkspace.role_display_name}
+                  </StatusToken>
+                ) : null}
+              </Stack>
+            </Box>
+          </Stack>
+
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+            {visibleMembers.length > 0 ? (
+              <Stack direction="row" spacing={0.5} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
+                {visibleMembers.map((member) => (
+                  <Avatar
+                    key={member.id}
+                    src={member.avatar_url ?? undefined}
+                    alt={member.name}
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {member.name?.[0]?.toUpperCase() ?? '?'}
+                  </Avatar>
+                ))}
+                {overflowMembers > 0 ? (
+                  <StatusToken tone="neutral">+{overflowMembers}</StatusToken>
+                ) : null}
+              </Stack>
+            ) : null}
+
             <ViewAsUserButton />
             <NotificationsDropdown />
-            {currentUser && (
+            {currentUser ? (
               <HeaderProfileButton
                 name={currentUser.name}
                 avatarUrl={currentUser.avatar_url}
                 onClick={() => setProfileDrawerOpen(true)}
               />
-            )}
-          </Box>
+            ) : null}
+          </Stack>
         </Box>
-        <Box
-          sx={{
-            flex: 1,
-            overflow: 'auto',
-          }}
-        >
-          {children}
-        </Box>
+
+        <Box sx={{ flex: 1, overflow: 'auto' }}>{children}</Box>
       </Box>
+
       <UserLevelProfileDrawer open={profileDrawerOpen} onClose={() => setProfileDrawerOpen(false)} />
     </Box>
   )

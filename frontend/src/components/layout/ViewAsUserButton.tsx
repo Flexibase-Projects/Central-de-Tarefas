@@ -2,7 +2,6 @@ import { useState, useRef } from 'react'
 import {
   Box,
   Button,
-  Chip,
   CircularProgress,
   ClickAwayListener,
   Divider,
@@ -10,7 +9,6 @@ import {
   List,
   ListItemButton,
   ListItemText,
-  Paper,
   Popper,
   TextField,
   Tooltip,
@@ -21,6 +19,7 @@ import { Visibility, VisibilityOff, Search, Close } from '@mui/icons-material'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUsers } from '@/hooks/use-users'
 import { UserWithRole } from '@/types'
+import AppSurface from '@/components/system/AppSurface'
 
 export function ViewAsUserButton() {
   const { realUserRole, isViewingAs, viewAsUser, startViewingAs, stopViewingAs } = useAuth()
@@ -31,7 +30,6 @@ export function ViewAsUserButton() {
   const [starting, setStarting] = useState(false)
   const anchorRef = useRef<HTMLButtonElement>(null)
 
-  // Só renderiza para administradores reais
   if (realUserRole?.name !== 'admin') return null
 
   const filtered = users.filter((u) => {
@@ -49,41 +47,47 @@ export function ViewAsUserButton() {
 
   if (isViewingAs && viewAsUser) {
     return (
-      <Chip
-        avatar={
-          <Avatar
-            src={viewAsUser.avatar_url ?? undefined}
-            sx={{ width: 22, height: 22, fontSize: 11 }}
+      <AppSurface
+        compact
+        surface="interactive"
+        sx={{
+          px: 1,
+          py: 0.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.75,
+        }}
+      >
+        <Avatar
+          src={viewAsUser.avatar_url ?? undefined}
+          sx={{ width: 22, height: 22, fontSize: 11 }}
+        >
+          {viewAsUser.name.charAt(0).toUpperCase()}
+        </Avatar>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+            Vendo como
+          </Typography>
+          <Typography variant="caption">{viewAsUser.name}</Typography>
+        </Box>
+        <Tooltip title="Sair do modo visualizacao">
+          <Button
+            size="small"
+            color="inherit"
+            onClick={stopViewingAs}
+            sx={{ minWidth: 0, px: 1, py: 0.2 }}
           >
-            {viewAsUser.name.charAt(0).toUpperCase()}
-          </Avatar>
-        }
-        label={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>
-              Vendo como:
-            </Typography>
-            <Typography variant="caption">{viewAsUser.name}</Typography>
-          </Box>
-        }
-        deleteIcon={
-          <Tooltip title="Sair do modo visualização">
             <Close fontSize="small" />
-          </Tooltip>
-        }
-        onDelete={stopViewingAs}
-        color="warning"
-        variant="filled"
-        size="small"
-        sx={{ height: 32, cursor: 'default', borderRadius: 2 }}
-      />
+          </Button>
+        </Tooltip>
+      </AppSurface>
     )
   }
 
   return (
     <ClickAwayListener onClickAway={() => setOpen(false)}>
       <Box sx={{ position: 'relative' }}>
-        <Tooltip title="Ver como usuário">
+        <Tooltip title="Ver como usuario">
           <Button
             ref={anchorRef}
             size="small"
@@ -93,7 +97,6 @@ export function ViewAsUserButton() {
             disabled={starting}
             sx={{
               textTransform: 'none',
-              borderRadius: 2,
               fontSize: 12,
               height: 40,
               px: 1.25,
@@ -109,22 +112,14 @@ export function ViewAsUserButton() {
           </Button>
         </Tooltip>
 
-        <Popper
-          open={open}
-          anchorEl={anchorRef.current}
-          placement="bottom-end"
-          style={{ zIndex: 1400 }}
-        >
-          <Paper
-            elevation={4}
-            sx={{ width: 280, mt: 0.5, borderRadius: 2, overflow: 'hidden' }}
-          >
+        <Popper open={open} anchorEl={anchorRef.current} placement="bottom-end" style={{ zIndex: 1400 }}>
+          <AppSurface sx={{ width: 280, mt: 0.5, p: 0, overflow: 'hidden' }}>
             <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
               <Typography variant="subtitle2" fontWeight={700}>
-                Visualizar como usuário
+                Visualizar como usuario
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Selecione para simular a visão do sistema
+                Selecione para simular a visao do sistema
               </Typography>
             </Box>
             <Divider />
@@ -132,7 +127,7 @@ export function ViewAsUserButton() {
               <TextField
                 size="small"
                 fullWidth
-                placeholder="Buscar usuário..."
+                placeholder="Buscar usuario..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 InputProps={{
@@ -145,11 +140,7 @@ export function ViewAsUserButton() {
                 autoFocus
               />
             </Box>
-            <List
-              dense
-              disablePadding
-              sx={{ maxHeight: 260, overflowY: 'auto' }}
-            >
+            <List dense disablePadding sx={{ maxHeight: 260, overflowY: 'auto' }}>
               {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                   <CircularProgress size={20} />
@@ -157,16 +148,12 @@ export function ViewAsUserButton() {
               ) : filtered.length === 0 ? (
                 <Box sx={{ px: 2, py: 2 }}>
                   <Typography variant="caption" color="text.secondary">
-                    Nenhum usuário encontrado
+                    Nenhum usuario encontrado
                   </Typography>
                 </Box>
               ) : (
                 filtered.map((user) => (
-                  <ListItemButton
-                    key={user.id}
-                    onClick={() => handleSelect(user)}
-                    sx={{ px: 2, py: 0.75 }}
-                  >
+                  <ListItemButton key={user.id} onClick={() => handleSelect(user)} sx={{ px: 2, py: 0.75 }}>
                     <Avatar
                       src={user.avatar_url ?? undefined}
                       sx={{ width: 28, height: 28, mr: 1.5, fontSize: 12 }}
@@ -187,10 +174,10 @@ export function ViewAsUserButton() {
             <Box sx={{ px: 2, py: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <VisibilityOff sx={{ fontSize: 12 }} />
-                Apenas você vê esta funcionalidade
+                Apenas voce ve esta funcionalidade
               </Typography>
             </Box>
-          </Paper>
+          </AppSurface>
         </Popper>
       </Box>
     </ClickAwayListener>

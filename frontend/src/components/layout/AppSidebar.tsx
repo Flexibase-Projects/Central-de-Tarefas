@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { useLocation, useNavigate, Link } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   Dashboard,
   MapIcon,
@@ -16,49 +16,60 @@ import {
 } from '@/components/ui/icons'
 import {
   Box,
-  Badge,
-  Divider,
   IconButton,
   Menu as MuiMenu,
   MenuItem,
-  Paper,
   Tooltip,
   Typography,
   useTheme,
+  Collapse,
+  ButtonBase,
 } from '@mui/material'
-import { Sun, Moon } from 'lucide-react'
+import { ChevronDown, ChevronRight, Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/theme/ThemeProvider'
 import { usePermissions } from '@/hooks/use-permissions'
-import { LevelXpBar } from '@/components/master-mode/LevelXpBar'
-import { getTierForLevel } from '@/utils/tier'
 import { LEVEL_CARD_MENU_ITEMS } from '@/components/layout/sidebar-level-nav'
 import type { UserProgress } from '@/types'
+import { buildWorkspacePath, stripWorkspacePrefix } from '@/lib/workspace-routing'
+import { useAuth } from '@/contexts/AuthContext'
+import AppSurface from '@/components/system/AppSurface'
+import ProgressIndicator from '@/components/system/ProgressIndicator'
+import StatusToken from '@/components/system/StatusToken'
 
 type NavItem = { title: string; url: string; icon: React.ElementType; permission: string | null; requireRole?: string }
+type NavSection = { title: string; hint: string; items: NavItem[] }
 
-const SIDEBAR_SECTIONS: { title: string; items: NavItem[] }[] = [
+const SIDEBAR_EXPANDED_WIDTH = 248
+const SIDEBAR_COLLAPSED_WIDTH = 72
+
+const SIDEBAR_SECTIONS: NavSection[] = [
   {
-    title: 'INSIGHT',
+    title: 'Operacao',
+    hint: 'Rotina principal do workspace',
     items: [
-      { title: 'Dashboard', url: '/', icon: Dashboard, permission: null },
+      { title: 'Projetos', url: '/', icon: Code, permission: 'access_desenvolvimentos' },
+      { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades' },
+      { title: 'Canva em equipe', url: '/canva-equipe', icon: Paintbrush, permission: null },
+    ],
+  },
+  {
+    title: 'Insights',
+    hint: 'Leituras e priorizacao',
+    items: [
+      { title: 'Dashboard', url: '/dashboard', icon: Dashboard, permission: null },
       { title: 'Mapa', url: '/mapa', icon: MapIcon, permission: null },
       { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null },
       { title: 'Indicadores', url: '/indicadores', icon: BarChart2, permission: null },
     ],
   },
   {
-    title: 'FERRAMENTAS',
+    title: 'Gestao',
+    hint: 'Administracao e estrutura',
     items: [
-      { title: 'Desenvolvimentos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos' },
-      { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades' },
-      { title: 'Canva em Equipe', url: '/canva-equipe', icon: Paintbrush, permission: null },
       { title: 'Organograma', url: '/organograma', icon: OrgChartIcon, permission: null, requireRole: 'admin' },
       { title: 'Custos', url: '/custos-departamento', icon: DollarSign, permission: null, requireRole: 'admin' },
+      { title: 'Configuracoes', url: '/configuracoes', icon: Settings, permission: null, requireRole: 'admin' },
     ],
-  },
-  {
-    title: 'GESTÃO',
-    items: [{ title: 'Configurações', url: '/configuracoes', icon: Settings, permission: null, requireRole: 'admin' }],
   },
 ]
 
@@ -74,218 +85,72 @@ export function DemandCard({
   count,
   compact = false,
   headerInline = false,
+  targetPath = '/indicadores',
 }: {
   count: number | null
   compact?: boolean
-  /** Uma linha, altura contida — para header com sidebar retraída */
   headerInline?: boolean
+  targetPath?: string
 }) {
   const resolvedCount = count ?? 0
   const hasPending = resolvedCount > 0
 
   if (headerInline) {
-    const labelShort = hasPending ? 'em aberto' : 'concluídas'
     return (
-      <Tooltip
-        title={
-          <>
-            {resolvedCount.toString().padStart(2, '0')}{' '}
-            {hasPending ? 'entregas em aberto' : 'entregas concluídas'} — Abrir indicadores
-          </>
-        }
-        placement="bottom"
+      <Box
+        component={Link}
+        to={targetPath}
+        sx={{
+          textDecoration: 'none',
+          color: 'inherit',
+        }}
       >
-        <Paper
-          elevation={0}
+        <AppSurface
+          compact
+          surface={hasPending ? 'interactive' : 'subtle'}
           sx={{
-            borderRadius: 1.5,
-            overflow: 'hidden',
-            border: '1px solid',
-            borderColor: hasPending ? 'rgba(245,158,11,0.35)' : 'rgba(59,130,246,0.18)',
-            background: hasPending
-              ? 'linear-gradient(135deg, rgba(245,158,11,0.14) 0%, rgba(217,119,6,0.06) 100%)'
-              : 'linear-gradient(135deg, rgba(37,99,235,0.1) 0%, rgba(14,165,233,0.05) 100%)',
-            boxShadow: 'none',
-            flexShrink: 0,
-            maxHeight: 44,
+            px: 1.25,
+            py: 0.75,
+            minHeight: 38,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
           }}
         >
-          <Box
-            component={Link}
-            to="/indicadores"
-            sx={{
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.75,
-              px: 1,
-              py: 0.35,
-              color: 'text.primary',
-              minHeight: 0,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: 800,
-                letterSpacing: 0.6,
-                textTransform: 'uppercase',
-                color: hasPending ? 'warning.dark' : 'primary.main',
-                fontSize: 7,
-                lineHeight: 1.15,
-                maxWidth: 56,
-              }}
-            >
-              Minhas demandas
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                px: 0.65,
-                py: 0.2,
-                borderRadius: 1,
-                bgcolor: hasPending ? '#D97706' : 'rgba(37,99,235,0.75)',
-                border: '1px solid',
-                borderColor: 'rgba(255,255,255,0.25)',
-                flexShrink: 0,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontWeight: 800,
-                  fontSize: 13,
-                  lineHeight: 1,
-                  letterSpacing: -0.02,
-                  color: '#fff',
-                }}
-              >
-                {resolvedCount.toString().padStart(2, '0')}
-              </Typography>
-              <Typography
-                sx={{
-                  fontWeight: 600,
-                  fontSize: 9,
-                  lineHeight: 1,
-                  color: 'rgba(255,255,255,0.92)',
-                  display: { xs: 'none', sm: 'block' },
-                  maxWidth: 52,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {labelShort}
-              </Typography>
-            </Box>
-          </Box>
-        </Paper>
-      </Tooltip>
+          <Typography variant="caption" sx={{ fontWeight: 700 }}>
+            Demandas
+          </Typography>
+          <StatusToken tone={hasPending ? 'warning' : 'neutral'}>
+            {resolvedCount.toString().padStart(2, '0')}
+          </StatusToken>
+        </AppSurface>
+      </Box>
     )
   }
 
   return (
-    <Paper
-      elevation={0}
+    <Box
+      component={Link}
+      to={targetPath}
       sx={{
-        borderRadius: 2,
-        overflow: 'hidden',
-        border: '1px solid',
-        borderColor: hasPending ? 'rgba(245,158,11,0.35)' : 'rgba(59,130,246,0.18)',
-        background: hasPending
-          ? 'linear-gradient(135deg, rgba(245,158,11,0.16) 0%, rgba(217,119,6,0.08) 100%)'
-          : 'linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(14,165,233,0.06) 100%)',
-        boxShadow: '0 12px 28px rgba(15, 23, 42, 0.08)',
+        textDecoration: 'none',
+        color: 'inherit',
       }}
     >
-      <Box
-        component={Link}
-        to="/indicadores"
-        style={{ textDecoration: 'none', display: 'block' }}
-      >
-        <Box sx={{ p: compact ? 1 : 1.05, color: 'text.primary', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: 800,
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-                color: hasPending ? 'warning.dark' : 'primary.main',
-                whiteSpace: 'nowrap',
-                textAlign: 'center',
-              }}
-            >
-              Minhas demandas
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 1,
-              mt: 0.6,
-              px: 0.9,
-              py: 0.35,
-              borderRadius: 1.25,
-              bgcolor: hasPending ? '#D97706' : 'rgba(37,99,235,0.75)',
-              border: '1px solid',
-              borderColor: hasPending ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.25)',
-              boxShadow: hasPending
-                ? '0 0 0 1px rgba(245,158,11,0.044), 0 0 16px rgba(245,158,11,0.09)'
-                : '0 0 0 1px rgba(37,99,235,0.036), 0 0 12px rgba(37,99,235,0.07)',
-              minWidth: 170,
-              transition: 'box-shadow 0.2s ease',
-              '&:hover': {
-                boxShadow: hasPending
-                  ? '0 0 0 1px rgba(245,158,11,0.22), 0 0 16px rgba(245,158,11,0.45)'
-                  : '0 0 0 1px rgba(37,99,235,0.18), 0 0 12px rgba(37,99,235,0.35)',
-              },
-            }}
-          >
-            <Typography
-              variant="body1"
-              sx={{
-                fontWeight: 800,
-                fontSize: 15,
-                lineHeight: 1,
-                letterSpacing: -0.02,
-                color: '#fff',
-              }}
-            >
-              {resolvedCount.toString().padStart(2, '0')}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: 600,
-                fontSize: 11,
-                lineHeight: 1.1,
-                color: 'rgba(255,255,255,0.95)',
-              }}
-            >
-              {hasPending ? 'entregas em aberto' : 'entregas concluídas'}
-            </Typography>
-          </Box>
-          <Typography
-            variant="caption"
-            sx={{
-              mt: 0.6,
-              display: 'inline-block',
-              color: hasPending ? 'warning.dark' : 'primary.dark',
-              fontWeight: 700,
-              fontSize: 10.5,
-              textAlign: 'center',
-            }}
-          >
-            Abrir indicadores
+      <AppSurface compact={compact} surface={hasPending ? 'interactive' : 'subtle'}>
+        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.75 }}>
+          Minhas demandas
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Typography variant="h4" sx={{ fontSize: '1.125rem' }}>
+            {resolvedCount.toString().padStart(2, '0')}
           </Typography>
+          <StatusToken tone={hasPending ? 'warning' : 'neutral'}>
+            {hasPending ? 'Em aberto' : 'Resolvidas'}
+          </StatusToken>
         </Box>
-      </Box>
-    </Paper>
+      </AppSurface>
+    </Box>
   )
 }
 
@@ -300,18 +165,20 @@ export function AppSidebar(props: AppSidebarProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const theme = useTheme()
-  const isLight = theme.palette.mode === 'light'
   const { mode, toggleTheme } = useThemeMode()
   const { hasPermission, hasRole } = usePermissions()
+  const { currentWorkspace } = useAuth()
   const [internalCollapsed, setInternalCollapsed] = useState(false)
   const [levelMenuAnchor, setLevelMenuAnchor] = useState<HTMLElement | null>(null)
+  const [expandedSection, setExpandedSection] = useState<string>('Operacao')
   const isCollapsed = controlledCollapsed ?? internalCollapsed
 
-  const setIsCollapsed = (v: boolean) => {
-    onCollapsedChange?.(v)
-    if (!onCollapsedChange) setInternalCollapsed(v)
+  const setIsCollapsed = (value: boolean) => {
+    onCollapsedChange?.(value)
+    if (!onCollapsedChange) setInternalCollapsed(value)
   }
 
+  const normalizedPath = stripWorkspacePrefix(location.pathname)
   const visibleSections = useMemo(() => {
     return SIDEBAR_SECTIONS.map((section) => ({
       ...section,
@@ -320,212 +187,217 @@ export function AppSidebar(props: AppSidebarProps) {
         if (item.permission) return hasPermission(item.permission)
         return true
       }),
-    })).filter((s) => s.items.length > 0)
+    })).filter((section) => section.items.length > 0)
   }, [hasPermission, hasRole])
 
-  const sidebarBg = isLight ? '#ffffff' : theme.palette.background.default
-  const borderColor = theme.palette.divider
-  const activeColor = theme.palette.primary.main
-  const hoverBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)'
+  useEffect(() => {
+    const activeSection = visibleSections.find((section) =>
+      section.items.some((item) => (item.url === '/' ? normalizedPath === '/' : normalizedPath === item.url || normalizedPath.startsWith(`${item.url}/`))),
+    )
+    if (activeSection?.title) setExpandedSection(activeSection.title)
+  }, [normalizedPath, visibleSections])
 
+  const workspaceRoot = currentWorkspace?.slug ? buildWorkspacePath(currentWorkspace.slug) : '/'
+  const sidebarWidth = isCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
   const isActiveLink = (url: string) =>
-    url === '/configuracoes'
-      ? location.pathname === '/configuracoes' || location.pathname.startsWith('/configuracoes/')
-      : location.pathname === url
+    url === '/'
+      ? normalizedPath === '/'
+      : normalizedPath === url || normalizedPath.startsWith(`${url}/`)
 
   return (
     <Box
       sx={{
         position: 'fixed',
-        left: 0,
-        top: 0,
+        inset: '0 auto 0 0',
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        borderRight: `1px solid ${borderColor}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
         zIndex: 1200,
-        width: isCollapsed ? 72 : 256,
-        transition: theme.transitions.create('width', { duration: 250 }),
-        bgcolor: sidebarBg,
+        width: sidebarWidth,
+        transition: theme.transitions.create('width', { duration: 180 }),
+        bgcolor: 'background.paper',
         color: 'text.primary',
       }}
     >
-      {isCollapsed ? (
-        <Box sx={{ borderBottom: `1px solid ${borderColor}`, flexShrink: 0 }}>
-          <Box sx={{ minHeight: 56, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Tooltip
-              title={
-                pendingTodosCount
-                  ? `${pendingTodosCount} TO-DO${pendingTodosCount > 1 ? 's' : ''} pendente${pendingTodosCount > 1 ? 's' : ''}`
-                  : 'CDT'
-              }
-              placement="right"
-            >
-              <Badge
-                badgeContent={pendingTodosCount ?? 0}
-                color="warning"
-                max={99}
-                sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 16, height: 16 } }}
-              >
-                <Typography variant="caption" fontWeight={700} sx={{ fontSize: 11, letterSpacing: 0.2 }}>
-                  CDT
-                </Typography>
-              </Badge>
-            </Tooltip>
-          </Box>
-          <Tooltip title="Expandir" placement="right">
-            <IconButton onClick={() => setIsCollapsed(false)} sx={{ width: '100%', borderRadius: 0, py: 1.25 }} size="small">
-              <Menu size={18} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      ) : (
-        <Box
-          sx={{
-            borderBottom: `1px solid ${borderColor}`,
-            minHeight: 56,
-            py: 2,
-            px: 2.5,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            flexShrink: 0,
-          }}
-        >
-          <Typography sx={{ fontSize: 14, fontWeight: 600, letterSpacing: 0.4, color: 'text.primary', lineHeight: 1.25 }}>
-            Central de Tarefas
-          </Typography>
-          <Tooltip title="Recolher">
-            <IconButton onClick={() => setIsCollapsed(true)} size="small" sx={{ ml: 'auto', mr: -0.5 }}>
-              <ChevronLeft size={16} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      )}
-
-      {!isCollapsed && (
-        <Box sx={{ px: 1.5, pt: 1.5, pb: 0.5 }}>
-          <DemandCard count={pendingTodosCount} />
-        </Box>
-      )}
-
       <Box
         sx={{
-          flex: 1,
-          overflowY: 'auto',
-          py: 2.5,
-          px: isCollapsed ? 0.75 : 1.5,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          minHeight: 64,
+          py: 1.5,
+          px: isCollapsed ? 1 : 1.5,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: isCollapsed ? 'center' : 'space-between',
+          gap: 1,
+          flexShrink: 0,
         }}
       >
-        {visibleSections.map((section, sectionIndex) => (
-          <Box key={section.title}>
-            {sectionIndex > 0 && <Divider sx={{ borderColor: borderColor, my: 2 }} />}
-            {!isCollapsed && (
-              <Box
-                component="p"
-                sx={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: 1.2,
-                  color: 'text.disabled',
-                  mt: sectionIndex === 0 ? 0 : 0.5,
-                  px: 1.5,
-                  m: 0,
-                  mb: 1,
-                }}
-              >
-                {section.title}
-              </Box>
-            )}
-            <Box component="nav" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: sectionIndex < visibleSections.length - 1 ? 2.5 : 0 }}>
-              {section.items.map((item) => {
-                const Icon = item.icon
-                const active = isActiveLink(item.url)
-                const link = (
-                  <Box sx={{ position: 'relative' }}>
-                    {active && (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          left: 0,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          height: '60%',
-                          width: 3,
-                          borderRadius: '0 2px 2px 0',
-                          bgcolor: activeColor,
-                          zIndex: 1,
-                        }}
-                      />
-                    )}
-                    <Link
-                      to={item.url}
-                      style={{
-                        textDecoration: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        width: '100%',
-                        borderRadius: 6,
-                        padding: isCollapsed ? '10px 0' : '10px 12px',
-                        justifyContent: isCollapsed ? 'center' : 'flex-start',
-                        gap: 12,
-                        backgroundColor: active ? (isLight ? 'rgba(37,99,235,0.08)' : 'rgba(96,165,250,0.12)') : 'transparent',
-                        color: active ? activeColor : 'inherit',
-                        transition: 'background-color 0.15s, color 0.15s',
-                      }}
-                      onMouseOver={(e) => {
-                        if (!active) e.currentTarget.style.backgroundColor = hoverBg
-                      }}
-                      onMouseOut={(e) => {
-                        if (!active) e.currentTarget.style.backgroundColor = 'transparent'
-                      }}
-                    >
-                      <Icon size={16} style={{ flexShrink: 0 }} />
-                      {!isCollapsed && (
-                        <Box
-                          component="span"
-                          sx={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {item.title}
-                        </Box>
-                      )}
-                    </Link>
-                  </Box>
-                )
-                return isCollapsed ? (
-                  <Tooltip key={item.url} title={item.title} placement="right">
-                    <Box>{link}</Box>
-                  </Tooltip>
-                ) : (
-                  <Box key={item.url}>{link}</Box>
-                )
-              })}
+        {isCollapsed ? (
+          <Tooltip title={currentWorkspace?.name ?? 'Central de Tarefas'} placement="right">
+            <Box
+              component={Link}
+              to={workspaceRoot}
+              sx={{
+                width: 38,
+                height: 38,
+                display: 'grid',
+                placeItems: 'center',
+                textDecoration: 'none',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 'var(--radius-sm)',
+                color: 'text.primary',
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+              }}
+            >
+              CDT
             </Box>
+          </Tooltip>
+        ) : (
+          <>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary' }}>
+                Central de Tarefas
+              </Typography>
+              <Typography sx={{ fontSize: 14, fontWeight: 700 }} noWrap>
+                {currentWorkspace?.name || 'Workspace'}
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setIsCollapsed(true)} size="small" aria-label="Recolher sidebar">
+              <ChevronLeft size={16} />
+            </IconButton>
+          </>
+        )}
+
+        {isCollapsed ? (
+          <IconButton onClick={() => setIsCollapsed(false)} size="small" aria-label="Expandir sidebar">
+            <Menu size={16} />
+          </IconButton>
+        ) : null}
+      </Box>
+
+      {!isCollapsed ? (
+        <Box sx={{ px: 1.25, pt: 1.25, pb: 0.5 }}>
+          <DemandCard count={pendingTodosCount} targetPath={buildWorkspacePath(currentWorkspace?.slug, '/indicadores')} />
+        </Box>
+      ) : null}
+
+      <Box sx={{ flex: 1, overflowY: 'auto', px: isCollapsed ? 0.75 : 1, py: 1.5 }}>
+        {isCollapsed ? (
+          <Box component="nav" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            {visibleSections.flatMap((section) => section.items).map((item) => {
+              const Icon = item.icon
+              const active = isActiveLink(item.url)
+              return (
+                <Tooltip key={item.url} title={item.title} placement="right">
+                  <Box
+                    component={Link}
+                    to={buildWorkspacePath(currentWorkspace?.slug, item.url)}
+                    sx={{
+                      width: '100%',
+                      height: 40,
+                      display: 'grid',
+                      placeItems: 'center',
+                      borderRadius: 'var(--radius-sm)',
+                      color: active ? 'primary.main' : 'text.secondary',
+                      bgcolor: active ? 'action.selected' : 'transparent',
+                      textDecoration: 'none',
+                      border: '1px solid',
+                      borderColor: active ? 'primary.main' : 'transparent',
+                    }}
+                  >
+                    <Icon size={16} />
+                  </Box>
+                </Tooltip>
+              )
+            })}
           </Box>
-        ))}
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {visibleSections.map((section) => {
+              const isExpanded = expandedSection === section.title
+              return (
+                <Box key={section.title}>
+                  <ButtonBase
+                    onClick={() => setExpandedSection((current) => (current === section.title ? '' : section.title))}
+                    sx={{
+                      width: '100%',
+                      px: 1,
+                      py: 0.75,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                        {section.title}
+                      </Typography>
+                    </Box>
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </ButtonBase>
+
+                  <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                    <Box component="nav" sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                      {section.items.map((item) => {
+                        const Icon = item.icon
+                        const active = isActiveLink(item.url)
+                        return (
+                          <Box
+                            key={item.url}
+                            component={Link}
+                            to={buildWorkspacePath(currentWorkspace?.slug, item.url)}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1.25,
+                              px: 1,
+                              py: 0.95,
+                              borderRadius: 'var(--radius-sm)',
+                              textDecoration: 'none',
+                              color: active ? 'primary.main' : 'text.primary',
+                              bgcolor: active ? 'action.selected' : 'transparent',
+                              border: '1px solid',
+                              borderColor: active ? 'primary.main' : 'transparent',
+                              transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
+                              '&:hover': {
+                                bgcolor: 'action.hover',
+                              },
+                            }}
+                          >
+                            <Icon size={16} />
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {item.title}
+                            </Typography>
+                          </Box>
+                        )
+                      })}
+                    </Box>
+                  </Collapse>
+                </Box>
+              )
+            })}
+          </Box>
+        )}
       </Box>
 
       <Box
         sx={{
-          borderTop: `1px solid ${borderColor}`,
-          p: 1.5,
+          borderTop: `1px solid ${theme.palette.divider}`,
+          p: isCollapsed ? 0.75 : 1,
           display: 'flex',
           flexDirection: 'column',
-          gap: 0.5,
+          gap: 0.75,
           flexShrink: 0,
         }}
       >
         <Tooltip title={isCollapsed ? (mode === 'light' ? 'Modo escuro' : 'Modo claro') : undefined} placement="right">
-          <Box
-            component="button"
-            type="button"
+          <ButtonBase
             onClick={toggleTheme}
             sx={{
               display: 'flex',
@@ -533,96 +405,62 @@ export function AppSidebar(props: AppSidebarProps) {
               gap: 1,
               width: '100%',
               px: isCollapsed ? 0 : 1,
-              py: 0.75,
-              borderRadius: 1.5,
-              border: `1px solid ${borderColor}`,
-              cursor: 'pointer',
-              bgcolor: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',
+              py: 1,
+              borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${theme.palette.divider}`,
               color: 'text.secondary',
-              textAlign: 'left',
-              transition: 'border-color 0.15s, background-color 0.15s, color 0.15s',
               justifyContent: isCollapsed ? 'center' : 'flex-start',
-              mb: 0.5,
               '&:hover': {
                 color: 'primary.main',
-                borderColor: theme.palette.primary.main,
-                bgcolor: isLight ? 'rgba(37,99,235,0.06)' : 'rgba(96,165,250,0.1)',
+                bgcolor: 'action.hover',
               },
             }}
           >
-            <span style={{ display: 'inline-flex', flexShrink: 0 }}>
-              {mode === 'light' ? <Moon size={16} style={{ flexShrink: 0 }} /> : <Sun size={16} style={{ flexShrink: 0 }} />}
-            </span>
-            {!isCollapsed && (
+            {mode === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            {!isCollapsed ? (
               <Box component="span" sx={{ fontSize: 13, fontWeight: 600 }}>
                 {mode === 'light' ? 'Modo escuro' : 'Modo claro'}
               </Box>
-            )}
-          </Box>
+            ) : null}
+          </ButtonBase>
         </Tooltip>
 
-        {!isCollapsed && (
+        {!isCollapsed ? (
           <>
-            <Box
-              component="button"
-              type="button"
-              onClick={(e) => setLevelMenuAnchor(e.currentTarget)}
+            <AppSurface
+              onClick={(event: React.MouseEvent<HTMLElement>) => setLevelMenuAnchor(event.currentTarget)}
+              surface="subtle"
               sx={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 1,
                 width: '100%',
-                px: 1,
-                py: 0.75,
-                borderRadius: 1.5,
-                border: `1px solid ${borderColor}`,
-                cursor: 'pointer',
-                bgcolor: 'transparent',
-                color: 'inherit',
                 textAlign: 'left',
-                transition: 'border-color 0.15s, background-color 0.15s',
-                '&:hover': {
-                  borderColor: theme.palette.secondary.main,
-                  bgcolor: isLight ? 'rgba(124,58,237,0.05)' : 'rgba(167,139,250,0.08)',
-                },
-                justifyContent: 'flex-start',
-                mb: 0.5,
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 0.85,
+                p: 1.25,
               }}
+              role="button"
+              tabIndex={0}
             >
-              <Box
-                component="span"
-                sx={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 1,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  bgcolor: isLight ? 'rgba(124,58,237,0.1)' : 'rgba(167,139,250,0.15)',
-                  color: 'secondary.main',
-                }}
-              >
-                <span style={{ display: 'inline-flex' }}>
-                  <BarChart2 size={14} />
-                </span>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                  Progresso
+                </Typography>
+                <StatusToken tone="info">
+                  Lv. {progressData?.level ?? 1}
+                </StatusToken>
               </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <LevelXpBar progress={progressData} loading={progressLoading} compact />
-                {progressData?.level != null &&
-                  (() => {
-                    const t = getTierForLevel(progressData.level)
-                    return (
-                      <Typography
-                        variant="caption"
-                        sx={{ fontSize: 10, fontWeight: 600, color: t.color, lineHeight: 1, display: 'block', mt: 0.25 }}
-                      >
-                        {t.name}
-                      </Typography>
-                    )
-                  })()}
-              </Box>
-            </Box>
+
+              <ProgressIndicator
+                value={
+                  progressData
+                    ? Math.min(100, ((progressData.xpInCurrentLevel ?? 0) / Math.max(1, progressData.xpForNextLevel ?? 1)) * 100)
+                    : progressLoading ? 35 : 0
+                }
+                tone="gamification"
+                meta={progressData ? `${progressData.totalXp} XP` : progressLoading ? 'Carregando...' : 'Sem dados'}
+              />
+            </AppSurface>
 
             <MuiMenu
               anchorEl={levelMenuAnchor}
@@ -633,31 +471,29 @@ export function AppSidebar(props: AppSidebarProps) {
               slotProps={{
                 paper: {
                   sx: {
-                    minWidth: 200,
+                    minWidth: 220,
                     mt: 0,
                     ml: 0.5,
-                    borderRadius: 2,
-                    boxShadow: theme.shadows[8],
                   },
                 },
               }}
             >
               {LEVEL_CARD_MENU_ITEMS.map((item) => {
                 const Icon = item.icon
-                const active = location.pathname === item.url
+                const active = normalizedPath === item.url
                 return (
                   <MenuItem
                     key={item.url}
                     onClick={() => {
                       setLevelMenuAnchor(null)
-                      navigate(item.url)
+                      navigate(buildWorkspacePath(currentWorkspace?.slug, item.url))
                     }}
                     sx={{
                       gap: 1.5,
-                      py: 1.25,
+                      py: 1.1,
                       fontSize: 13,
                       fontWeight: 600,
-                      color: active ? activeColor : 'text.primary',
+                      color: active ? 'primary.main' : 'text.primary',
                     }}
                   >
                     <span style={{ display: 'inline-flex', flexShrink: 0 }}>
@@ -669,8 +505,26 @@ export function AppSidebar(props: AppSidebarProps) {
               })}
             </MuiMenu>
           </>
+        ) : (
+          <Tooltip title="Workspace atual" placement="right">
+            <Box
+              component={Link}
+              to={workspaceRoot}
+              sx={{
+                textDecoration: 'none',
+                display: 'grid',
+                placeItems: 'center',
+                height: 40,
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid',
+                borderColor: theme.palette.divider,
+                color: 'text.secondary',
+              }}
+            >
+              <Code size={16} />
+            </Box>
+          </Tooltip>
         )}
-
       </Box>
     </Box>
   )
