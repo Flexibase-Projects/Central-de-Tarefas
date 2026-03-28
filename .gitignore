@@ -58,6 +58,8 @@ tmp/
 temp/
 *.tmp
 *.bak
+__pycache__/
+*.pyc
 
 # ── Loose image files in repo root (use /public instead) ──────
 /*.png

@@ -194,6 +194,12 @@ Para deploy em produção (PM2, Nginx, porta única), veja [docs/DEPLOY.md](docs
 
 Este é um projeto interno do Departamento de Inteligência da Flexibase.
 
+## Codex Skills
+
+Este repositório agora possui um pacote recomendado de skills para trabalho com Codex, com destaque para a skill customizada `uncodixfy`, para o pacote avançado de comunidade e para a instalação local de `ui-ux-pro-max` dentro do projeto.
+
+Veja a definição completa em [docs/CODEX_SKILLS.md](docs/CODEX_SKILLS.md).
+
 ## 📄 Licença
 
 Proprietário - Flexibase
