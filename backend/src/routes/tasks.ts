@@ -1,13 +1,58 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 import { Task } from '../types/index.js';
 
 const router = express.Router();
 
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
+}
+
+async function projectBelongsToWorkspace(projectId: string, workspaceId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('cdt_projects')
+    .select('id')
+    .eq('id', projectId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return Boolean(data?.id);
+}
+
+async function loadTaskInWorkspace(taskId: string, workspaceId: string) {
+  const { data, error } = await supabase
+    .from('cdt_tasks')
+    .select('*')
+    .eq('id', taskId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data?.project_id) return null;
+
+  const allowed = await projectBelongsToWorkspace(data.project_id, workspaceId);
+  if (!allowed) return null;
+
+  return data;
+}
+
 // Get all tasks for a project
 router.get('/project/:projectId', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { projectId } = req.params;
+    const projectAllowed = await projectBelongsToWorkspace(projectId, workspaceId);
+    if (!projectAllowed) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
     const { data, error } = await supabase
       .from('cdt_tasks')
       .select('*')
@@ -25,14 +70,10 @@ router.get('/project/:projectId', async (req, res) => {
 // Get task by ID
 router.get('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
-    const { data, error } = await supabase
-      .from('cdt_tasks')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) throw error;
+    const data = await loadTaskInWorkspace(id, workspaceId);
     if (!data) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -46,7 +87,17 @@ router.get('/:id', async (req, res) => {
 // Create new task
 router.post('/', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const task: Partial<Task> = req.body;
+    if (!task.project_id) {
+      return res.status(400).json({ error: 'project_id is required' });
+    }
+
+    const projectAllowed = await projectBelongsToWorkspace(task.project_id, workspaceId);
+    if (!projectAllowed) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
     
     const { data, error } = await supabase
       .from('cdt_tasks')
@@ -73,8 +124,21 @@ router.post('/', async (req, res) => {
 // Update task
 router.put('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
     const updates: Partial<Task> = req.body;
+    const existingTask = await loadTaskInWorkspace(id, workspaceId);
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    if (updates.project_id) {
+      const projectAllowed = await projectBelongsToWorkspace(updates.project_id, workspaceId);
+      if (!projectAllowed) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+    }
 
     const { data, error } = await supabase
       .from('cdt_tasks')
@@ -100,9 +164,16 @@ router.put('/:id', async (req, res) => {
 // Delete task
 router.delete('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
+    const existingTask = await loadTaskInWorkspace(id, workspaceId);
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
     const { error } = await supabase
-      .from('tasks')
+      .from('cdt_tasks')
       .delete()
       .eq('id', id);
 

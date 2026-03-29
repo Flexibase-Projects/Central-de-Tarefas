@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent, Box, Typography, useTheme, Chip } from '@mui/material'
 import { useGitHub } from '@/hooks/use-github'
 import { usePermissions } from '@/hooks/use-permissions'
-import { getApiBase } from '@/lib/api'
+import { apiUrl } from '@/lib/api'
 import type { ProjectTodoCardSummary } from '@/hooks/use-project-todo-card-summary'
 
 function GitHubIconSmall() {
@@ -55,11 +55,7 @@ export function KanbanCard({ project, onClick, summary }: KanbanCardProps) {
       setOnline(null)
       return
     }
-    const base = getApiBase()
-    const url = base
-      ? `${base}/api/projects/health-check?url=${encodeURIComponent(project.project_url)}`
-      : `/api/projects/health-check?url=${encodeURIComponent(project.project_url)}`
-    fetch(url)
+    fetch(apiUrl('/api/projects/health-check', { url: project.project_url }))
       .then((r) => (r.ok ? r.json() : { ok: false }))
       .then((d) => setOnline(d.ok === true))
       .catch(() => setOnline(false))

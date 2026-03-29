@@ -16,6 +16,8 @@ Execute no **Supabase SQL Editor** (ou via psql) na **ordem abaixo**. As migraç
 
 7. **007_todo_assignment_and_xp_queue.sql** – Adiciona `assigned_at` em `cdt_project_todos`, cria índice para feed de to-dos atribuídos recentemente e ajusta os índices do XP log para permitir múltiplos ciclos de `todo_completed`/`todo_uncompleted`.
 
+8. **012_central_identity_sso.sql** – Adiciona vínculo explícito com identidade central (`central_user_id`, `identity_status`, `last_identity_sync_at`) em `cdt_users`, preservando IDs locais e preparando o adapter de SSO central.
+
 Se aparecer erro **"column cdt_activities.xp_reward does not exist"** (ou equivalente em `cdt_project_todos`):
 
 - **Opção A (recomendado):** execute **001** e depois **002** (gamificação completa, achievements, seeds).

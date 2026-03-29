@@ -36,6 +36,7 @@ console.log(`📄 Loaded: ${loadedFile}`);
 // Now import other modules (they will have access to process.env)
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import projectsRoutes from './routes/projects.js';
 import tasksRoutes from './routes/tasks.js';
 import activitiesRoutes from './routes/activities.js';
@@ -46,6 +47,8 @@ import permissionsRoutes from './routes/permissions.js';
 import rolesRoutes from './routes/roles.js';
 import usersRoutes from './routes/users.js';
 import authHintRoutes from './routes/auth-hint.js';
+import workspacesRoutes from './routes/workspaces.js';
+import ssoRoutes from './routes/sso.js';
 import notificationsRoutes from './routes/notifications.js';
 import indicatorsRoutes from './routes/indicators.js';
 import teamCanvasRoutes from './routes/team-canvas.js';
@@ -57,6 +60,7 @@ import costItemsRoutes from './routes/cost-items.js';
 import costMapRoutes from './routes/cost-map.js';
 import costManagementSummaryRoutes from './routes/cost-management-summary.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requireWorkspaceAccess } from './middleware/workspace.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from './utils/supabase-errors.js';
 
 // Função para limpar notificações órfãs na inicialização
@@ -154,16 +158,66 @@ async function ensureActivityCoversBucket() {
 }
 
 const app = express();
+app.disable('x-powered-by');
 // Lê PORT ou BACKEND_PORT (compatível com .env.local que usa BACKEND_PORT).
 const PORT = Number(process.env.PORT) || Number(process.env.BACKEND_PORT) || 3002;
 
+const DEV_ORIGINS = [
+  'http://localhost:3003',
+  'http://127.0.0.1:3003',
+  'http://localhost:8088',
+  'http://127.0.0.1:8088',
+];
+
+function buildCorsAllowlist(): string[] {
+  const raw = String(process.env.FRONTEND_URL || process.env.CORS_ORIGINS || '');
+  const configured = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const allowlist = new Set<string>(configured);
+  if (process.env.NODE_ENV !== 'production') {
+    for (const origin of DEV_ORIGINS) {
+      allowlist.add(origin);
+    }
+  }
+  return Array.from(allowlist);
+}
+
+const corsAllowlist = buildCorsAllowlist();
+
+app.use(helmet({ contentSecurityPolicy: false }));
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3003',
-  credentials: true
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (corsAllowlist.length === 0) {
+      callback(null, process.env.NODE_ENV !== 'production');
+      return;
+    }
+
+    const allowed = corsAllowlist.some((candidate) => {
+      try {
+        return new URL(candidate).origin === new URL(origin).origin;
+      } catch {
+        return candidate === origin;
+      }
+    });
+
+    callback(null, allowed);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-User-Id', 'X-Workspace-Slug'],
 }));
 
 // Limite 15mb para permitir upload de capa em base64 (imagem até 10MB)
 app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb', parameterLimit: 100 }));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -174,26 +228,28 @@ app.get('/api/health', (req, res) => {
 app.use(authMiddleware);
 
 // Routes
-app.use('/api/projects', projectsRoutes);
-app.use('/api/tasks', tasksRoutes);
-app.use('/api/activities', activitiesRoutes);
+app.use('/api/workspaces', workspacesRoutes);
+app.use('/api/projects', requireWorkspaceAccess, projectsRoutes);
+app.use('/api/tasks', requireWorkspaceAccess, tasksRoutes);
+app.use('/api/activities', requireWorkspaceAccess, activitiesRoutes);
 app.use('/api/github', githubRoutes);
-app.use('/api/todos', todosRoutes);
-app.use('/api/project-comments', projectCommentsRoutes);
+app.use('/api/todos', requireWorkspaceAccess, todosRoutes);
+app.use('/api/project-comments', requireWorkspaceAccess, projectCommentsRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/auth', authHintRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/indicators', indicatorsRoutes);
-app.use('/api/team-canvas', teamCanvasRoutes);
+app.use('/api/sso', ssoRoutes);
+app.use('/api/notifications', requireWorkspaceAccess, notificationsRoutes);
+app.use('/api/indicators', requireWorkspaceAccess, indicatorsRoutes);
+app.use('/api/team-canvas', requireWorkspaceAccess, teamCanvasRoutes);
 app.use('/api/me/progress', progressRoutes);
 app.use('/api/achievements', achievementsRoutes);
-app.use('/api/org', orgRoutes);
-app.use('/api/departments', departmentsRoutes);
-app.use('/api/cost-items', costItemsRoutes);
-app.use('/api/cost-map', costMapRoutes);
-app.use('/api/cost-management', costManagementSummaryRoutes);
+app.use('/api/org', requireWorkspaceAccess, orgRoutes);
+app.use('/api/departments', requireWorkspaceAccess, departmentsRoutes);
+app.use('/api/cost-items', requireWorkspaceAccess, costItemsRoutes);
+app.use('/api/cost-map', requireWorkspaceAccess, costMapRoutes);
+app.use('/api/cost-management', requireWorkspaceAccess, costManagementSummaryRoutes);
 
 // Tratamento de payload too large (413) em JSON para o cliente
 app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -213,6 +269,19 @@ if (existsSync(frontendDistPath)) {
   });
 }
 
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  next();
+});
+
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled backend error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : undefined;
 if (HOST) {
   app.listen(PORT, HOST, async () => {
@@ -230,23 +299,15 @@ async function logStartupStatus() {
   const hasSupabase = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY);
   if (hasSupabase) {
     console.log('✅ Supabase configured - database operations enabled');
-    console.log(`   URL: ${process.env.SUPABASE_URL?.substring(0, 30)}...`);
-    console.log(`   Key: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SERVICE_ROLE' : 'ANON'} key set`);
     await initializeCleanup();
     await ensureActivityCoversBucket();
   } else {
     console.warn('⚠️  Supabase not configured - database operations will fail');
     console.warn('⚠️  Create backend/.env.local with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY');
-    console.log('   Current env vars:');
-    console.log(`   SUPABASE_URL: ${process.env.SUPABASE_URL ? '✅ Set' : '❌ Missing'}`);
-    console.log(`   SUPABASE_SERVICE_ROLE_KEY: ${process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Set' : '❌ Missing'}`);
-    console.log(`   SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing'}`);
   }
   const hasGitHubToken = process.env.GITHUB_TOKEN;
   if (hasGitHubToken) {
-    const token: string = hasGitHubToken;
     console.log('✅ GitHub token configured - GitHub API operations enabled');
-    console.log(`   Token: ${token.substring(0, 7)}...${token.substring(token.length - 4)}`);
   } else {
     console.warn('⚠️  GitHub token not configured - GitHub API operations will be limited');
     console.warn('⚠️  Add GITHUB_TOKEN to backend/.env.local to enable full GitHub integration');

@@ -47,7 +47,8 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     title: 'Operacao',
     hint: 'Rotina principal do workspace',
     items: [
-      { title: 'Projetos', url: '/', icon: Code, permission: 'access_desenvolvimentos' },
+      { title: 'Dashboard', url: '/', icon: Dashboard, permission: null },
+      { title: 'Projetos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos' },
       { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades' },
       { title: 'Canva em equipe', url: '/canva-equipe', icon: Paintbrush, permission: null },
     ],
@@ -56,7 +57,6 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     title: 'Insights',
     hint: 'Leituras e priorizacao',
     items: [
-      { title: 'Dashboard', url: '/dashboard', icon: Dashboard, permission: null },
       { title: 'Mapa', url: '/mapa', icon: MapIcon, permission: null },
       { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null },
       { title: 'Indicadores', url: '/indicadores', icon: BarChart2, permission: null },

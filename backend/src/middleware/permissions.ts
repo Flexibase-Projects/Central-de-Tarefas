@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { hasPermission, hasRole, getUserPermissions } from '../services/permissions.js';
+import { getRequesterId } from './auth.js';
 
 /**
  * Middleware para verificar se o usuário tem uma permissão específica
@@ -10,9 +11,7 @@ import { hasPermission, hasRole, getUserPermissions } from '../services/permissi
 export function checkPermission(permission: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // TODO: Obter userId do token/sessão quando autenticação estiver implementada
-      // Por enquanto, usar header temporário ou query param
-      const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+      const userId = getRequesterId(req);
 
       if (!userId) {
         return res.status(401).json({ error: 'User ID required' });
@@ -44,8 +43,7 @@ export function checkPermission(permission: string) {
 export function checkRole(role: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // TODO: Obter userId do token/sessão quando autenticação estiver implementada
-      const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+      const userId = getRequesterId(req);
 
       if (!userId) {
         return res.status(401).json({ error: 'User ID required' });
@@ -77,7 +75,7 @@ export function checkRole(role: string) {
  */
 export async function addUserPermissions(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+    const userId = getRequesterId(req);
 
     if (userId) {
       const permissions = await getUserPermissions(userId);

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Activity } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 type MigrationErrorBody = {
   error?: string
@@ -32,10 +31,9 @@ export function useActivities() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchActivities = async () => {
-    try {
-      setLoading(true)
-      const url = API_URL ? `${API_URL}/api/activities` : '/api/activities'
-      const response = await fetch(url, { headers: getAuthHeaders() })
+      try {
+        setLoading(true)
+      const response = await fetch(apiUrl('/api/activities'), { headers: getAuthHeaders() })
       if (!response.ok) {
         const errorText = await response.text()
         throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`)
@@ -58,8 +56,7 @@ export function useActivities() {
 
   const createActivity = async (activity: Partial<Activity>) => {
     try {
-      const url = API_URL ? `${API_URL}/api/activities` : '/api/activities'
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl('/api/activities'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(activity),
@@ -82,8 +79,7 @@ export function useActivities() {
 
   const updateActivity = async (id: string, updates: Partial<Activity>) => {
     try {
-      const url = API_URL ? `${API_URL}/api/activities/${id}` : `/api/activities/${id}`
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(`/api/activities/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updates),
@@ -108,8 +104,7 @@ export function useActivities() {
 
   const deleteActivity = async (id: string) => {
     try {
-      const url = API_URL ? `${API_URL}/api/activities/${id}` : `/api/activities/${id}`
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(`/api/activities/${id}`), {
         method: 'DELETE',
         headers: getAuthHeaders(),
       })

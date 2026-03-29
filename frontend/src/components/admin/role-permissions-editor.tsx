@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { Box, Button, Typography, FormControlLabel, Checkbox, Paper, CircularProgress } from '@mui/material'
 import { Permission, Role } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 interface RolePermissionsEditorProps {
   role: Role
@@ -20,12 +19,12 @@ export function RolePermissionsEditor({ role, onSave }: RolePermissionsEditorPro
     const fetchData = async () => {
       try {
         const headers = getAuthHeaders();
-        const permsResponse = await fetch(`${API_URL}/api/permissions`, { headers })
+        const permsResponse = await fetch(apiUrl('/api/permissions'), { headers })
         if (permsResponse.ok) {
           const permsData = await permsResponse.json()
           setPermissions(permsData)
         }
-        const roleResponse = await fetch(`${API_URL}/api/roles/${role.id}`, { headers })
+        const roleResponse = await fetch(apiUrl(`/api/roles/${role.id}`), { headers })
         if (roleResponse.ok) {
           const roleData = await roleResponse.json()
           setSelectedPermissions((roleData.permissions || []).map((p: Permission) => p.id))
@@ -47,7 +46,7 @@ export function RolePermissionsEditor({ role, onSave }: RolePermissionsEditorPro
 
   const handleSave = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/roles/${role.id}/permissions`, {
+      const response = await fetch(apiUrl(`/api/roles/${role.id}/permissions`), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ permission_ids: selectedPermissions }),

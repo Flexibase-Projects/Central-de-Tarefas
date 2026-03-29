@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ProjectTodo } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 const REALTIME_ENABLED = import.meta.env.VITE_SUPABASE_REALTIME_ENABLED === 'true'
 
 const TODOS_INVALIDATED_EVENT = 'cdt-todos-invalidated'
@@ -58,9 +57,9 @@ function getScopeKey(scope: TodosScope, userKey: string | null): string {
 
 function getTodosUrl(scope: TodosScope): string {
   if ('projectId' in scope) {
-    return API_URL ? `${API_URL}/api/todos/${scope.projectId}` : `/api/todos/${scope.projectId}`
+    return apiUrl(`/api/todos/${scope.projectId}`)
   }
-  return API_URL ? `${API_URL}/api/todos/by-activity/${scope.activityId}` : `/api/todos/by-activity/${scope.activityId}`
+  return apiUrl(`/api/todos/by-activity/${scope.activityId}`)
 }
 
 async function getResponseError(response: Response, fallback: string): Promise<Error> {
@@ -353,11 +352,10 @@ export function useTodos(scope: TodosScope | null) {
   const createTodo = useCallback(
     async (todo: Partial<ProjectTodo> & { project_id?: string | null; activity_id?: string | null }) => {
       try {
-        const url = API_URL ? `${API_URL}/api/todos` : '/api/todos'
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(todo),
+      const response = await fetch(apiUrl('/api/todos'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(todo),
         })
         if (!response.ok) {
           throw await getResponseError(response, 'Failed to create todo')
@@ -420,8 +418,7 @@ export function useTodos(scope: TodosScope | null) {
       }
 
       try {
-        const url = API_URL ? `${API_URL}/api/todos/${id}` : `/api/todos/${id}`
-        const response = await fetch(url, {
+        const response = await fetch(apiUrl(`/api/todos/${id}`), {
           method: 'PUT',
           headers: getAuthHeaders(),
           body: JSON.stringify(updates),
@@ -459,8 +456,7 @@ export function useTodos(scope: TodosScope | null) {
       updateCachedTodos(scopeKey, () => nextTodos)
 
       try {
-        const url = API_URL ? `${API_URL}/api/todos/${id}` : `/api/todos/${id}`
-        const response = await fetch(url, {
+        const response = await fetch(apiUrl(`/api/todos/${id}`), {
           method: 'DELETE',
           headers: getAuthHeaders(),
         })
@@ -497,8 +493,7 @@ export function useTodos(scope: TodosScope | null) {
 
       try {
         if (projectId) {
-          const url = API_URL ? `${API_URL}/api/todos/reorder` : '/api/todos/reorder'
-          const response = await fetch(url, {
+          const response = await fetch(apiUrl('/api/todos/reorder'), {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({
@@ -511,8 +506,7 @@ export function useTodos(scope: TodosScope | null) {
           }
           invalidateTodosForProject(projectId)
         } else if (activityId) {
-          const url = API_URL ? `${API_URL}/api/todos/reorder-activity` : '/api/todos/reorder-activity'
-          const response = await fetch(url, {
+          const response = await fetch(apiUrl('/api/todos/reorder-activity'), {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({

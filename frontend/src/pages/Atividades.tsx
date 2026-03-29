@@ -10,8 +10,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth } from '@/contexts/AuthContext'
 import { Activity, Project } from '@/types'
 import { useSearchParams } from 'react-router-dom'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 async function findActivityIdByTodo(params: {
   activityIds: string[]
@@ -21,8 +20,7 @@ async function findActivityIdByTodo(params: {
   const { activityIds, todoId, getAuthHeaders } = params
   const results = await Promise.all(
     activityIds.map(async (activityId) => {
-      const url = API_URL ? `${API_URL}/api/todos/by-activity/${activityId}` : `/api/todos/by-activity/${activityId}`
-      const response = await fetch(url, { headers: getAuthHeaders() })
+      const response = await fetch(apiUrl(`/api/todos/by-activity/${activityId}`), { headers: getAuthHeaders() })
       if (!response.ok) return null
       const todos = await response.json()
       return Array.isArray(todos) && todos.some((todo) => todo?.id === todoId) ? activityId : null

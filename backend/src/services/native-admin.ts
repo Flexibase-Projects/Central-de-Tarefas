@@ -1,7 +1,5 @@
 import { supabase } from '../config/supabase.js';
 
-const DEFAULT_NATIVE_ADMIN_EMAILS = ['juan.dalvit1@gmail.com'];
-
 function normalizeEmail(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase();
 }
@@ -11,12 +9,7 @@ export function getNativeAdminEmails(): string[] {
     .split(',')
     .map((email) => normalizeEmail(email))
     .filter(Boolean);
-
-  const combined = new Set<string>([
-    ...DEFAULT_NATIVE_ADMIN_EMAILS.map((email) => normalizeEmail(email)),
-    ...fromEnv,
-  ]);
-  return Array.from(combined);
+  return Array.from(new Set(fromEnv));
 }
 
 export function isNativeAdminEmail(email: string | null | undefined): boolean {
@@ -60,30 +53,72 @@ async function ensureUserRow(params: {
   name: string;
   avatarUrl: string | null;
 }): Promise<string | null> {
-  const byId = await supabase
+  const nowIso = new Date().toISOString();
+
+  const byCentralUserId = await supabase
     .from('cdt_users')
     .select('id')
-    .eq('id', params.authUserId)
+    .eq('central_user_id', params.authUserId)
     .maybeSingle();
 
-  if (!byId.error && byId.data?.id) {
-    return byId.data.id as string;
-  }
-
-  const byEmail = await supabase
-    .from('cdt_users')
-    .select('id')
-    .eq('email', params.email)
-    .maybeSingle();
-
-  if (!byEmail.error && byEmail.data?.id) {
+  if (!byCentralUserId.error && byCentralUserId.data?.id) {
     await supabase
       .from('cdt_users')
       .update({
         is_active: true,
         name: params.name,
         avatar_url: params.avatarUrl,
-        updated_at: new Date().toISOString(),
+        identity_status: 'linked',
+        last_identity_sync_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('id', byCentralUserId.data.id);
+    return byCentralUserId.data.id as string;
+  }
+
+  const byId = await supabase
+    .from('cdt_users')
+    .select('id, central_user_id')
+    .eq('id', params.authUserId)
+    .maybeSingle();
+
+  if (!byId.error && byId.data?.id) {
+    if (!byId.data.central_user_id || byId.data.central_user_id === params.authUserId) {
+      await supabase
+        .from('cdt_users')
+        .update({
+          central_user_id: params.authUserId,
+          identity_status: 'linked',
+          last_identity_sync_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq('id', byId.data.id);
+    }
+    return byId.data.id as string;
+  }
+
+  const byEmail = await supabase
+    .from('cdt_users')
+    .select('id, central_user_id')
+    .eq('email', params.email)
+    .maybeSingle();
+
+  if (!byEmail.error && byEmail.data?.id) {
+    if (byEmail.data.central_user_id && byEmail.data.central_user_id !== params.authUserId) {
+      console.error('[native-admin] Existing cdt_users row has conflicting central_user_id');
+      return null;
+    }
+
+    await supabase
+      .from('cdt_users')
+      .update({
+        is_active: true,
+        name: params.name,
+        avatar_url: params.avatarUrl,
+        central_user_id: params.authUserId,
+        identity_status: 'linked',
+        last_identity_sync_at: nowIso,
+        updated_at: nowIso,
       })
       .eq('id', byEmail.data.id);
     return byEmail.data.id as string;
@@ -93,6 +128,9 @@ async function ensureUserRow(params: {
     .from('cdt_users')
     .insert({
       id: params.authUserId,
+      central_user_id: params.authUserId,
+      identity_status: 'linked',
+      last_identity_sync_at: nowIso,
       email: params.email,
       name: params.name,
       avatar_url: params.avatarUrl,

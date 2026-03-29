@@ -40,8 +40,7 @@ import { useUsersList } from '@/hooks/use-users-list'
 import { useOrgEntries, type OrgEntry } from '@/hooks/use-org'
 import type { CostCanvasFocus } from '@/types/cost-org'
 import { CostCanvasDrawerPanel } from '@/components/cost-management/CostCanvasDrawerPanel'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 const MAIN_HEADER_PX = 59
 const DRAWER_WIDTH = { xs: '100%', sm: 420 } as const
 
@@ -150,8 +149,7 @@ export default function CustosDepartamento() {
 
   const postJson = useCallback(
     async (path: string, body: unknown) => {
-      const url = API_URL ? `${API_URL}${path}` : path
-      const res = await fetch(url, {
+      const res = await fetch(apiUrl(path), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(body),
@@ -167,8 +165,7 @@ export default function CustosDepartamento() {
 
   const patchJson = useCallback(
     async (path: string, body: unknown) => {
-      const url = API_URL ? `${API_URL}${path}` : path
-      const res = await fetch(url, {
+      const res = await fetch(apiUrl(path), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(body),
@@ -184,8 +181,7 @@ export default function CustosDepartamento() {
 
   const deleteJson = useCallback(
     async (path: string) => {
-      const url = API_URL ? `${API_URL}${path}` : path
-      const res = await fetch(url, { method: 'DELETE', headers: getAuthHeaders() })
+      const res = await fetch(apiUrl(path), { method: 'DELETE', headers: getAuthHeaders() })
       if (!res.ok && res.status !== 204) {
         const j = await res.json().catch(() => ({}))
         throw new Error((j as { error?: string }).error || res.statusText)

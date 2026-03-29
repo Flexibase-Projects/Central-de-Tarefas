@@ -1,16 +1,30 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
+import { getRequesterId } from '../middleware/auth.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 
 const router = express.Router();
+
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
+}
 
 // Comentários de uma atividade (antes de /:projectId para não capturar "by-activity")
 router.get('/by-activity/:activityId', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { activityId } = req.params;
 
     const { data, error } = await supabase
       .from('cdt_comments')
       .select('*')
+      .eq('workspace_id', workspaceId)
       .eq('activity_id', activityId)
       .order('created_at', { ascending: true });
 
@@ -28,11 +42,14 @@ router.get('/by-activity/:activityId', async (req, res) => {
 // Get all comments for a project
 router.get('/:projectId', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { projectId } = req.params;
 
     const { data, error } = await supabase
       .from('cdt_comments')
       .select('*')
+      .eq('workspace_id', workspaceId)
       .eq('project_id', projectId)
       .order('created_at', { ascending: true });
 
@@ -50,11 +67,10 @@ router.get('/:projectId', async (req, res) => {
 // Create a new comment (projeto OU atividade)
 router.post('/', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { project_id, activity_id, content, author_name, author_email } = req.body;
-    const createdBy =
-      ((req as express.Request & { userId?: string }).userId ?? null) ||
-      (req.headers['x-user-id'] as string | undefined) ||
-      null;
+    const createdBy = getRequesterId(req);
 
     const hasProject = Boolean(project_id);
     const hasActivity = Boolean(activity_id);
@@ -67,6 +83,7 @@ router.post('/', async (req, res) => {
     const { data, error } = await supabase
       .from('cdt_comments')
       .insert({
+        workspace_id: workspaceId,
         project_id: hasProject ? project_id : null,
         activity_id: hasActivity ? activity_id : null,
         task_id: null,
@@ -92,6 +109,8 @@ router.post('/', async (req, res) => {
 // Update a comment
 router.put('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
     const { content } = req.body;
 
@@ -103,6 +122,7 @@ router.put('/:id', async (req, res) => {
       .from('cdt_comments')
       .update({ content })
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .select()
       .single();
 
@@ -120,12 +140,15 @@ router.put('/:id', async (req, res) => {
 // Delete a comment
 router.delete('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
 
     const { error } = await supabase
       .from('cdt_comments')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('workspace_id', workspaceId);
 
     if (error) {
       throw error;

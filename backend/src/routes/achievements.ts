@@ -3,6 +3,8 @@ import { supabase } from '../config/supabase.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 import { PRESET_ACHIEVEMENTS } from '../utils/achievement-engine.js';
 import { hasRole } from '../services/permissions.js';
+import { getRequesterId as getAuthRequesterId } from '../middleware/auth.js';
+import { getTrimmedString, isValidationError, requireString } from '../utils/validation.js';
 
 const router = express.Router();
 
@@ -15,16 +17,8 @@ function parseNumber(value: unknown, fallback = 0): number {
   return fallback;
 }
 
-function getRequesterId(req: express.Request): string | null {
-  return (
-    ((req as express.Request & { userId?: string }).userId ?? null) ||
-    (req.headers['x-user-id'] as string | undefined) ||
-    null
-  );
-}
-
 async function ensureAdmin(req: express.Request, res: express.Response): Promise<string | null> {
-  const requesterId = getRequesterId(req);
+  const requesterId = getAuthRequesterId(req);
   if (!requesterId) {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
@@ -83,7 +77,7 @@ function mapDbAchievement(a: {
 }
 
 router.get('/', async (req, res) => {
-  const userId = getRequesterId(req);
+  const userId = getAuthRequesterId(req);
 
   try {
     const includeInactiveRaw = String(req.query.includeInactive ?? req.query.include_inactive ?? '')
@@ -164,6 +158,9 @@ router.get('/', async (req, res) => {
       })),
     );
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }
@@ -187,8 +184,8 @@ function buildAchievementCreatePayload(input: Record<string, unknown>) {
   const modeRaw = String(input.mode ?? 'global_auto');
   const mode = ['global_auto', 'linked_item', 'manual'].includes(modeRaw) ? modeRaw : 'global_auto';
 
-  const name = String(input.name ?? '').trim();
-  const slugRaw = String(input.slug ?? '').trim();
+  const name = requireString(input.name, 'name', { minLength: 2, maxLength: 200 });
+  const slugRaw = getTrimmedString(input.slug) ?? '';
   const slug = (slugRaw || slugify(name || `achievement_${Date.now()}`)).slice(0, 80);
 
   return {
@@ -211,14 +208,14 @@ function buildAchievementCreatePayload(input: Record<string, unknown>) {
 function buildAchievementUpdatePayload(input: Record<string, unknown>) {
   const payload: Record<string, unknown> = {};
 
-  if (input.slug !== undefined) payload.slug = String(input.slug || '').trim().slice(0, 80);
-  if (input.name !== undefined) payload.name = String(input.name || '').trim();
-  if (input.description !== undefined) payload.description = String(input.description || '').trim();
-  if (input.icon !== undefined) payload.icon = String(input.icon || '').trim() || 'emoji_events';
-  if (input.category !== undefined) payload.category = String(input.category || '').trim() || 'geral';
-  if (input.rarity !== undefined) payload.rarity = String(input.rarity || '').trim() || 'common';
+  if (input.slug !== undefined) payload.slug = requireString(input.slug, 'slug', { minLength: 1, maxLength: 80 });
+  if (input.name !== undefined) payload.name = requireString(input.name, 'name', { minLength: 2, maxLength: 200 });
+  if (input.description !== undefined) payload.description = getTrimmedString(input.description);
+  if (input.icon !== undefined) payload.icon = getTrimmedString(input.icon) || 'emoji_events';
+  if (input.category !== undefined) payload.category = getTrimmedString(input.category) || 'geral';
+  if (input.rarity !== undefined) payload.rarity = getTrimmedString(input.rarity) || 'common';
   if (input.mode !== undefined) {
-    const modeRaw = String(input.mode || '').trim();
+    const modeRaw = getTrimmedString(input.mode) || '';
     payload.mode = ['global_auto', 'linked_item', 'manual'].includes(modeRaw) ? modeRaw : 'global_auto';
   }
   if (input.isActive !== undefined) payload.is_active = Boolean(input.isActive);
@@ -273,6 +270,9 @@ router.post('/', async (req, res) => {
     if (error) return res.status(400).json({ error: error.message });
     return res.status(201).json(mapDbAchievement(data as any));
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }
@@ -307,6 +307,9 @@ async function updateAchievement(req: express.Request, res: express.Response) {
     if (!data) return res.status(404).json({ error: 'Achievement not found' });
     return res.json(mapDbAchievement(data as any));
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }
@@ -338,6 +341,9 @@ router.delete('/:id', async (req, res) => {
     if (!data) return res.status(404).json({ error: 'Achievement not found' });
     return res.json({ message: 'Achievement deactivated', id });
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }

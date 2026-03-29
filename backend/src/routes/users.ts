@@ -2,32 +2,16 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { User } from '../types/index.js';
 import { checkRole } from '../middleware/permissions.js';
+import { getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { hasRole } from '../services/permissions.js';
 import { isNativeAdminUserId } from '../services/native-admin.js';
 import {
   isSupabaseConnectionRefused,
   SUPABASE_UNAVAILABLE_MESSAGE,
 } from '../utils/supabase-errors.js';
+import { isValidationError, optionalBoolean, optionalString, requireArrayOfStrings, requireOneOf, requireString } from '../utils/validation.js';
 
 const router = express.Router();
-
-type AuthRequest = express.Request & {
-  userId?: string;
-  authUserId?: string;
-  authUserEmail?: string;
-};
-
-function getRequesterId(req: express.Request): string | null {
-  return (
-    ((req as AuthRequest).userId ?? null) ||
-    (req.headers['x-user-id'] as string | undefined) ||
-    null
-  );
-}
-
-function getAuthUserId(req: express.Request): string | null {
-  return ((req as AuthRequest).authUserId ?? null) || null;
-}
 
 async function ensureAdmin(
   req: express.Request,
@@ -99,6 +83,14 @@ async function assignRoleToUser(params: {
   if (insertError) throw insertError;
 }
 
+function buildLinkedIdentityFields(authUserId: string) {
+  return {
+    central_user_id: authUserId,
+    identity_status: 'linked' as const,
+    last_identity_sync_at: new Date().toISOString(),
+  };
+}
+
 // List users from Supabase Auth (admin only) to approve access.
 router.get('/auth-list', checkRole('admin'), async (_req, res) => {
   try {
@@ -152,24 +144,22 @@ router.get('/auth-list', checkRole('admin'), async (_req, res) => {
 router.post('/from-auth', checkRole('admin'), async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
-    const { id, email, name, role_id } = req.body as {
-      id?: string;
-      email?: string;
-      name?: string;
-      role_id?: string | null;
-    };
-
-    if (!id || !email) {
-      return res.status(400).json({ error: 'id and email are required' });
-    }
-
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const displayName = (name && String(name).trim()) || normalizedEmail.split('@')[0] || 'Usuario';
+    const body = req.body as Record<string, unknown>;
+    const id = requireString(body.id, 'id', { minLength: 1, maxLength: 128 });
+    const email = requireString(body.email, 'email', { minLength: 3, maxLength: 320 }).toLowerCase();
+    const role_id = optionalString(body.role_id, 'role_id', { maxLength: 128 });
+    const normalizedEmail = email;
+    const displayName = optionalString(body.name, 'name', { maxLength: 200 }) || normalizedEmail.split('@')[0] || 'Usuario';
     let targetUserId = id;
 
-    const byId = await supabase.from('cdt_users').select('id').eq('id', id).maybeSingle();
-    if (!byId.error && byId.data?.id) {
-      targetUserId = byId.data.id;
+    const byCentralId = await supabase
+      .from('cdt_users')
+      .select('id')
+      .eq('central_user_id', id)
+      .maybeSingle();
+
+    if (!byCentralId.error && byCentralId.data?.id) {
+      targetUserId = byCentralId.data.id;
       await supabase
         .from('cdt_users')
         .update({
@@ -177,34 +167,65 @@ router.post('/from-auth', checkRole('admin'), async (req, res) => {
           name: displayName,
           is_active: true,
           updated_at: new Date().toISOString(),
+          ...buildLinkedIdentityFields(id),
         })
         .eq('id', targetUserId);
     } else {
-      const byEmail = await supabase
+      const byId = await supabase
         .from('cdt_users')
-        .select('id')
-        .eq('email', normalizedEmail)
+        .select('id, central_user_id')
+        .eq('id', id)
         .maybeSingle();
 
-      if (!byEmail.error && byEmail.data?.id) {
-        targetUserId = byEmail.data.id;
+      if (!byId.error && byId.data?.id) {
+        if (byId.data.central_user_id && byId.data.central_user_id !== id) {
+          return res.status(409).json({ error: 'Este usuario ja esta vinculado a outra identidade central.' });
+        }
+
+        targetUserId = byId.data.id;
         await supabase
           .from('cdt_users')
           .update({
+            email: normalizedEmail,
             name: displayName,
             is_active: true,
             updated_at: new Date().toISOString(),
+            ...buildLinkedIdentityFields(id),
           })
           .eq('id', targetUserId);
       } else {
-        const { error: insertError } = await supabase.from('cdt_users').insert({
-          id,
-          email: normalizedEmail,
-          name: displayName,
-          avatar_url: null,
-          is_active: true,
-        });
-        if (insertError) throw insertError;
+        const byEmail = await supabase
+          .from('cdt_users')
+          .select('id, central_user_id')
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+
+        if (!byEmail.error && byEmail.data?.id) {
+          if (byEmail.data.central_user_id && byEmail.data.central_user_id !== id) {
+            return res.status(409).json({ error: 'Este email ja esta vinculado a outra identidade central.' });
+          }
+
+          targetUserId = byEmail.data.id;
+          await supabase
+            .from('cdt_users')
+            .update({
+              name: displayName,
+              is_active: true,
+              updated_at: new Date().toISOString(),
+              ...buildLinkedIdentityFields(id),
+            })
+            .eq('id', targetUserId);
+        } else {
+          const { error: insertError } = await supabase.from('cdt_users').insert({
+            id,
+            email: normalizedEmail,
+            name: displayName,
+            avatar_url: null,
+            is_active: true,
+            ...buildLinkedIdentityFields(id),
+          });
+          if (insertError) throw insertError;
+        }
       }
     }
 
@@ -228,6 +249,9 @@ router.post('/from-auth', checkRole('admin'), async (req, res) => {
     const role = await getUserRole(targetUserId);
     res.status(201).json({ ...userRow, role });
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (error instanceof Error && /admin nativo/i.test(error.message)) {
       return res.status(400).json({ error: error.message });
     }
@@ -253,19 +277,11 @@ router.post('/with-auth', checkRole('admin'), async (req, res) => {
       });
     }
 
-    const { email, name, avatar_url, role_id } = req.body as {
-      email?: string;
-      name?: string;
-      avatar_url?: string | null;
-      role_id?: string | null;
-    };
-
-    if (!email || !name) {
-      return res.status(400).json({ error: 'email and name are required' });
-    }
-
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const displayName = String(name).trim() || normalizedEmail.split('@')[0] || 'Usuario';
+    const body = req.body as Record<string, unknown>;
+    const normalizedEmail = requireString(body.email, 'email', { minLength: 3, maxLength: 320 }).toLowerCase();
+    const displayName = requireString(body.name, 'name', { minLength: 2, maxLength: 200 });
+    const avatarUrl = optionalString(body.avatar_url, 'avatar_url', { maxLength: 2048 });
+    const roleId = optionalString(body.role_id, 'role_id', { maxLength: 128 });
 
     const { data: authCreated, error: authError } = await supabase.auth.admin.createUser({
       email: normalizedEmail,
@@ -286,9 +302,10 @@ router.post('/with-auth', checkRole('admin'), async (req, res) => {
 
     const { error: insertError } = await supabase.from('cdt_users').insert({
       id: authUserId,
+      ...buildLinkedIdentityFields(authUserId),
       email: normalizedEmail,
       name: displayName,
-      avatar_url: avatar_url || null,
+      avatar_url: avatarUrl,
       is_active: true,
       must_set_password: true,
     });
@@ -302,10 +319,10 @@ router.post('/with-auth', checkRole('admin'), async (req, res) => {
       });
     }
 
-    if (role_id) {
+    if (roleId) {
       await assignRoleToUser({
         userId: authUserId,
-        roleId: role_id,
+        roleId,
         assignedBy: requesterId,
       });
     }
@@ -322,6 +339,9 @@ router.post('/with-auth', checkRole('admin'), async (req, res) => {
     const role = await getUserRole(authUserId);
     res.status(201).json({ ...userRow, role });
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (error instanceof Error && /admin nativo/i.test(error.message)) {
       return res.status(400).json({ error: error.message });
     }
@@ -341,7 +361,8 @@ router.post('/with-auth', checkRole('admin'), async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
-    const isForAssignment = String(req.query.for_assignment ?? '').toLowerCase() === 'true';
+    const forAssignmentRaw = String(req.query.for_assignment ?? '').trim().toLowerCase();
+    const isForAssignment = forAssignmentRaw === 'true' || forAssignmentRaw === '1' || forAssignmentRaw === 'yes';
 
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -377,6 +398,9 @@ router.get('/', async (req, res) => {
 
     res.json(usersWithRoles);
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }
@@ -406,6 +430,9 @@ router.post('/me/finish-first-login', async (req, res) => {
     if (error) throw error;
     res.json({ ok: true });
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }
@@ -485,22 +512,17 @@ router.get('/:id', checkRole('admin'), async (req, res) => {
 // Create user manually (admin only).
 router.post('/', checkRole('admin'), async (req, res) => {
   try {
-    const { email, name, avatar_url } = req.body as {
-      email?: string;
-      name?: string;
-      avatar_url?: string | null;
-    };
-
-    if (!email || !name) {
-      return res.status(400).json({ error: 'email and name are required' });
-    }
+    const body = req.body as Record<string, unknown>;
+    const email = requireString(body.email, 'email', { minLength: 3, maxLength: 320 }).toLowerCase();
+    const name = requireString(body.name, 'name', { minLength: 2, maxLength: 200 });
+    const avatarUrl = optionalString(body.avatar_url, 'avatar_url', { maxLength: 2048 });
 
     const { data, error } = await supabase
       .from('cdt_users')
       .insert({
-        email: String(email).trim().toLowerCase(),
-        name: String(name).trim(),
-        avatar_url: avatar_url || null,
+        email,
+        name,
+        avatar_url: avatarUrl,
         is_active: true,
       })
       .select()
@@ -523,25 +545,24 @@ router.post('/', checkRole('admin'), async (req, res) => {
 router.put('/:id', checkRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, name, avatar_url, is_active } = req.body as {
-      email?: string;
-      name?: string;
-      avatar_url?: string | null;
-      is_active?: boolean;
-    };
+    const body = req.body as Record<string, unknown>;
+    const email = optionalString(body.email, 'email', { maxLength: 320 });
+    const name = optionalString(body.name, 'name', { maxLength: 200 });
+    const avatarUrl = optionalString(body.avatar_url, 'avatar_url', { maxLength: 2048 });
+    const isActive = optionalBoolean(body.is_active, 'is_active');
 
     const nativeAdmin = await isNativeAdminUserId(id);
-    if (nativeAdmin && is_active === false) {
+    if (nativeAdmin && isActive === false) {
       return res.status(400).json({ error: 'Admin nativo nao pode ser desativado.' });
     }
 
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
-    if (email !== undefined) updateData.email = String(email).trim().toLowerCase();
-    if (name !== undefined) updateData.name = String(name).trim();
-    if (avatar_url !== undefined) updateData.avatar_url = avatar_url;
-    if (is_active !== undefined) updateData.is_active = is_active;
+    if (email !== undefined && email !== null) updateData.email = email;
+    if (name !== undefined) updateData.name = name;
+    if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
+    if (isActive !== undefined) updateData.is_active = isActive;
 
     const { data, error } = await supabase
       .from('cdt_users')
@@ -600,11 +621,7 @@ router.post('/:id/role', checkRole('admin'), async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
     const { id } = req.params;
-    const { role_id } = req.body as { role_id?: string };
-
-    if (!role_id) {
-      return res.status(400).json({ error: 'role_id is required' });
-    }
+    const role_id = requireString((req.body as Record<string, unknown>).role_id, 'role_id', { minLength: 1, maxLength: 128 });
 
     await assignRoleToUser({
       userId: id,
@@ -614,6 +631,9 @@ router.post('/:id/role', checkRole('admin'), async (req, res) => {
 
     res.json({ success: true });
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (error instanceof Error && /admin nativo/i.test(error.message)) {
       return res.status(400).json({ error: error.message });
     }
@@ -640,6 +660,9 @@ router.delete('/:id/role', checkRole('admin'), async (req, res) => {
     if (error) throw error;
     res.status(204).send();
   } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     if (isSupabaseConnectionRefused(error)) {
       return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
     }

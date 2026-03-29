@@ -2,6 +2,8 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { Activity } from '../types/index.js';
 import { hasRole } from '../services/permissions.js';
+import { getRequesterId } from '../middleware/auth.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 import {
   awardActivityCompletionXp,
   calculateItemCompletionXp,
@@ -17,14 +19,6 @@ const ACTIVITY_COVERS_BUCKET = 'activity-covers';
 const VALID_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done'];
 const VALID_PRIORITIES = ['low', 'medium', 'high'];
 
-function getRequesterId(req: express.Request): string | null {
-  return (
-    ((req as express.Request & { userId?: string }).userId ?? null) ||
-    (req.headers['x-user-id'] as string | undefined) ||
-    null
-  );
-}
-
 function parseDecimal(value: unknown, fallback: number): number {
   if (typeof value === 'number' && Number.isFinite(value)) return Number(value.toFixed(2));
   if (typeof value === 'string' && value.trim() !== '') {
@@ -32,6 +26,15 @@ function parseDecimal(value: unknown, fallback: number): number {
     if (Number.isFinite(parsed)) return Number(parsed.toFixed(2));
   }
   return fallback;
+}
+
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
 }
 
 async function ensureAdmin(req: express.Request, res: express.Response): Promise<string | null> {
@@ -51,6 +54,8 @@ async function ensureAdmin(req: express.Request, res: express.Response): Promise
 // Get all activities
 router.get('/', async (_req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(_req, res);
+    if (!workspaceId) return;
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
       return res.status(503).json({
         error: 'Supabase not configured',
@@ -61,6 +66,7 @@ router.get('/', async (_req, res) => {
     const { data, error } = await supabase
       .from('cdt_activities')
       .select('*')
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -74,11 +80,14 @@ router.get('/', async (_req, res) => {
 // Get activity by ID
 router.get('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
     const { data, error } = await supabase
       .from('cdt_activities')
       .select('*')
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     if (error) throw error;
@@ -94,7 +103,9 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const requesterId = await ensureAdmin(req, res);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) return;
+    if (!workspaceId) return;
 
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
       return res.status(503).json({
@@ -122,6 +133,7 @@ router.post('/', async (req, res) => {
       .from('cdt_activities')
       .insert([
         {
+          workspace_id: workspaceId,
           name: activity.name,
           description: activity.description || null,
           status: activity.status || 'backlog',
@@ -223,9 +235,11 @@ router.post('/:id/cover', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    if (!workspaceId) return;
 
     const { id } = req.params;
     const updates: Partial<Activity> & {
@@ -249,6 +263,7 @@ router.put('/:id', async (req, res) => {
         'id, name, status, due_date, assigned_to, created_by, xp_reward, deadline_bonus_percent, achievement_id, completed_at',
       )
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     if (currentError) throw currentError;
@@ -306,6 +321,7 @@ router.put('/:id', async (req, res) => {
       .from('cdt_activities')
       .update(updateData)
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .select()
       .single();
 
@@ -372,13 +388,16 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const requesterId = await ensureAdmin(req, res);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) return;
+    if (!workspaceId) return;
 
     const { id } = req.params;
     const { error } = await supabase
       .from('cdt_activities')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('workspace_id', workspaceId);
 
     if (error) throw error;
     res.status(204).send();

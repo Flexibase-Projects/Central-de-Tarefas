@@ -27,8 +27,7 @@ import {
 import { Plus, Pencil } from '@/components/ui/icons'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Achievement } from '@/types'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 type AchievementMode = 'global_auto' | 'linked_item' | 'manual'
@@ -151,13 +150,10 @@ export function AchievementsAdminTable() {
   )
 
   const fetchAchievements = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const url = API_URL
-        ? `${API_URL}/api/achievements?includeInactive=1`
-        : '/api/achievements?includeInactive=1'
-      const res = await fetch(url, { headers: getAuthHeaders() })
+      try {
+        setLoading(true)
+        setError(null)
+      const res = await fetch(apiUrl('/api/achievements', { includeInactive: 1 }), { headers: getAuthHeaders() })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data: Achievement[] = await res.json()
       setAchievements(data)
@@ -174,11 +170,8 @@ export function AchievementsAdminTable() {
 
   async function handleToggleActive(achievement: Achievement) {
     try {
-      const url = API_URL
-        ? `${API_URL}/api/achievements/${achievement.id}`
-        : `/api/achievements/${achievement.id}`
       const nextActive = !(achievement.isActive ?? true)
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(`/api/achievements/${achievement.id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ isActive: nextActive }),
@@ -235,19 +228,14 @@ export function AchievementsAdminTable() {
       }
 
       const isEditing = Boolean(editTarget)
-      const url = isEditing
-        ? API_URL
-          ? `${API_URL}/api/achievements/${editTarget?.id}`
-          : `/api/achievements/${editTarget?.id}`
-        : API_URL
-          ? `${API_URL}/api/achievements`
-          : '/api/achievements'
-
-      const response = await fetch(url, {
-        method: isEditing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(payload),
-      })
+      const response = await fetch(
+        isEditing ? apiUrl(`/api/achievements/${editTarget?.id}`) : apiUrl('/api/achievements'),
+        {
+          method: isEditing ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(payload),
+        },
+      )
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const saved: Achievement = await response.json()

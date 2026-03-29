@@ -1,13 +1,6 @@
 import type express from 'express';
+import { getRequesterId } from './auth.js';
 import { hasRole } from '../services/permissions.js';
-
-export function getRequesterId(req: express.Request): string | null {
-  return (
-    ((req as express.Request & { userId?: string }).userId ?? null) ||
-    (req.headers['x-user-id'] as string | undefined) ||
-    null
-  );
-}
 
 /** Middleware: 401 sem usuário, 403 se não for admin */
 export async function requireAdmin(

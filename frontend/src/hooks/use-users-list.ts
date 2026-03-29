@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { User } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 const TTL_MS = 5 * 60 * 1000
 
@@ -38,8 +37,7 @@ export function useUsersList() {
       return
     }
 
-    const base = API_URL ? `${API_URL}/api/users` : '/api/users'
-    const url = `${base}?for_assignment=true`
+    const url = apiUrl('/api/users', { for_assignment: true })
 
     if (!inFlight) {
       inFlight = (async () => {

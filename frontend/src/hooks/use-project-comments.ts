@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Comment } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 export type CommentsScope =
   | { projectId: string; activityId?: never }
@@ -35,14 +34,12 @@ export function useProjectComments(scope: CommentsScope | null) {
       try {
         if (!silent) setLoading(true)
         setError(null)
-        const url = projectId
-          ? API_URL
-            ? `${API_URL}/api/project-comments/${projectId}`
-            : `/api/project-comments/${projectId}`
-          : API_URL
-            ? `${API_URL}/api/project-comments/by-activity/${activityId}`
-            : `/api/project-comments/by-activity/${activityId}`
-        const response = await fetch(url, { headers: getAuthHeaders() })
+        const response = await fetch(
+          projectId
+            ? apiUrl(`/api/project-comments/${projectId}`)
+            : apiUrl(`/api/project-comments/by-activity/${activityId}`),
+          { headers: getAuthHeaders() },
+        )
         if (!response.ok) {
           throw new Error('Failed to fetch comments')
         }
@@ -70,7 +67,6 @@ export function useProjectComments(scope: CommentsScope | null) {
   const createComment = useCallback(
     async (comment: Partial<Comment>) => {
       try {
-        const url = API_URL ? `${API_URL}/api/project-comments` : '/api/project-comments'
         const body =
           projectId != null
             ? {
@@ -82,10 +78,10 @@ export function useProjectComments(scope: CommentsScope | null) {
             : {
                 activity_id: activityId,
                 content: comment.content,
-                author_name: comment.author_name,
-                author_email: comment.author_email,
-              }
-        const response = await fetch(url, {
+              author_name: comment.author_name,
+              author_email: comment.author_email,
+            }
+        const response = await fetch(apiUrl('/api/project-comments'), {
           method: 'POST',
           headers: getAuthHeaders(),
           body: JSON.stringify(body),
@@ -108,8 +104,7 @@ export function useProjectComments(scope: CommentsScope | null) {
   const updateComment = useCallback(
     async (id: string, content: string) => {
       try {
-        const url = API_URL ? `${API_URL}/api/project-comments/${id}` : `/api/project-comments/${id}`
-        const response = await fetch(url, {
+        const response = await fetch(apiUrl(`/api/project-comments/${id}`), {
           method: 'PUT',
           headers: getAuthHeaders(),
           body: JSON.stringify({ content }),
@@ -132,8 +127,7 @@ export function useProjectComments(scope: CommentsScope | null) {
   const deleteComment = useCallback(
     async (id: string) => {
       try {
-        const url = API_URL ? `${API_URL}/api/project-comments/${id}` : `/api/project-comments/${id}`
-        const response = await fetch(url, {
+        const response = await fetch(apiUrl(`/api/project-comments/${id}`), {
           method: 'DELETE',
           headers: getAuthHeaders(),
         })

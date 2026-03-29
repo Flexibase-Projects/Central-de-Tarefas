@@ -31,8 +31,7 @@ import { useOrgTree, useOrgSummary, useOrgEntries } from '@/hooks/use-org'
 import { useCostGraph } from '@/hooks/use-cost-graph'
 import type { OrgTreeNode, Department } from '@/types/cost-org'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 const MAIN_HEADER_PX = 59
 
 function moneyFieldToNumber(s: string): number | null {
@@ -99,10 +98,7 @@ export default function Organograma() {
   const loadSubtree = useCallback(
     async (entryId: string) => {
       try {
-        const url = API_URL
-          ? `${API_URL}/api/org/entry/${entryId}/subtree`
-          : `/api/org/entry/${entryId}/subtree`
-        const res = await fetch(url, { headers: getAuthHeaders() })
+        const res = await fetch(apiUrl(`/api/org/entry/${entryId}/subtree`), { headers: getAuthHeaders() })
         const j = (await res.json()) as { entryIds?: string[] }
         if (j.entryIds) setHighlightedIds(new Set(j.entryIds))
       } catch {

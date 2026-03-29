@@ -2,16 +2,11 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { Project } from '../types/index.js';
 import { getRecentCommits, parseGitHubUrl } from '../services/github.js';
+import { getRequesterId } from '../middleware/auth.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
+import { getTrimmedString, isValidationError, optionalNumber, optionalString, requireOneOf, requireString } from '../utils/validation.js';
 
 const router = express.Router();
-
-function getRequesterId(req: express.Request): string | null {
-  return (
-    ((req as express.Request & { userId?: string }).userId ?? null) ||
-    (req.headers['x-user-id'] as string | undefined) ||
-    null
-  );
-}
 
 type ProjectTodoSummaryRow = {
   project_id: string | null;
@@ -36,8 +31,20 @@ function parseNumber(value: unknown, fallback = 0): number {
   return fallback;
 }
 
-async function fetchOrderedProjects() {
-  const baseQuery = supabase.from('cdt_projects').select('id, name, status, priority_order, created_at');
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
+}
+
+async function fetchOrderedProjects(workspaceId: string) {
+  const baseQuery = supabase
+    .from('cdt_projects')
+    .select('id, name, status, priority_order, created_at')
+    .eq('workspace_id', workspaceId);
   const orderedQuery = await baseQuery
     .order('priority_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -46,6 +53,7 @@ async function fetchOrderedProjects() {
     const fallback = await supabase
       .from('cdt_projects')
       .select('id, name, status, created_at')
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
     if (fallback.error) throw fallback.error;
     return (fallback.data ?? []) as Array<{ id: string; name: string; status: string; created_at: string }>;
@@ -58,6 +66,8 @@ async function fetchOrderedProjects() {
 // Get all projects (ordem: priority_order quando a coluna existir, senão created_at)
 router.get('/', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
       return res.status(503).json({
         error: 'Supabase not configured',
@@ -65,9 +75,12 @@ router.get('/', async (req, res) => {
       });
     }
 
-    const data = await fetchOrderedProjects();
+    const data = await fetchOrderedProjects(workspaceId);
     res.json(data || []);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching projects:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch projects' });
   }
@@ -76,17 +89,20 @@ router.get('/', async (req, res) => {
 // Health check: valida se a URL do projeto está online (GET com timeout)
 router.get('/health-check', async (req, res) => {
   try {
-    const { url } = req.query;
-    if (!url || typeof url !== 'string') {
+    const rawUrl = getTrimmedString(req.query.url);
+    if (!rawUrl) {
       return res.status(400).json({ error: 'URL is required' });
     }
-    const parsed = new URL(url);
+    const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return res.status(400).json({ error: 'Only http and https URLs are allowed' });
     }
+    if (/(^|\.)localhost$|^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[0-1])\./i.test(parsed.hostname)) {
+      return res.status(400).json({ error: 'Private or local URLs are not allowed' });
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    const response = await fetch(url, {
+    const response = await fetch(parsed.toString(), {
       method: 'GET',
       signal: controller.signal,
       redirect: 'follow',
@@ -194,6 +210,9 @@ router.get('/version-check', async (req, res) => {
     if (reason) payload.reason = reason;
     res.json(payload);
   } catch (err: any) {
+    if (isValidationError(err)) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Error in version-check:', err);
     res.json({ upToDate: null, latestSha: null, deployedSha: null, reason: 'fetch_error', error: err.message });
   }
@@ -202,19 +221,23 @@ router.get('/version-check', async (req, res) => {
 router.get('/todo-card-summary', async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    if (!workspaceId) return;
 
     const [projects, activitiesRes, todosRes] = await Promise.all([
-      fetchOrderedProjects(),
+      fetchOrderedProjects(workspaceId),
       supabase
         .from('cdt_activities')
         .select('id, name, status')
+        .eq('workspace_id', workspaceId)
         .order('created_at', { ascending: false }),
       supabase
         .from('cdt_project_todos')
-        .select('project_id, activity_id, assigned_to, completed, xp_reward'),
+        .select('project_id, activity_id, assigned_to, completed, xp_reward')
+        .eq('workspace_id', workspaceId),
     ]);
 
     if (activitiesRes.error) throw activitiesRes.error;
@@ -268,6 +291,9 @@ router.get('/todo-card-summary', async (req, res) => {
 
     return res.json([...projectSummary, ...activitySummary]);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching todo card summary:', error);
     return res.status(500).json({ error: error.message || 'Failed to fetch todo card summary' });
   }
@@ -276,8 +302,10 @@ router.get('/todo-card-summary', async (req, res) => {
 // Reorder projects (prioridades): body { orderedIds: string[] }
 router.put('/reorder', async (req, res) => {
   try {
-    const { orderedIds } = req.body;
-    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
+    const orderedIds = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : null;
+    if (!orderedIds || orderedIds.length === 0) {
       return res.status(400).json({ error: 'orderedIds must be a non-empty array of project IDs' });
     }
     const migrationSql = 'ALTER TABLE cdt_projects ADD COLUMN IF NOT EXISTS priority_order INTEGER NULL; CREATE INDEX IF NOT EXISTS idx_cdt_projects_priority_order ON cdt_projects(priority_order);';
@@ -289,7 +317,8 @@ router.put('/reorder', async (req, res) => {
       const { error } = await supabase
         .from('cdt_projects')
         .update({ priority_order: i, updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('workspace_id', workspaceId);
       if (error) {
         if (/priority_order|does not exist|column.*not exist/i.test(String(error.message || ''))) {
           return res.status(503).json({
@@ -304,11 +333,15 @@ router.put('/reorder', async (req, res) => {
     const { data, error } = await supabase
       .from('cdt_projects')
       .select('*')
+      .eq('workspace_id', workspaceId)
       .order('priority_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json(data || []);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error reordering projects:', error);
     res.status(500).json({ error: error.message || 'Failed to reorder projects' });
   }
@@ -317,11 +350,14 @@ router.put('/reorder', async (req, res) => {
 // Get project by ID
 router.get('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
     const { data, error } = await supabase
       .from('cdt_projects')
       .select('*')
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .single();
 
     if (error) throw error;
@@ -330,6 +366,9 @@ router.get('/:id', async (req, res) => {
     }
     res.json(data);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching project:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch project' });
   }
@@ -338,6 +377,8 @@ router.get('/:id', async (req, res) => {
 // Create new project
 router.post('/', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     // Check if Supabase is configured
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
       return res.status(503).json({ 
@@ -346,23 +387,33 @@ router.post('/', async (req, res) => {
       });
     }
 
-    const project: Partial<Project> = req.body;
-    console.log('Creating project with data:', project);
-    
+    const projectBody = req.body as Partial<Project>;
+    const status = projectBody.status ? requireOneOf(projectBody.status, 'status', ['backlog', 'todo', 'in_progress', 'review', 'done'] as const) : 'backlog';
+    const name = requireString(projectBody.name, 'name', { minLength: 2, maxLength: 200 });
+    const description = optionalString(projectBody.description, 'description', { maxLength: 4000 });
+    const githubUrl = optionalString(projectBody.github_url, 'github_url', { maxLength: 2048 });
+    const githubOwner = optionalString(projectBody.github_owner, 'github_owner', { maxLength: 255 });
+    const githubRepo = optionalString(projectBody.github_repo, 'github_repo', { maxLength: 255 });
+    const projectUrl = optionalString(projectBody.project_url, 'project_url', { maxLength: 2048 });
+    const createdBy = optionalString(projectBody.created_by, 'created_by', { maxLength: 64 });
+    const mapQuadrant = optionalString(projectBody.map_quadrant, 'map_quadrant', { maxLength: 64 });
+    const mapX = optionalNumber(projectBody.map_x, 'map_x');
+    const mapY = optionalNumber(projectBody.map_y, 'map_y');
     const { data, error } = await supabase
       .from('cdt_projects')
       .insert([{
-        name: project.name,
-        description: project.description || null,
-        status: project.status || 'backlog',
-        github_url: project.github_url || null,
-        github_owner: project.github_owner || null,
-        github_repo: project.github_repo || null,
-        project_url: project.project_url || null,
-        map_quadrant: project.map_quadrant ?? null,
-        map_x: project.map_x ?? null,
-        map_y: project.map_y ?? null,
-        created_by: project.created_by || null,
+        workspace_id: workspaceId,
+        name,
+        description,
+        status,
+        github_url: githubUrl,
+        github_owner: githubOwner,
+        github_repo: githubRepo,
+        project_url: projectUrl,
+        map_quadrant: mapQuadrant,
+        map_x: mapX ?? null,
+        map_y: mapY ?? null,
+        created_by: createdBy,
       }])
       .select()
       .single();
@@ -375,6 +426,9 @@ router.post('/', async (req, res) => {
     console.log('Project created successfully:', data);
     res.status(201).json(data);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error creating project:', error);
     res.status(500).json({ 
       error: error.message || 'Failed to create project',
@@ -386,12 +440,14 @@ router.post('/', async (req, res) => {
 // Update project
 router.put('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
     const updates: Partial<Project> = req.body;
 
     // Validar status se fornecido
-    const validStatuses = ['backlog', 'todo', 'in_progress', 'review', 'done'];
-    if (updates.status && !validStatuses.includes(updates.status)) {
+    const validStatuses = ['backlog', 'todo', 'in_progress', 'review', 'done'] as const;
+    if (updates.status && !validStatuses.includes(updates.status as (typeof validStatuses)[number])) {
       return res.status(400).json({ 
         error: 'Invalid status',
         message: `Status must be one of: ${validStatuses.join(', ')}`
@@ -403,22 +459,23 @@ router.put('/:id', async (req, res) => {
       updated_at: new Date().toISOString(),
     };
 
-    if (updates.name !== undefined) updateData.name = updates.name;
-    if (updates.description !== undefined) updateData.description = updates.description;
-    if (updates.status !== undefined) updateData.status = updates.status;
-    if (updates.github_url !== undefined) updateData.github_url = updates.github_url;
-    if (updates.github_owner !== undefined) updateData.github_owner = updates.github_owner;
-    if (updates.github_repo !== undefined) updateData.github_repo = updates.github_repo;
-    if (updates.project_url !== undefined) updateData.project_url = updates.project_url;
-    if (updates.map_quadrant !== undefined) updateData.map_quadrant = updates.map_quadrant;
-    if (updates.map_x !== undefined) updateData.map_x = updates.map_x;
-    if (updates.map_y !== undefined) updateData.map_y = updates.map_y;
-    if (updates.priority_order !== undefined) updateData.priority_order = updates.priority_order;
+    if (updates.name !== undefined) updateData.name = requireString(updates.name, 'name', { minLength: 2, maxLength: 200 });
+    if (updates.description !== undefined) updateData.description = optionalString(updates.description, 'description', { maxLength: 4000 });
+    if (updates.status !== undefined) updateData.status = requireOneOf(updates.status, 'status', validStatuses);
+    if (updates.github_url !== undefined) updateData.github_url = optionalString(updates.github_url, 'github_url', { maxLength: 2048 });
+    if (updates.github_owner !== undefined) updateData.github_owner = optionalString(updates.github_owner, 'github_owner', { maxLength: 255 });
+    if (updates.github_repo !== undefined) updateData.github_repo = optionalString(updates.github_repo, 'github_repo', { maxLength: 255 });
+    if (updates.project_url !== undefined) updateData.project_url = optionalString(updates.project_url, 'project_url', { maxLength: 2048 });
+    if (updates.map_quadrant !== undefined) updateData.map_quadrant = optionalString(updates.map_quadrant, 'map_quadrant', { maxLength: 64 });
+    if (updates.map_x !== undefined) updateData.map_x = optionalNumber(updates.map_x, 'map_x');
+    if (updates.map_y !== undefined) updateData.map_y = optionalNumber(updates.map_y, 'map_y');
+    if (updates.priority_order !== undefined) updateData.priority_order = optionalNumber(updates.priority_order, 'priority_order');
 
     const { data, error } = await supabase
       .from('cdt_projects')
       .update(updateData)
       .eq('id', id)
+      .eq('workspace_id', workspaceId)
       .select()
       .single();
 
@@ -430,6 +487,7 @@ router.put('/:id', async (req, res) => {
           .from('cdt_projects')
           .update(updateDataWithoutMap)
           .eq('id', id)
+          .eq('workspace_id', workspaceId)
           .select()
           .single();
         if (!errorRetry && dataRetry) {
@@ -444,6 +502,9 @@ router.put('/:id', async (req, res) => {
     }
     res.json(data);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error updating project:', error);
     res.status(500).json({ error: error.message || 'Failed to update project' });
   }
@@ -452,15 +513,21 @@ router.put('/:id', async (req, res) => {
 // Delete project
 router.delete('/:id', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { id } = req.params;
     const { error } = await supabase
       .from('cdt_projects')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('workspace_id', workspaceId);
 
     if (error) throw error;
     res.status(204).send();
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error deleting project:', error);
     res.status(500).json({ error: error.message || 'Failed to delete project' });
   }

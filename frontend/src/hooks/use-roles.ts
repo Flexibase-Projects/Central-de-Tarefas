@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Role, Permission } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { apiUrl } from '@/lib/api';
 
 export interface RoleWithPermissions extends Role {
   permissions?: Permission[];
@@ -15,10 +14,10 @@ export function useRoles() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchRoles = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(`${API_URL}/api/roles`, {
+      try {
+        setLoading(true);
+        setError(null);
+      const response = await fetch(apiUrl('/api/roles'), {
         headers: getAuthHeaders(),
       });
 
@@ -42,7 +41,7 @@ export function useRoles() {
 
   const createRole = async (roleData: { name: string; display_name: string; description?: string }) => {
     try {
-      const response = await fetch(`${API_URL}/api/roles`, {
+      const response = await fetch(apiUrl('/api/roles'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(roleData),
@@ -62,7 +61,7 @@ export function useRoles() {
 
   const updateRole = async (id: string, roleData: Partial<Role>) => {
     try {
-      const response = await fetch(`${API_URL}/api/roles/${id}`, {
+      const response = await fetch(apiUrl(`/api/roles/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(roleData),
@@ -82,7 +81,7 @@ export function useRoles() {
 
   const deleteRole = async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/roles/${id}`, {
+      const response = await fetch(apiUrl(`/api/roles/${id}`), {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -99,7 +98,7 @@ export function useRoles() {
 
   const assignPermissions = async (roleId: string, permissionIds: string[]) => {
     try {
-      const response = await fetch(`${API_URL}/api/roles/${roleId}/permissions`, {
+      const response = await fetch(apiUrl(`/api/roles/${roleId}/permissions`), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ permission_ids: permissionIds }),

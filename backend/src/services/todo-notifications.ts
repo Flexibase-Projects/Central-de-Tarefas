@@ -64,6 +64,7 @@ export async function clearTodoAssignmentNotifications(todoId: string, userId?: 
 }
 
 export async function notifyTodoAssigned(params: {
+  workspaceId: string;
   todoId: string;
   title: string;
   assignedTo: string;
@@ -78,6 +79,7 @@ export async function notifyTodoAssigned(params: {
   await clearTodoAssignmentNotifications(params.todoId, params.assignedTo);
 
   const { error } = await supabase.from('cdt_notifications').insert({
+    workspace_id: params.workspaceId,
     user_id: params.assignedTo,
     type: 'todo_assigned',
     title: 'Novo TO-DO para voce!',
@@ -106,6 +108,7 @@ export async function clearTodoXpPendingNotifications(todoId: string): Promise<v
 }
 
 export async function notifyAdminsTodoXpPending(params: {
+  workspaceId: string;
   todoId: string;
   title: string;
   projectId?: string | null;
@@ -124,6 +127,7 @@ export async function notifyAdminsTodoXpPending(params: {
   await clearTodoXpPendingNotifications(params.todoId);
 
   const payload = recipientIds.map((userId) => ({
+    workspace_id: params.workspaceId,
     user_id: userId,
     type: 'todo_xp_pending',
     title: 'TO-DO pendente de XP',

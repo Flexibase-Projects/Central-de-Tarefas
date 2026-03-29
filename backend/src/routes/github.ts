@@ -1,20 +1,15 @@
 import express from 'express';
-import { getRepositoryInfo, getRecentCommits, getContributors, getReadme, getTotalCommits, parseGitHubUrl } from '../services/github.js';
+import { getRepositoryInfo, getRecentCommits, getContributors, getReadme, getTotalCommits } from '../services/github.js';
+import { isValidationError, parseGitHubRepositoryUrl, requirePositiveInt } from '../utils/validation.js';
 
 const router = express.Router();
 
 // Get repository info
 router.get('/repo', async (req, res) => {
   try {
-    const { url } = req.query;
-    
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'GitHub URL is required' });
-    }
-
-    const parsed = parseGitHubUrl(url);
+    const parsed = parseGitHubRepositoryUrl(req.query.url);
     if (!parsed) {
-      return res.status(400).json({ error: 'Invalid GitHub URL' });
+      return res.status(400).json({ error: 'GitHub URL is required' });
     }
 
     const repoInfo = await getRepositoryInfo(parsed.owner, parsed.repo);
@@ -27,6 +22,9 @@ router.get('/repo', async (req, res) => {
 
     res.json(repoInfo);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching repository info:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch repository info' });
   }
@@ -35,20 +33,17 @@ router.get('/repo', async (req, res) => {
 // Get recent commits
 router.get('/commits', async (req, res) => {
   try {
-    const { url, limit } = req.query;
-    
-    if (!url || typeof url !== 'string') {
+    const parsed = parseGitHubRepositoryUrl(req.query.url);
+    if (!parsed) {
       return res.status(400).json({ error: 'GitHub URL is required' });
     }
 
-    const parsed = parseGitHubUrl(url);
-    if (!parsed) {
-      return res.status(400).json({ error: 'Invalid GitHub URL' });
-    }
-
-    const commits = await getRecentCommits(parsed.owner, parsed.repo, limit ? parseInt(limit as string) : 10);
+    const commits = await getRecentCommits(parsed.owner, parsed.repo, req.query.limit !== undefined ? requirePositiveInt(req.query.limit, 'limit') : 10);
     res.json(commits);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching commits:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch commits' });
   }
@@ -57,20 +52,17 @@ router.get('/commits', async (req, res) => {
 // Get total commits count
 router.get('/commits-count', async (req, res) => {
   try {
-    const { url } = req.query;
-    
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'GitHub URL is required' });
-    }
-
-    const parsed = parseGitHubUrl(url);
+    const parsed = parseGitHubRepositoryUrl(req.query.url);
     if (!parsed) {
-      return res.status(400).json({ error: 'Invalid GitHub URL' });
+      return res.status(400).json({ error: 'GitHub URL is required' });
     }
 
     const totalCommits = await getTotalCommits(parsed.owner, parsed.repo);
     res.json({ count: totalCommits });
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching commit count:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch commit count' });
   }
@@ -79,20 +71,17 @@ router.get('/commits-count', async (req, res) => {
 // Get contributors
 router.get('/contributors', async (req, res) => {
   try {
-    const { url } = req.query;
-    
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'GitHub URL is required' });
-    }
-
-    const parsed = parseGitHubUrl(url);
+    const parsed = parseGitHubRepositoryUrl(req.query.url);
     if (!parsed) {
-      return res.status(400).json({ error: 'Invalid GitHub URL' });
+      return res.status(400).json({ error: 'GitHub URL is required' });
     }
 
     const contributors = await getContributors(parsed.owner, parsed.repo);
     res.json(contributors);
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching contributors:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch contributors' });
   }
@@ -101,15 +90,9 @@ router.get('/contributors', async (req, res) => {
 // Get README
 router.get('/readme', async (req, res) => {
   try {
-    const { url } = req.query;
-    
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'GitHub URL is required' });
-    }
-
-    const parsed = parseGitHubUrl(url);
+    const parsed = parseGitHubRepositoryUrl(req.query.url);
     if (!parsed) {
-      return res.status(400).json({ error: 'Invalid GitHub URL' });
+      return res.status(400).json({ error: 'GitHub URL is required' });
     }
 
     const readme = await getReadme(parsed.owner, parsed.repo);
@@ -119,6 +102,9 @@ router.get('/readme', async (req, res) => {
 
     res.json({ content: readme });
   } catch (error: any) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('Error fetching README:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch README' });
   }

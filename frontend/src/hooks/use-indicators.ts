@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 export interface IndicatorsTeamTotals {
   total_users: number
@@ -241,18 +240,8 @@ export function useIndicators() {
     try {
       setLoading(true)
       setError(null)
-      const params = new URLSearchParams()
-      params.set('scope', isAdmin ? 'team' : 'me')
-      const url = API_URL
-        ? `${API_URL}/api/indicators?${params.toString()}`
-        : `/api/indicators?${params.toString()}`
-      // #region agent log
-      fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H5',location:'frontend/src/hooks/use-indicators.ts:246',message:'frontend indicators request',data:{url,isAdmin,currentUserId:currentUser?.id??null,hasAuthorizationHeader:Boolean(getAuthHeaders().Authorization),xUserId:getAuthHeaders()['x-user-id']??null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      const url = apiUrl('/api/indicators', { scope: isAdmin ? 'team' : 'me' })
       const response = await fetch(url, { headers: getAuthHeaders() })
-      // #region agent log
-      fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H5',location:'frontend/src/hooks/use-indicators.ts:248',message:'frontend indicators response status',data:{status:response.status,ok:response.ok},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (!response.ok) {
         if (response.status === 401) {
           setData(null)

@@ -561,10 +561,6 @@ export function TodoList(props: TodoListProps) {
   useEffect(() => {
     const sampleWithDeadline = visibleTodos.find((todo) => Boolean(todo.deadline))
     if (!sampleWithDeadline?.deadline) return
-    const parsed = new Date(sampleWithDeadline.deadline)
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'post-fix',hypothesisId:'H9',location:'frontend/src/components/kanban/todo-list.tsx:523',message:'todo deadline render sample',data:{todoId:sampleWithDeadline.id,rawDeadline:sampleWithDeadline.deadline,parsedIso:parsed.toISOString(),formattedPtBr:formatDatePtBr(sampleWithDeadline.deadline,'—')},timestamp:Date.now()})}).catch(()=>{})
-    // #endregion
   }, [visibleTodos])
 
   if (usersError) console.error('Erro ao carregar usuários:', usersError)

@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Project } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const REALTIME_ENABLED = import.meta.env.VITE_SUPABASE_REALTIME_ENABLED === 'true'
 
@@ -17,8 +16,7 @@ export function useProjects() {
   const fetchProjects = async () => {
     try {
       setLoading(true)
-      const url = API_URL ? `${API_URL}/api/projects` : '/api/projects'
-      const response = await fetch(url, { headers: getAuthHeaders() })
+      const response = await fetch(apiUrl('/api/projects'), { headers: getAuthHeaders() })
       if (!response.ok) {
         const errorText = await response.text()
         throw new Error(`Failed to fetch projects: ${response.status} ${response.statusText} - ${errorText}`)
@@ -88,8 +86,7 @@ export function useProjects() {
 
   const createProject = async (project: Partial<Project>) => {
     try {
-      const url = API_URL ? `${API_URL}/api/projects` : '/api/projects'
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl('/api/projects'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(project),
@@ -112,8 +109,7 @@ export function useProjects() {
 
   const updateProject = async (id: string, updates: Partial<Project>) => {
     try {
-      const url = API_URL ? `${API_URL}/api/projects/${id}` : `/api/projects/${id}`
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(`/api/projects/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updates),
@@ -138,8 +134,7 @@ export function useProjects() {
       prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
     )
     try {
-      const url = API_URL ? `${API_URL}/api/projects/${id}` : `/api/projects/${id}`
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(`/api/projects/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updates),
@@ -156,8 +151,7 @@ export function useProjects() {
 
   const deleteProject = async (id: string) => {
     try {
-      const url = API_URL ? `${API_URL}/api/projects/${id}` : `/api/projects/${id}`
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl(`/api/projects/${id}`), {
         method: 'DELETE',
         headers: getAuthHeaders(),
       })
@@ -183,8 +177,7 @@ export function useProjects() {
     const previous = projects
     setProjects(reordered)
     try {
-      const url = API_URL ? `${API_URL}/api/projects/reorder` : '/api/projects/reorder'
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl('/api/projects/reorder'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ orderedIds }),

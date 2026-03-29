@@ -1,19 +1,16 @@
 import { useState, useCallback } from 'react'
 import { GitHubRepository, GitHubCommit } from '@/types'
-
-// Use proxy if VITE_API_URL is not set, otherwise use the full URL
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 export function useGitHub() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const getRepositoryInfo = useCallback(async (url: string): Promise<GitHubRepository | null> => {
-    try {
+      try {
       setLoading(true)
       setError(null)
-      const fetchUrl = API_URL ? `${API_URL}/api/github/repo?url=${encodeURIComponent(url)}` : `/api/github/repo?url=${encodeURIComponent(url)}`
-      const response = await fetch(fetchUrl)
+      const response = await fetch(apiUrl('/api/github/repo', { url }))
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch repository info')
@@ -33,8 +30,7 @@ export function useGitHub() {
     try {
       setLoading(true)
       setError(null)
-      const fetchUrl = API_URL ? `${API_URL}/api/github/commits?url=${encodeURIComponent(url)}&limit=${limit}` : `/api/github/commits?url=${encodeURIComponent(url)}&limit=${limit}`
-      const response = await fetch(fetchUrl)
+      const response = await fetch(apiUrl('/api/github/commits', { url, limit }))
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch commits')
@@ -54,8 +50,7 @@ export function useGitHub() {
     try {
       setLoading(true)
       setError(null)
-      const fetchUrl = API_URL ? `${API_URL}/api/github/contributors?url=${encodeURIComponent(url)}` : `/api/github/contributors?url=${encodeURIComponent(url)}`
-      const response = await fetch(fetchUrl)
+      const response = await fetch(apiUrl('/api/github/contributors', { url }))
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch contributors')
@@ -75,8 +70,7 @@ export function useGitHub() {
     try {
       setLoading(true)
       setError(null)
-      const fetchUrl = API_URL ? `${API_URL}/api/github/readme?url=${encodeURIComponent(url)}` : `/api/github/readme?url=${encodeURIComponent(url)}`
-      const response = await fetch(fetchUrl)
+      const response = await fetch(apiUrl('/api/github/readme', { url }))
       if (!response.ok) {
         if (response.status === 404) {
           return null
@@ -100,8 +94,7 @@ export function useGitHub() {
     try {
       setLoading(true)
       setError(null)
-      const fetchUrl = API_URL ? `${API_URL}/api/github/commits-count?url=${encodeURIComponent(url)}` : `/api/github/commits-count?url=${encodeURIComponent(url)}`
-      const response = await fetch(fetchUrl)
+      const response = await fetch(apiUrl('/api/github/commits-count', { url }))
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch commit count')

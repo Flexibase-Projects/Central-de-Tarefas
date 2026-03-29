@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Box, Typography, Paper, CircularProgress } from '@mui/material'
 import { Permission } from '@/types'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 export function PermissionsList() {
   const [permissions, setPermissions] = useState<Permission[]>([])
@@ -11,7 +10,7 @@ export function PermissionsList() {
   useEffect(() => {
     const fetchPermissions = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/permissions`)
+        const response = await fetch(apiUrl('/api/permissions'))
         if (response.ok) {
           const data = await response.json()
           setPermissions(data)

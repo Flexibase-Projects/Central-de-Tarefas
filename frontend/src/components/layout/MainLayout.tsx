@@ -10,14 +10,27 @@ import { TodoCompleteToast } from '@/components/achievements/TodoCompleteToast'
 import { UserLevelProfileDrawer } from './UserLevelProfileDrawer'
 import { HeaderProfileButton } from './HeaderProfileButton'
 import { HeaderCollapsedSidebarTools } from './HeaderCollapsedSidebarTools'
-import type { WorkspaceMember } from '@/types'
-import { getApiBase } from '@/lib/api'
+import type { AuthContextType } from '@/contexts/AuthContext'
+import { apiUrl } from '@/lib/api'
 import StatusToken from '@/components/system/StatusToken'
-
-const API_URL = getApiBase()
 const HEADER_HEIGHT = 60
 const SIDEBAR_EXPANDED_WIDTH = 248
 const SIDEBAR_COLLAPSED_WIDTH = 72
+
+type WorkspaceMember = {
+  id: string
+  name: string
+  avatar_url?: string | null
+}
+
+type AuthContextWithWorkspace = AuthContextType & {
+  currentWorkspace?: {
+    id: string
+    slug: string
+    name: string
+    role_display_name?: string | null
+  } | null
+}
 
 interface MainLayoutProps {
   children: ReactNode
@@ -28,25 +41,30 @@ function MainLayoutContent({ children }: MainLayoutProps) {
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false)
   const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([])
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
-  const { isViewingAs, viewAsUser, stopViewingAs, currentUser, currentWorkspace, getAuthHeaders } = useAuth()
+  const { isViewingAs, viewAsUser, stopViewingAs, currentUser, currentWorkspace, getAuthHeaders } =
+    useAuth() as unknown as AuthContextWithWorkspace
   const { data: progressData, loading: progressLoading } = useUserProgress()
   const { count: pendingTodosCount } = useMyPendingTodosCount()
 
   useEffect(() => {
     let mounted = true
     const run = async () => {
-      if (!currentWorkspace?.id) {
+      if (!currentWorkspace?.slug) {
         if (mounted) setWorkspaceMembers([])
         return
       }
 
       try {
-        const response = await fetch(`${API_URL}/api/workspaces/current/members`, {
+        const response = await fetch(apiUrl(`/api/workspaces/${currentWorkspace.slug}/members`), {
           headers: getAuthHeaders(),
         })
-        const body = (await response.json().catch(() => [])) as WorkspaceMember[]
-        if (!mounted || !response.ok || !Array.isArray(body)) return
-        setWorkspaceMembers(body)
+        const body = (await response.json().catch(() => null)) as
+          | { members?: WorkspaceMember[] }
+          | WorkspaceMember[]
+          | null
+        const members = Array.isArray(body) ? body : Array.isArray(body?.members) ? body.members : null
+        if (!mounted || !response.ok || !members) return
+        setWorkspaceMembers(members)
       } catch {
         if (mounted) setWorkspaceMembers([])
       }
@@ -56,7 +74,8 @@ function MainLayoutContent({ children }: MainLayoutProps) {
     return () => {
       mounted = false
     }
-  }, [currentWorkspace?.id, getAuthHeaders])
+  }, [currentWorkspace?.slug, getAuthHeaders])
+
 
   const visibleMembers = useMemo(() => workspaceMembers.slice(0, 4), [workspaceMembers])
   const overflowMembers = Math.max(0, workspaceMembers.length - visibleMembers.length)

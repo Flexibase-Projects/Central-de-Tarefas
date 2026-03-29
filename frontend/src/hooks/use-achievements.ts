@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { apiUrl } from '@/lib/api'
 import type { Achievement } from '@/types'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
 
 export function useAchievements() {
   const { getAuthHeaders } = useAuth()
@@ -13,8 +12,7 @@ export function useAchievements() {
   useEffect(() => {
     async function fetchAchievements() {
       try {
-        const url = API_URL ? `${API_URL}/api/achievements` : '/api/achievements'
-        const response = await fetch(url, { headers: getAuthHeaders() })
+        const response = await fetch(apiUrl('/api/achievements'), { headers: getAuthHeaders() })
         if (!response.ok) throw new Error('Falha ao carregar conquistas')
         const data = await response.json()
         setAchievements(data)

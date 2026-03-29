@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/icons'
 import type { UserProgressAchievement, Achievement } from '@/types'
 import { Link } from 'react-router-dom'
+import { buildWorkspacePath } from '@/lib/workspace-routing'
 
 // ── Icon map ───────────────────────────────────────────────────────────────────
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -235,7 +236,7 @@ function AchievementShowcaseCard({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Perfil() {
-  const { currentUser } = useAuth()
+  const { currentUser, currentWorkspace } = useAuth()
   const { data: progress, loading: progressLoading } = useUserProgress()
   const { achievements: dbAchievements, loading: dbLoading } = useAchievements()
   const theme = useTheme()
@@ -462,7 +463,7 @@ export default function Perfil() {
                   </Typography>
                 </Box>
               </Box>
-              <Link to="/conquistas" style={{ textDecoration: 'none' }}>
+              <Link to={buildWorkspacePath(currentWorkspace?.slug, '/conquistas')} style={{ textDecoration: 'none' }}>
                 <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 500, fontSize: 12 }}>
                   Ver todas →
                 </Typography>

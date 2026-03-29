@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Notification } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { apiUrl } from '@/lib/api';
 
 export function useNotifications() {
   const { currentUser, getAuthHeaders } = useAuth();
@@ -19,7 +18,7 @@ export function useNotifications() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/notifications`, {
+      const response = await fetch(apiUrl('/api/notifications'), {
         headers: getAuthHeaders(),
       });
 
@@ -41,7 +40,7 @@ export function useNotifications() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/notifications/unread-count`, {
+      const response = await fetch(apiUrl('/api/notifications/unread-count'), {
         headers: getAuthHeaders(),
       });
 
@@ -69,7 +68,7 @@ export function useNotifications() {
 
   const markAsRead = async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/notifications/${id}/read`, {
+      const response = await fetch(apiUrl(`/api/notifications/${id}/read`), {
         method: 'PUT',
         headers: getAuthHeaders(),
       });
@@ -87,7 +86,7 @@ export function useNotifications() {
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/notifications/read-all`, {
+      const response = await fetch(apiUrl('/api/notifications/read-all'), {
         method: 'PUT',
         headers: getAuthHeaders(),
       });
@@ -103,7 +102,7 @@ export function useNotifications() {
 
   const deleteNotification = async (id: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/notifications/${id}`, {
+      const response = await fetch(apiUrl(`/api/notifications/${id}`), {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });

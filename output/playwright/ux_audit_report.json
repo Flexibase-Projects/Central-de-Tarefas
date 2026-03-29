@@ -1,0 +1,159 @@
+﻿{
+    "generatedAt":  "2026-03-28T19:50:27.2167538-03:00",
+    "baseUrl":  "http://127.0.0.1:3002",
+    "api":  {
+                "health":  {
+                               "status":  200,
+                               "ok":  true,
+                               "body":  {
+                                            "status":  "ok",
+                                            "timestamp":  "2026-03-28T22:50:27.224Z"
+                                        }
+                           },
+                "publicWorkspaces":  {
+                                         "status":  200,
+                                         "ok":  true,
+                                         "body":  {
+                                                      "status":  "success",
+                                                      "groups":  [
+                                                                     {
+                                                                         "key":  "administrativo",
+                                                                         "label":  "Administrativo",
+                                                                         "description":  "Grupo administrativo da plataforma"
+                                                                     }
+                                                                 ],
+                                                      "workspaces":  [
+                                                                         {
+                                                                             "id":  "00ff8001-e888-48f6-b2a6-5dfa1c28895e",
+                                                                             "slug":  "desenvolvimento-de-sistemas",
+                                                                             "name":  "Desenvolvimento de Sistemas",
+                                                                             "description":  "Workspace piloto originado da base atual da Central de Tarefas.",
+                                                                             "group_key":  "administrativo",
+                                                                             "avatar_url":  null,
+                                                                             "is_public":  true,
+                                                                             "is_active":  true,
+                                                                             "sort_order":  0,
+                                                                             "created_at":  "",
+                                                                             "updated_at":  "",
+                                                                             "group":  {
+                                                                                           "key":  "administrativo",
+                                                                                           "label":  "Administrativo",
+                                                                                           "description":  "Grupo administrativo da plataforma"
+                                                                                       },
+                                                                             "has_access":  false,
+                                                                             "access_state":  "none",
+                                                                             "membership_id":  null,
+                                                                             "membership_status":  null,
+                                                                             "is_default_membership":  false,
+                                                                             "joined_at":  null
+                                                                         }
+                                                                     ]
+                                                  }
+                                     },
+                "ssoConfig":  {
+                                  "status":  200,
+                                  "ok":  true,
+                                  "body":  {
+                                               "enabled":  false,
+                                               "allow_legacy_password_login":  true,
+                                               "client_id":  null,
+                                               "redirect_uri":  null,
+                                               "portal_url":  null,
+                                               "authorize_path":  "/authorize",
+                                               "logout_path":  "/logout",
+                                               "scope":  "openid profile email"
+                                           }
+                              },
+                "ssoStart":  {
+                                 "status":  404,
+                                 "ok":  false,
+                                 "body":  null
+                             }
+            },
+    "pages":  {
+                  "workspaces":  "### Error\r\nError: page._evaluateFunction: TypeError: result is not a function\r\n    at UtilityScript.evaluate (\u003canonymous\u003e:303:16)\r\n    at UtilityScript.\u003canonymous\u003e (\u003canonymous\u003e:1:44)",
+                  "protectedRedirect":  {
+                                            "startUrl":  "http://127.0.0.1:3002/w/desenvolvimento-de-sistemas",
+                                            "finalUrl":  "http://127.0.0.1:3002/w/desenvolvimento-de-sistemas/login?returnTo=%2Fw%2Fdesenvolvimento-de-sistemas",
+                                            "redirectedToLogin":  true,
+                                            "preservedReturnTo":  true
+                                        },
+                  "login":  "### Error\r\nError: page._evaluateFunction: TypeError: result is not a function\r\n    at UtilityScript.evaluate (\u003canonymous\u003e:303:16)\r\n    at UtilityScript.\u003canonymous\u003e (\u003canonymous\u003e:1:44)",
+                  "callbackMissingParams":  {
+                                                "url":  "http://127.0.0.1:3002/auth/callback",
+                                                "hasExpectedMessage":  true
+                                            },
+                  "callbackProviderError":  {
+                                                "url":  "http://127.0.0.1:3002/auth/callback?error=access_denied\u0026error_description=portal%20recusou",
+                                                "hasExpectedMessage":  true
+                                            },
+                  "callbackInvalidState":  {
+                                               "url":  "http://127.0.0.1:3002/auth/callback?code=invalid-code-12345678\u0026state=bad-state-12345678",
+                                               "hasInvalidStateMessage":  true
+                                           }
+              },
+    "firstWorkspace":  {
+                           "slug":  "desenvolvimento-de-sistemas",
+                           "name":  "Desenvolvimento de Sistemas"
+                       },
+    "artifacts":  {
+                      "console":  "### Result\r\n- [Console](.playwright-cli\\console-2026-03-28T22-50-57-876Z.log)",
+                      "network":  "### Result\r\n- [Network](.playwright-cli\\network-2026-03-28T22-50-59-104Z.log)"
+                  },
+    "console":  {
+                    "errors":  [
+
+                               ],
+                    "warnings":  [
+
+                                 ]
+                },
+    "network":  {
+                    "unexpectedResponses":  [
+
+                                            ],
+                    "allowedResponses":  [
+
+                                         ]
+                },
+    "gate":  {
+                 "passed":  false,
+                 "failures":  [
+                                  {
+                                      "code":  "page-workspaces-url",
+                                      "message":  "A rota /workspaces deve permanecer em /workspaces.",
+                                      "details":  "### Error\r\nError: page._evaluateFunction: TypeError: result is not a function\r\n    at UtilityScript.evaluate (\u003canonymous\u003e:303:16)\r\n    at UtilityScript.\u003canonymous\u003e (\u003canonymous\u003e:1:44)"
+                                  },
+                                  {
+                                      "code":  "page-workspaces-heading",
+                                      "message":  "A rota /workspaces deve expor o heading da selecao de workspace.",
+                                      "details":  "### Error\r\nError: page._evaluateFunction: TypeError: result is not a function\r\n    at UtilityScript.evaluate (\u003canonymous\u003e:303:16)\r\n    at UtilityScript.\u003canonymous\u003e (\u003canonymous\u003e:1:44)"
+                                  },
+                                  {
+                                      "code":  "page-login-url",
+                                      "message":  "A rota de login do workspace deve manter o path contextualizado.",
+                                      "details":  "### Error\r\nError: page._evaluateFunction: TypeError: result is not a function\r\n    at UtilityScript.evaluate (\u003canonymous\u003e:303:16)\r\n    at UtilityScript.\u003canonymous\u003e (\u003canonymous\u003e:1:44)"
+                                  },
+                                  {
+                                      "code":  "page-login-legacy-consistency",
+                                      "message":  "A UI de login precisa refletir allow_legacy_password_login.",
+                                      "details":  {
+                                                      "ssoConfig":  {
+                                                                        "enabled":  false,
+                                                                        "allow_legacy_password_login":  true,
+                                                                        "client_id":  null,
+                                                                        "redirect_uri":  null,
+                                                                        "portal_url":  null,
+                                                                        "authorize_path":  "/authorize",
+                                                                        "logout_path":  "/logout",
+                                                                        "scope":  "openid profile email"
+                                                                    },
+                                                      "login":  "### Error\r\nError: page._evaluateFunction: TypeError: result is not a function\r\n    at UtilityScript.evaluate (\u003canonymous\u003e:303:16)\r\n    at UtilityScript.\u003canonymous\u003e (\u003canonymous\u003e:1:44)"
+                                                  }
+                                  }
+                              ],
+                 "warnings":  [
+
+                              ]
+             }
+}

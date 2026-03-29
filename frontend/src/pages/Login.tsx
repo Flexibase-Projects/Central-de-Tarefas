@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Alert,
   Box,
@@ -18,14 +18,21 @@ import {
 import { ArrowLeft, Building2, Info, Lock, Moon, Send, Sun, Unlock, UserPlus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useThemeMode } from '@/theme/ThemeProvider'
-import { getApiBase } from '@/lib/api'
-import type { Workspace } from '@/types'
-import { buildWorkspacePath } from '@/lib/workspace-routing'
+import { apiUrl } from '@/lib/api'
+import { buildWorkspacePath, sanitizeWorkspaceReturnTo } from '@/lib/workspace-routing'
+import { fetchCentralSsoConfig, startCentralSso, type CentralSsoConfig } from '@/lib/central-sso'
+import { useWorkspaceAccess } from '@/hooks/use-workspace-access'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'
 import StatusToken from '@/components/system/StatusToken'
+type Workspace = {
+  id: string
+  slug: string
+  name: string
+  description?: string | null
+  role_display_name?: string | null
+}
 
-const API_URL = getApiBase()
 const LOGIN_REMEMBER_KEY = 'cdt-login-remember-30d'
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 const EMAIL_LOOKS_VALID = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -34,9 +41,17 @@ type PublicWorkspaceResponse = {
   workspaces: Workspace[]
 }
 
+type LoginLocationState = {
+  returnTo?: string
+  accessStatus?: 'pending' | 'blocked' | 'not_found' | 'error'
+  accessMessage?: string
+} | null
+
 export default function Login() {
   const { workspaceSlug } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { login, currentUser } = useAuth()
   const { mode, toggleTheme } = useThemeMode()
   const isLight = mode === 'light'
@@ -44,6 +59,8 @@ export default function Login() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [workspaceLoading, setWorkspaceLoading] = useState(true)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  const [centralSsoConfig, setCentralSsoConfig] = useState<CentralSsoConfig | null>(null)
+  const [centralSsoLoading, setCentralSsoLoading] = useState(true)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -58,6 +75,16 @@ export default function Login() {
   const [requestName, setRequestName] = useState('')
   const [requestMessage, setRequestMessage] = useState('')
   const [requestSuccess, setRequestSuccess] = useState('')
+  const locationState = location.state as LoginLocationState
+  const workspaceAccess = useWorkspaceAccess(workspaceSlug)
+
+  const workspaceRootPath = useMemo(() => buildWorkspacePath(workspaceSlug), [workspaceSlug])
+  const returnTo = useMemo(
+    () =>
+      sanitizeWorkspaceReturnTo(searchParams.get('returnTo') ?? locationState?.returnTo ?? null, workspaceSlug) ??
+      workspaceRootPath,
+    [locationState?.returnTo, searchParams, workspaceRootPath, workspaceSlug],
+  )
 
   useEffect(() => {
     if (!workspaceSlug) {
@@ -72,7 +99,7 @@ export default function Login() {
     const run = async () => {
       try {
         setWorkspaceLoading(true)
-        const response = await fetch(`${API_URL}/api/auth/public-workspaces`)
+        const response = await fetch(apiUrl('/api/auth/public-workspaces'))
         const body = (await response.json().catch(() => null)) as PublicWorkspaceResponse | { error?: string } | null
         if (!response.ok || !body || !('workspaces' in body)) {
           throw new Error((body as { error?: string } | null)?.error || 'Falha ao carregar o workspace.')
@@ -107,13 +134,12 @@ export default function Login() {
     try {
       const raw = localStorage.getItem(LOGIN_REMEMBER_KEY)
       if (!raw) return
-      const parsed = JSON.parse(raw) as { email?: string; password?: string; expiresAt?: number }
+      const parsed = JSON.parse(raw) as { email?: string; expiresAt?: number }
       if (!parsed.expiresAt || parsed.expiresAt < Date.now()) {
         localStorage.removeItem(LOGIN_REMEMBER_KEY)
         return
       }
       setEmail(parsed.email ?? '')
-      setPassword(parsed.password ?? '')
       setRememberFor30d(true)
     } catch {
       localStorage.removeItem(LOGIN_REMEMBER_KEY)
@@ -121,10 +147,36 @@ export default function Login() {
   }, [])
 
   useEffect(() => {
-    if (currentUser && workspaceSlug) {
-      navigate(buildWorkspacePath(workspaceSlug), { replace: true })
+    if (currentUser && workspaceSlug && workspaceAccess.status === 'success') {
+      navigate(returnTo, { replace: true })
     }
-  }, [currentUser, navigate, workspaceSlug])
+  }, [currentUser, navigate, returnTo, workspaceAccess.status, workspaceSlug])
+
+  useEffect(() => {
+    let mounted = true
+
+    const run = async () => {
+      try {
+        const config = await fetchCentralSsoConfig()
+        if (!mounted) return
+        setCentralSsoConfig(config)
+      } catch {
+        if (mounted) {
+          setCentralSsoConfig(null)
+        }
+      } finally {
+        if (mounted) {
+          setCentralSsoLoading(false)
+        }
+      }
+    }
+
+    void run()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   const fetchFirstAccessHint = useCallback(async (targetEmail: string) => {
     const normalized = targetEmail.trim().toLowerCase()
@@ -134,7 +186,7 @@ export default function Login() {
     }
     setHintChecking(true)
     try {
-      const res = await fetch(`${API_URL}/api/auth/first-access-hint`, {
+      const res = await fetch(apiUrl('/api/auth/first-access-hint'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: normalized }),
@@ -161,13 +213,12 @@ export default function Login() {
   const canSubmitLogin = Boolean(email.trim() && password)
 
   const persistRemember = useCallback(
-    (pwd: string) => {
+    () => {
       if (rememberFor30d) {
         localStorage.setItem(
           LOGIN_REMEMBER_KEY,
           JSON.stringify({
             email,
-            password: pwd,
             expiresAt: Date.now() + THIRTY_DAYS_MS,
           }),
         )
@@ -189,6 +240,45 @@ export default function Login() {
     }
   }, [workspace])
 
+  const centralSsoEnabled = Boolean(centralSsoConfig?.enabled)
+  const legacyLoginAvailable = !centralSsoEnabled || Boolean(centralSsoConfig?.allow_legacy_password_login)
+  const accessAlert =
+    currentUser && workspaceAccess.status !== 'idle' && workspaceAccess.status !== 'loading'
+      ? {
+          severity:
+            workspaceAccess.status === 'blocked' || workspaceAccess.status === 'not_found' || workspaceAccess.status === 'error'
+              ? 'warning'
+              : 'info',
+          message: workspaceAccess.message,
+        }
+      : locationState?.accessMessage
+        ? {
+            severity:
+              locationState.accessStatus === 'blocked' || locationState.accessStatus === 'not_found' || locationState.accessStatus === 'error'
+                ? 'warning'
+                : 'info',
+            message: locationState.accessMessage,
+          }
+        : null
+
+  const handleStartCentralSso = useCallback(async () => {
+    if (!workspaceSlug) return
+
+    setError('')
+    setRequestSuccess('')
+    setLoading(true)
+    try {
+      const response = await startCentralSso({
+        workspaceSlug,
+        returnTo,
+      })
+      window.location.assign(response.redirectUrl ?? response.authorize_url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao iniciar o SSO central.')
+      setLoading(false)
+    }
+  }, [returnTo, workspaceSlug])
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError('')
@@ -206,7 +296,7 @@ export default function Login() {
           return
         }
 
-        const res = await fetch(`${API_URL}/api/auth/set-initial-password`, {
+        const res = await fetch(apiUrl('/api/auth/set-initial-password'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: email.trim().toLowerCase(), password: newPassword }),
@@ -217,15 +307,15 @@ export default function Login() {
           return
         }
 
-        const resolvedWorkspace = await login(email, newPassword, workspaceSlug ?? null)
-        persistRemember(newPassword)
-        navigate(buildWorkspacePath(resolvedWorkspace?.slug ?? workspaceSlug ?? null), { replace: true })
+        await login(email, newPassword)
+        persistRemember()
+        navigate(returnTo, { replace: true })
         return
       }
 
-      const resolvedWorkspace = await login(email, password, workspaceSlug ?? null)
-      persistRemember(password)
-      navigate(buildWorkspacePath(resolvedWorkspace?.slug ?? workspaceSlug ?? null), { replace: true })
+      await login(email, password)
+      persistRemember()
+      navigate(returnTo, { replace: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao entrar'
       setError(message)
@@ -255,7 +345,7 @@ export default function Login() {
 
     setLoading(true)
     try {
-      const response = await fetch(`${API_URL}/api/auth/request-access`, {
+      const response = await fetch(apiUrl('/api/auth/request-access'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -266,12 +356,33 @@ export default function Login() {
           message: requestMessage.trim() || null,
         }),
       })
-      const body = (await response.json().catch(() => ({}))) as { error?: string }
+      const body = (await response.json().catch(() => ({}))) as {
+        status?: 'success' | 'pending' | 'blocked' | 'not_found'
+        error?: string
+      }
       if (!response.ok) {
         throw new Error(body.error || 'Falha ao enviar a solicitacao.')
       }
 
-      setRequestSuccess('Solicitacao enviada. Assim que ela for aprovada, voce podera entrar neste workspace.')
+      if (body.status === 'success') {
+        setRequestSuccess(
+          currentUser
+            ? 'Seu acesso a este workspace já está liberado. Redirecionando...'
+            : 'Seu acesso a este workspace já está liberado. Você já pode entrar.'
+        )
+        setRequestMode(false)
+        if (currentUser) {
+          navigate(returnTo, { replace: true })
+        }
+        return
+      }
+
+      if (body.status === 'blocked') {
+        setError('Seu acesso a este workspace está bloqueado no momento.')
+        return
+      }
+
+      setRequestSuccess('Solicitação enviada. Assim que ela for aprovada, você poderá entrar neste workspace.')
       setRequestMode(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao solicitar acesso.')
@@ -374,11 +485,16 @@ export default function Login() {
                   <Typography variant="body2" color="text.secondary">
                     {requestMode
                       ? 'Envie sua solicitacao para este workspace.'
-                      : 'Entre com seu e-mail e senha da plataforma.'}
+                      : centralSsoEnabled
+                        ? 'SSO central e login legado estao disponiveis neste workspace.'
+                        : 'Entre com seu e-mail e senha da plataforma.'}
                   </Typography>
                 </Box>
                 {workspaceMeta?.slug ? (
-                  <StatusToken tone="neutral">/{workspaceMeta.slug}</StatusToken>
+                  <Stack spacing={0.75} alignItems="flex-end">
+                    <StatusToken tone="neutral">/{workspaceMeta.slug}</StatusToken>
+                    {centralSsoEnabled ? <StatusToken tone="info">SSO ativo</StatusToken> : null}
+                  </Stack>
                 ) : null}
               </Stack>
 
@@ -392,6 +508,56 @@ export default function Login() {
                 <Alert severity="success" onClose={() => setRequestSuccess('')}>
                   {requestSuccess}
                 </Alert>
+              ) : null}
+
+              {accessAlert?.message ? (
+                <Alert severity={accessAlert.severity as 'info' | 'warning'}>{accessAlert.message}</Alert>
+              ) : null}
+
+              {centralSsoLoading ? (
+                <AppSurface surface="subtle" sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  <CircularProgress size={18} />
+                  <Typography variant="body2" color="text.secondary">
+                    Verificando disponibilidade do SSO central...
+                  </Typography>
+                </AppSurface>
+              ) : centralSsoEnabled ? (
+                <AppSurface surface="subtle" sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        SSO central
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                        Entre com a identidade central e volte automaticamente para este workspace.
+                      </Typography>
+                    </Box>
+                    <StatusToken tone="info">Primário</StatusToken>
+                  </Stack>
+
+                  <Button
+                    type="button"
+                    variant="contained"
+                    size="large"
+                    disabled={loading}
+                    onClick={() => void handleStartCentralSso()}
+                    startIcon={
+                      loading ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : (
+                        <Unlock size={18} />
+                      )
+                    }
+                  >
+                    {loading ? 'Abrindo SSO...' : 'Entrar com SSO central'}
+                  </Button>
+
+                  {legacyLoginAvailable ? (
+                    <Typography variant="caption" color="text.secondary">
+                      O login por e-mail e senha continua disponivel como fallback legado.
+                    </Typography>
+                  ) : null}
+                </AppSurface>
               ) : null}
 
               <Box component="form" onSubmit={handleSubmit}>
@@ -484,13 +650,13 @@ export default function Login() {
                           disabled={loading}
                         />
                       }
-                      label="Manter meus dados por 30 dias neste navegador"
+                      label="Lembrar meu e-mail por 30 dias neste navegador"
                     />
                   ) : null}
 
                   <Button
                     type="submit"
-                    variant="contained"
+                    variant={centralSsoEnabled ? 'outlined' : 'contained'}
                     size="large"
                     disabled={loading || requestMode || (definePasswordMode ? !canSubmitDefine : !canSubmitLogin)}
                     startIcon={

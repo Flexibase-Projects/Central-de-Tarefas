@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { getApiBase } from '@/lib/api'
+import { apiUrl } from '@/lib/api'
 
 export type ProjectTodoCardSummary = {
   entity_type?: 'project' | 'activity'
@@ -68,9 +68,7 @@ async function fetchSummary(getAuthHeaders: () => HeadersInit, userKey: string |
     emit()
 
     inFlight = (async () => {
-      const base = getApiBase()
-      const url = base ? `${base}/api/projects/todo-card-summary` : '/api/projects/todo-card-summary'
-      const response = await fetch(url, { headers: getAuthHeaders() })
+      const response = await fetch(apiUrl('/api/projects/todo-card-summary'), { headers: getAuthHeaders() })
 
       if (!response.ok) {
         throw new Error('Falha ao carregar resumo dos cards')

@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import type { OrgPersonSummary, OrgTreeNode } from '@/types/cost-org'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 export function useOrgTree() {
   const { getAuthHeaders } = useAuth()
@@ -14,8 +13,7 @@ export function useOrgTree() {
     setLoading(true)
     setError(null)
     try {
-      const url = API_URL ? `${API_URL}/api/org/tree` : '/api/org/tree'
-      const res = await fetch(url, { headers: getAuthHeaders() })
+      const res = await fetch(apiUrl('/api/org/tree'), { headers: getAuthHeaders() })
       const text = await res.text()
       if (!res.ok) {
         let msg = text || res.statusText
@@ -59,10 +57,7 @@ export function useOrgSummary() {
     async (entryId: string) => {
       setLoading(true)
       try {
-        const url = API_URL
-          ? `${API_URL}/api/org/entry/${entryId}/summary`
-          : `/api/org/entry/${entryId}/summary`
-        const res = await fetch(url, { headers: getAuthHeaders() })
+        const res = await fetch(apiUrl(`/api/org/entry/${entryId}/summary`), { headers: getAuthHeaders() })
         const data = (await res.json()) as Partial<OrgPersonSummary> & { error?: string }
         if (!res.ok) throw new Error(data.error || 'Erro ao carregar resumo')
         setSummary({
@@ -104,8 +99,7 @@ export function useOrgEntries() {
   const fetchEntries = useCallback(async () => {
     setLoading(true)
     try {
-      const url = API_URL ? `${API_URL}/api/org/entries` : '/api/org/entries'
-      const res = await fetch(url, { headers: getAuthHeaders() })
+      const res = await fetch(apiUrl('/api/org/entries'), { headers: getAuthHeaders() })
       const data = (await res.json()) as OrgEntry[]
       if (!res.ok) throw new Error('Falha ao listar')
       setEntries(Array.isArray(data) ? data : [])
@@ -126,8 +120,7 @@ export function useOrgEntries() {
       monthly_salary?: number | null
       monthly_cost?: number | null
     }) => {
-      const url = API_URL ? `${API_URL}/api/org/entries` : '/api/org/entries'
-      const res = await fetch(url, {
+      const res = await fetch(apiUrl('/api/org/entries'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(body),
@@ -143,8 +136,7 @@ export function useOrgEntries() {
 
   const deleteEntry = useCallback(
     async (id: string) => {
-      const url = API_URL ? `${API_URL}/api/org/entries/${id}` : `/api/org/entries/${id}`
-      const res = await fetch(url, { method: 'DELETE', headers: getAuthHeaders() })
+      const res = await fetch(apiUrl(`/api/org/entries/${id}`), { method: 'DELETE', headers: getAuthHeaders() })
       if (!res.ok) throw new Error('Erro ao remover')
     },
     [getAuthHeaders]
@@ -152,8 +144,10 @@ export function useOrgEntries() {
 
   const deleteSubtree = useCallback(
     async (entryId: string) => {
-      const url = API_URL ? `${API_URL}/api/org/entry/${entryId}/subtree` : `/api/org/entry/${entryId}/subtree`
-      const res = await fetch(url, { method: 'DELETE', headers: getAuthHeaders() })
+      const res = await fetch(apiUrl(`/api/org/entry/${entryId}/subtree`), {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error((payload as { error?: string }).error || 'Erro ao remover subárvore')
@@ -176,8 +170,7 @@ export function useOrgEntries() {
         monthly_cost?: number | null
       }
     ) => {
-      const url = API_URL ? `${API_URL}/api/org/entries/${id}` : `/api/org/entries/${id}`
-      const res = await fetch(url, {
+      const res = await fetch(apiUrl(`/api/org/entries/${id}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify(body),

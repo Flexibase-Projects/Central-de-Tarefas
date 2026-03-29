@@ -181,6 +181,8 @@ CDT-Inteligencia/
 - `npm run install:all` - Instala dependências de todos os workspaces
 
 Para deploy em produção (PM2, Nginx, porta única), veja [docs/DEPLOY.md](docs/DEPLOY.md).
+Para a documentação consolidada de segurança, veja [docs/security/README.md](docs/security/README.md).
+Para o adapter de SSO central do CDT, veja [docs/auth/CDT-CENTRAL-SSO-ADAPTER.md](docs/auth/CDT-CENTRAL-SSO-ADAPTER.md).
 
 ## 📝 Próximos Passos
 

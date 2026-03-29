@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 const SAVE_DEBOUNCE_MS = 1500
 
 /** Garante payload serializável para o backend (elements + appState com collaborators como array). */
@@ -37,8 +36,7 @@ export function useTeamCanvas() {
     try {
       setLoading(true)
       setError(null)
-      const url = API_URL ? `${API_URL}/api/team-canvas` : '/api/team-canvas'
-      const res = await fetch(url, { headers: getAuthHeaders() })
+      const res = await fetch(apiUrl('/api/team-canvas'), { headers: getAuthHeaders() })
       if (!res.ok) throw new Error(`Falha ao carregar canva: ${res.status}`)
       const json = await res.json()
       setData({
@@ -69,9 +67,8 @@ export function useTeamCanvas() {
 
       setSaving(true)
       try {
-        const url = API_URL ? `${API_URL}/api/team-canvas` : '/api/team-canvas'
         const payload = normalizeContent(content)
-        const res = await fetch(url, {
+        const res = await fetch(apiUrl('/api/team-canvas'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify(payload),
@@ -118,9 +115,8 @@ export function useTeamCanvas() {
       const pending = pendingContentRef.current
       pendingContentRef.current = null
       if (pending) {
-        const url = API_URL ? `${API_URL}/api/team-canvas` : '/api/team-canvas'
         const payload = normalizeContent(pending)
-        fetch(url, {
+        fetch(apiUrl('/api/team-canvas'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify(payload),

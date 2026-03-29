@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, UserWithRole } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { apiUrl } from '@/lib/api';
 
 export function useUsers() {
   const { currentUser, getAuthHeaders } = useAuth();
@@ -14,10 +13,9 @@ export function useUsers() {
     try {
       setLoading(true);
       setError(null);
-      const userId = currentUser?.id || '';
-      const url = forAssignment 
-        ? `${API_URL}/api/users?for_assignment=true&userId=${userId}`
-        : `${API_URL}/api/users?userId=${userId}`;
+      const url = apiUrl('/api/users', {
+        ...(forAssignment ? { for_assignment: true } : {}),
+      });
       
       const response = await fetch(url, {
         headers: getAuthHeaders(),
@@ -39,7 +37,7 @@ export function useUsers() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser, getAuthHeaders]);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     fetchUsers();
@@ -47,7 +45,7 @@ export function useUsers() {
 
   const createUser = async (userData: { email: string; name: string; avatar_url?: string }) => {
     try {
-      const response = await fetch(`${API_URL}/api/users`, {
+      const response = await fetch(apiUrl('/api/users'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(userData),
@@ -87,7 +85,7 @@ export function useUsers() {
     avatar_url?: string;
     role_id?: string;
   }) => {
-    const response = await fetch(`${API_URL}/api/users/with-auth`, {
+    const response = await fetch(apiUrl('/api/users/with-auth'), {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
@@ -128,7 +126,7 @@ export function useUsers() {
     password: string,
     password_confirm: string,
   ) => {
-    const response = await fetch(`${API_URL}/api/users/${id}/auth-password`, {
+    const response = await fetch(apiUrl(`/api/users/${id}/auth-password`), {
       method: 'POST',
       headers: {
         ...getAuthHeaders(),
@@ -159,7 +157,7 @@ export function useUsers() {
 
   const updateUser = async (id: string, userData: Partial<User>) => {
     try {
-      const response = await fetch(`${API_URL}/api/users/${id}`, {
+      const response = await fetch(apiUrl(`/api/users/${id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(userData),
@@ -200,7 +198,7 @@ export function useUsers() {
   const assignRole = async (userId: string, roleId: string) => {
     try {
       const currentUserId = currentUser?.id || '';
-      const response = await fetch(`${API_URL}/api/users/${userId}/role`, {
+      const response = await fetch(apiUrl(`/api/users/${userId}/role`), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ role_id: roleId, assigned_by: currentUserId }),
@@ -218,7 +216,7 @@ export function useUsers() {
 
   const removeRole = async (userId: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/users/${userId}/role`, {
+      const response = await fetch(apiUrl(`/api/users/${userId}/role`), {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -239,7 +237,7 @@ export function useUsers() {
   const fetchAuthList = useCallback(async () => {
     try {
       setAuthListLoading(true);
-      const response = await fetch(`${API_URL}/api/users/auth-list`, { headers: getAuthHeaders() });
+      const response = await fetch(apiUrl('/api/users/auth-list'), { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('Falha ao carregar usuários do Supabase Auth');
       const data = await response.json();
       setAuthList(data);
@@ -255,7 +253,7 @@ export function useUsers() {
     authUser: { id: string; email: string; name: string },
     roleId?: string | null,
   ) => {
-    const response = await fetch(`${API_URL}/api/users/from-auth`, {
+    const response = await fetch(apiUrl('/api/users/from-auth'), {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({

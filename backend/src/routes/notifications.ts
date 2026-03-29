@@ -1,9 +1,20 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { Notification } from '../types/index.js';
+import { getRequesterId } from '../middleware/auth.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 
 const router = express.Router();
+
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
+}
 
 // Função para limpar notificações órfãs (TODOs que não existem mais)
 async function cleanupOrphanedNotifications() {
@@ -73,11 +84,13 @@ async function cleanupOrphanedNotifications() {
 // Get all notifications for current user
 router.get('/', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+    const userId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
 
     if (!userId) {
       return res.status(401).json({ error: 'User ID required' });
     }
+    if (!workspaceId) return;
 
     // Limpar notificações órfãs antes de buscar
     await cleanupOrphanedNotifications();
@@ -86,6 +99,7 @@ router.get('/', async (req, res) => {
       .from('cdt_notifications')
       .select('*')
       .eq('user_id', userId)
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -100,16 +114,19 @@ router.get('/', async (req, res) => {
 // Get unread notifications count
 router.get('/unread-count', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+    const userId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
 
     if (!userId) {
       return res.status(401).json({ error: 'User ID required' });
     }
+    if (!workspaceId) return;
 
     const { count, error } = await supabase
       .from('cdt_notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .eq('workspace_id', workspaceId)
       .eq('read', false);
 
     if (error) throw error;
@@ -124,17 +141,20 @@ router.get('/unread-count', async (req, res) => {
 router.put('/:id/read', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+    const userId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
 
     if (!userId) {
       return res.status(401).json({ error: 'User ID required' });
     }
+    if (!workspaceId) return;
 
     const { data, error } = await supabase
       .from('cdt_notifications')
       .update({ read: true })
       .eq('id', id)
       .eq('user_id', userId)
+      .eq('workspace_id', workspaceId)
       .select()
       .single();
 
@@ -152,16 +172,19 @@ router.put('/:id/read', async (req, res) => {
 // Mark all notifications as read
 router.put('/read-all', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+    const userId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
 
     if (!userId) {
       return res.status(401).json({ error: 'User ID required' });
     }
+    if (!workspaceId) return;
 
     const { error } = await supabase
       .from('cdt_notifications')
       .update({ read: true })
       .eq('user_id', userId)
+      .eq('workspace_id', workspaceId)
       .eq('read', false);
 
     if (error) throw error;
@@ -176,17 +199,20 @@ router.put('/read-all', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.headers['x-user-id'] as string || req.query.userId as string;
+    const userId = getRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
 
     if (!userId) {
       return res.status(401).json({ error: 'User ID required' });
     }
+    if (!workspaceId) return;
 
     const { error } = await supabase
       .from('cdt_notifications')
       .delete()
       .eq('id', id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('workspace_id', workspaceId);
 
     if (error) throw error;
     res.status(204).send();

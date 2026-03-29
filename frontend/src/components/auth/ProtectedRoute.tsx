@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { usePermissions } from '@/hooks/use-permissions';
+import { buildWorkspacePath, getWorkspaceSlugFromPath } from '@/lib/workspace-routing';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -16,6 +18,10 @@ export function ProtectedRoute({
   fallback 
 }: ProtectedRouteProps) {
   const { hasPermission, hasRole } = usePermissions();
+  const { currentWorkspace } = useAuth();
+  const location = useLocation();
+  const workspaceSlug = currentWorkspace?.slug ?? getWorkspaceSlugFromPath(location.pathname);
+  const workspaceRoot = buildWorkspacePath(workspaceSlug);
 
   // Se não há permissão ou role especificada, permitir acesso
   if (!permission && !role) {
@@ -24,12 +30,12 @@ export function ProtectedRoute({
 
   // Verificar permissão se especificada
   if (permission && !hasPermission(permission)) {
-    return fallback ? <>{fallback}</> : <Navigate to="/" replace />;
+    return fallback ? <>{fallback}</> : <Navigate to={workspaceRoot} replace />;
   }
 
   // Verificar role se especificada
   if (role && !hasRole(role)) {
-    return fallback ? <>{fallback}</> : <Navigate to="/" replace />;
+    return fallback ? <>{fallback}</> : <Navigate to={workspaceRoot} replace />;
   }
 
   return <>{children}</>;

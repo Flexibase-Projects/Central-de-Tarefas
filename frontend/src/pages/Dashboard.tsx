@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
   Box,
@@ -38,6 +38,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useMyPendingTodosCount } from '@/hooks/use-my-pending-todos'
 import type { ProjectIndicator } from '@/types'
 import { formatDatePtBr } from '@/lib/date-only'
+import { buildWorkspacePath } from '@/lib/workspace-routing'
 
 const cell = dashboardTableCellSx
 
@@ -45,7 +46,7 @@ export default function Dashboard() {
   const theme = useTheme()
   const isLight = theme.palette.mode === 'light'
   const { data, loading, error, refresh } = useIndicators()
-  const { hasRole } = useAuth()
+  const { hasRole, currentWorkspace } = useAuth()
   const isAdmin = hasRole('admin')
   const { count: pendingCount } = useMyPendingTodosCount()
 
@@ -91,15 +92,10 @@ export default function Dashboard() {
     [isAdmin, pendingTodosOnly],
   )
 
-  useEffect(() => {
-    const pendingInRecent = recentTodos.filter((todo) => !todo.completed).length
-    const pendingInPreview = recentTodosPreview.filter((todo) => !todo.completed).length
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H7',location:'frontend/src/pages/Dashboard.tsx:96',message:'dashboard todo preview composition',data:{recentCount:recentTodos.length,pendingInRecent,pendingInPreview,previewCount:recentTodosPreview.length},timestamp:Date.now()})}).catch(()=>{})
-    // #endregion
-  }, [recentTodos, recentTodosPreview])
-
   const maxTodoBar = Math.max(1, todosCreated, todosCompleted)
+  const indicatorsPath = buildWorkspacePath(currentWorkspace?.slug, '/indicadores')
+  const projectsPath = buildWorkspacePath(currentWorkspace?.slug, '/desenvolvimentos')
+  const activitiesPath = buildWorkspacePath(currentWorkspace?.slug, '/atividades')
 
   const metrics: DashboardMetricCardProps[] = [
         {
@@ -175,12 +171,12 @@ export default function Dashboard() {
               </IconButton>
             </span>
           </Tooltip>
-          <Button
-            component={RouterLink}
-            to="/indicadores"
-            variant="outlined"
-            size="small"
-            startIcon={<BarChart2 size={18} />}
+            <Button
+              component={RouterLink}
+              to={indicatorsPath}
+              variant="outlined"
+              size="small"
+              startIcon={<BarChart2 size={18} />}
           >
             Ver indicadores completos
           </Button>
@@ -422,10 +418,10 @@ export default function Dashboard() {
           </Box>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-            <Button component={RouterLink} to="/desenvolvimentos" variant="text" size="small" startIcon={<Folder size={18} />}>
+            <Button component={RouterLink} to={projectsPath} variant="text" size="small" startIcon={<Folder size={18} />}>
               Desenvolvimentos
             </Button>
-            <Button component={RouterLink} to="/atividades" variant="text" size="small" startIcon={<CheckSquare size={18} />}>
+            <Button component={RouterLink} to={activitiesPath} variant="text" size="small" startIcon={<CheckSquare size={18} />}>
               Atividades
             </Button>
           </Box>

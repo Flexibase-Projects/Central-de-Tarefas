@@ -1,11 +1,14 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useMemo } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Box, CircularProgress } from '@mui/material'
 import { AuthProvider } from './contexts/AuthContext'
 import { AuthGuard } from './components/auth/AuthGuard'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import MainLayout from './components/layout/MainLayout'
 import Login from './pages/Login'
+import { stripWorkspacePrefix } from './lib/workspace-routing'
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
+const Workspaces = lazy(() => import('./pages/Workspaces'))
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Desenvolvimentos = lazy(() => import('./pages/Desenvolvimentos'))
@@ -41,54 +44,88 @@ function AppRouteFallback() {
   )
 }
 
+function WorkspaceApp() {
+  const location = useLocation()
+  const routedLocation = useMemo(
+    () => ({
+      ...location,
+      pathname: stripWorkspacePrefix(location.pathname),
+    }),
+    [location],
+  )
+
+  return (
+    <AuthGuard>
+      <MainLayout>
+        <Suspense fallback={<AppRouteFallback />}>
+          <Routes location={routedLocation}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/mapa" element={<Mapa />} />
+            <Route path="/prioridades" element={<Prioridades />} />
+            <Route path="/desenvolvimentos" element={<Desenvolvimentos />} />
+            <Route path="/atividades" element={<Atividades />} />
+            <Route path="/canva-equipe" element={<CanvaEquipe />} />
+            <Route path="/indicadores" element={<Indicadores />} />
+            <Route path="/perfil" element={<Perfil />} />
+            <Route path="/conquistas" element={<Conquistas />} />
+            <Route path="/niveis" element={<Niveis />} />
+            <Route path="/tutorial" element={<Tutorial />} />
+            <Route path="/organograma" element={<ProtectedRoute role="admin"><Organograma /></ProtectedRoute>} />
+            <Route path="/custos-departamento" element={<ProtectedRoute role="admin"><CustosDepartamento /></ProtectedRoute>} />
+            <Route path="/configuracoes/organograma" element={<Navigate to="../organograma" relative="path" replace />} />
+            <Route
+              path="/configuracoes/custos-departamento"
+              element={<Navigate to="../custos-departamento" relative="path" replace />}
+            />
+            <Route
+              path="/configuracoes"
+              element={<ProtectedRoute role="admin"><ConfiguracoesLayout /></ProtectedRoute>}
+            >
+              <Route index element={<ConfiguracoesHub />} />
+              <Route path="administracao" element={<Administracao />} />
+            </Route>
+            <Route path="/admin" element={<Navigate to="../configuracoes/administracao" relative="path" replace />} />
+          </Routes>
+        </Suspense>
+      </MainLayout>
+    </AuthGuard>
+  )
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
           <Route
-            path="/*"
+            path="/auth/callback"
             element={
-              <AuthGuard>
-                <MainLayout>
-                  <Suspense fallback={<AppRouteFallback />}>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/mapa" element={<Mapa />} />
-                      <Route path="/prioridades" element={<Prioridades />} />
-                      <Route path="/desenvolvimentos" element={<Desenvolvimentos />} />
-                      <Route path="/atividades" element={<Atividades />} />
-                      <Route path="/canva-equipe" element={<CanvaEquipe />} />
-                      <Route path="/indicadores" element={<Indicadores />} />
-                      <Route path="/perfil" element={<Perfil />} />
-                      <Route path="/conquistas" element={<Conquistas />} />
-                      <Route path="/niveis" element={<Niveis />} />
-                      <Route path="/tutorial" element={<Tutorial />} />
-                      <Route path="/organograma" element={<ProtectedRoute role="admin"><Organograma /></ProtectedRoute>} />
-                      <Route path="/custos-departamento" element={<ProtectedRoute role="admin"><CustosDepartamento /></ProtectedRoute>} />
-                      <Route path="/configuracoes/organograma" element={<Navigate to="/organograma" replace />} />
-                      <Route
-                        path="/configuracoes/custos-departamento"
-                        element={<Navigate to="/custos-departamento" replace />}
-                      />
-                      <Route
-                        path="/configuracoes"
-                        element={<ProtectedRoute role="admin"><ConfiguracoesLayout /></ProtectedRoute>}
-                      >
-                        <Route index element={<ConfiguracoesHub />} />
-                        <Route path="administracao" element={<Administracao />} />
-                      </Route>
-                      <Route path="/admin" element={<Navigate to="/configuracoes/administracao" replace />} />
-                    </Routes>
-                  </Suspense>
-                </MainLayout>
-              </AuthGuard>
+              <Suspense fallback={<AppRouteFallback />}>
+                <AuthCallback />
+              </Suspense>
             }
           />
+          <Route
+            path="/workspaces"
+            element={
+              <Suspense fallback={<AppRouteFallback />}>
+                <Workspaces />
+              </Suspense>
+            }
+          />
+          <Route path="/login" element={<Navigate to="/workspaces" replace />} />
+          <Route path="/w/:workspaceSlug/login" element={<Login />} />
+          <Route
+            path="/w/:workspaceSlug/*"
+            element={
+              <WorkspaceApp />
+            }
+          />
+          <Route path="/" element={<Navigate to="/workspaces" replace />} />
+          <Route path="*" element={<Navigate to="/workspaces" replace />} />
         </Routes>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   )
 }
 

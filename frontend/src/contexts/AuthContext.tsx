@@ -1,19 +1,30 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { User, Role, Permission, UserWithRole } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { getApiBase } from '@/lib/api';
+import { apiUrl } from '@/lib/api';
+import { fetchCentralSsoLogoutUrl } from '@/lib/central-sso';
+import { buildWorkspacePath, getWorkspaceSlugFromPath } from '@/lib/workspace-routing';
 import type { Session } from '@supabase/supabase-js';
 
-const API_URL = getApiBase();
+type WorkspaceSummary = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  role_display_name?: string | null;
+};
 
 export type AuthContextType = {
   currentUser: User | null;
+  currentWorkspace: WorkspaceSummary | null;
   userRole: Role | null;
   userPermissions: Permission[];
   isLoading: boolean;
   session: Session | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  switchWorkspace: (slug: string) => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   refreshUserData: () => Promise<void>;
@@ -39,7 +50,7 @@ type FetchUserResult =
   | { status: 'unauthorized'; message: string };
 
 async function fetchUserWithRole(accessToken: string): Promise<FetchUserResult> {
-  const res = await fetch(`${API_URL}/api/users/me`, {
+  const res = await fetch(apiUrl('/api/users/me'), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -65,7 +76,7 @@ async function fetchUserWithRole(accessToken: string): Promise<FetchUserResult> 
       message:
         typeof body?.error === 'string'
           ? body.error
-          : `Falha ao validar acesso (HTTP ${res.status}). Verifique se o backend está no ar e se VITE_API_URL / proxy /api batem com a porta do servidor.`,
+          : `Falha ao validar acesso (HTTP ${res.status}). Verifique se o backend está no ar e se o proxy /api ou a URL base estão corretos.`,
     };
   }
 
@@ -74,7 +85,7 @@ async function fetchUserWithRole(accessToken: string): Promise<FetchUserResult> 
   let permissions: Permission[] = [];
 
   if (userData.role?.id) {
-    const roleRes = await fetch(`${API_URL}/api/roles/${userData.role.id}`, {
+    const roleRes = await fetch(apiUrl(`/api/roles/${userData.role.id}`), {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -95,22 +106,32 @@ async function fetchUserWithRole(accessToken: string): Promise<FetchUserResult> 
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<Role | null>(null);
   const [userPermissions, setUserPermissions] = useState<Permission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [workspaceCatalog, setWorkspaceCatalog] = useState<WorkspaceSummary[]>([]);
 
   // Estado do modo "Ver como usuário"
   const [viewAsUser, setViewAsUser] = useState<UserWithRole | null>(null);
   const [viewAsRole, setViewAsRole] = useState<Role | null>(null);
   const [viewAsPermissions, setViewAsPermissions] = useState<Permission[]>([]);
 
+  const clearViewAs = useCallback(() => {
+    setViewAsUser(null);
+    setViewAsRole(null);
+    setViewAsPermissions([]);
+  }, []);
+
   const clearLocalAuth = useCallback(() => {
     setCurrentUser(null);
     setUserRole(null);
     setUserPermissions([]);
-  }, []);
+    clearViewAs();
+  }, [clearViewAs]);
 
   const loadUserFromSession = useCallback(
     async (s: Session | null): Promise<{ ok: boolean; message?: string }> => {
@@ -135,6 +156,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [clearLocalAuth],
   );
+
+  useEffect(() => {
+    let mounted = true;
+
+    const run = async () => {
+      try {
+        const response = await fetch(apiUrl('/api/auth/public-workspaces'), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            ...((viewAsUser?.id ?? currentUser?.id)
+              ? { 'x-user-id': viewAsUser?.id ?? currentUser?.id ?? '' }
+              : {}),
+          },
+        });
+        const body = (await response.json().catch(() => null)) as
+          | { workspaces?: WorkspaceSummary[]; error?: string }
+          | null;
+
+        if (!mounted) return;
+
+        if (!response.ok || !body?.workspaces) {
+          setWorkspaceCatalog([]);
+          return;
+        }
+
+        setWorkspaceCatalog(body.workspaces);
+      } catch {
+        if (mounted) {
+          setWorkspaceCatalog([]);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser?.id, session?.access_token, viewAsUser?.id]);
 
   useEffect(() => {
     supabase.auth
@@ -190,22 +251,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    const logoutUrl = await fetchCentralSsoLogoutUrl('/workspaces').catch(() => null);
     await supabase.auth.signOut();
     setSession(null);
     clearLocalAuth();
-  }, [clearLocalAuth]);
+    if (logoutUrl && typeof window !== 'undefined') {
+      window.location.assign(logoutUrl);
+      return;
+    }
+    navigate('/workspaces', { replace: true });
+  }, [clearLocalAuth, navigate]);
 
   const refreshUserData = useCallback(async () => {
     if (session?.access_token) await loadUserFromSession(session);
   }, [session, loadUserFromSession]);
+
+  const routeWorkspaceSlug = useMemo(
+    () => getWorkspaceSlugFromPath(location.pathname),
+    [location.pathname],
+  );
+
+  const currentWorkspace = useMemo<WorkspaceSummary | null>(() => {
+    if (!routeWorkspaceSlug) return null;
+
+    const matchedWorkspace = workspaceCatalog.find((workspace) => workspace.slug === routeWorkspaceSlug) ?? null;
+    if (matchedWorkspace) return matchedWorkspace;
+
+    return {
+      id: routeWorkspaceSlug,
+      slug: routeWorkspaceSlug,
+      name: routeWorkspaceSlug,
+      description: null,
+      role_display_name: null,
+    };
+  }, [routeWorkspaceSlug, workspaceCatalog]);
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
     const userIdForApi = viewAsUser?.id ?? currentUser?.id;
     if (userIdForApi) headers['x-user-id'] = userIdForApi;
+    if (routeWorkspaceSlug) headers['x-workspace-slug'] = routeWorkspaceSlug;
     return headers;
-  }, [session?.access_token, currentUser?.id, viewAsUser?.id]);
+  }, [session?.access_token, currentUser?.id, routeWorkspaceSlug, viewAsUser?.id]);
+
+  const switchWorkspace = useCallback(
+    async (slug: string) => {
+      navigate(buildWorkspacePath(slug), { replace: true });
+    },
+    [navigate],
+  );
 
   const startViewingAs = useCallback(
     async (user: UserWithRole) => {
@@ -215,7 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (role?.id && session?.access_token) {
         try {
-          const res = await fetch(`${API_URL}/api/roles/${role.id}`, {
+          const res = await fetch(apiUrl(`/api/roles/${role.id}`), {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
               'Content-Type': 'application/json',
@@ -236,10 +331,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const stopViewingAs = useCallback(() => {
-    setViewAsUser(null);
-    setViewAsRole(null);
-    setViewAsPermissions([]);
-  }, []);
+    clearViewAs();
+  }, [clearViewAs]);
 
   const isViewingAs = viewAsUser !== null;
 
@@ -257,12 +350,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         currentUser: effectiveUser,
+        currentWorkspace,
         userRole: effectiveRole,
         userPermissions: effectivePermissions,
         isLoading,
         session,
         login,
         logout,
+        switchWorkspace,
         hasPermission,
         hasRole,
         refreshUserData,

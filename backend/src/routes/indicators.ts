@@ -3,6 +3,7 @@ import { supabase } from '../config/supabase.js';
 import { hasRole } from '../services/permissions.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 import { getEffectiveUserId } from '../middleware/auth.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 
 const router = express.Router();
 
@@ -130,23 +131,48 @@ function parseNumber(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
+}
+
 function dateValue(value: string | null | undefined): number {
   if (!value) return 0;
   const parsed = new Date(value).getTime();
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-async function fetchUsers() {
-  const { data, error } = await supabase
+async function fetchUsers(workspaceId: string) {
+  const membershipRes = await supabase
+    .from('cdt_workspace_memberships')
+    .select('user_id')
+    .eq('workspace_id', workspaceId)
+    .eq('membership_status', 'active');
+
+  if (membershipRes.error) throw membershipRes.error;
+  const userIds = Array.from(
+    new Set((membershipRes.data ?? []).map((row: { user_id: string }) => row.user_id)),
+  );
+  if (userIds.length === 0) return [];
+
+  const usersRes = await supabase
     .from('cdt_users')
     .select('id, name, email, avatar_url')
+    .in('id', userIds)
     .eq('is_active', true);
-  if (error) throw error;
-  return (data ?? []) as Array<{ id: string; name: string; email: string; avatar_url: string | null }>;
+  if (usersRes.error) throw usersRes.error;
+  return (usersRes.data ?? []) as Array<{ id: string; name: string; email: string; avatar_url: string | null }>;
 }
 
-async function fetchProjects() {
-  const baseQuery = supabase.from('cdt_projects').select('id, name, status, priority_order, created_at');
+async function fetchProjects(workspaceId: string) {
+  const baseQuery = supabase
+    .from('cdt_projects')
+    .select('id, name, status, priority_order, created_at')
+    .eq('workspace_id', workspaceId);
   const orderedQuery = await baseQuery
     .order('priority_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -155,6 +181,7 @@ async function fetchProjects() {
     const fallback = await supabase
       .from('cdt_projects')
       .select('id, name, status, created_at')
+      .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
     if (fallback.error) throw fallback.error;
     return (fallback.data ?? []) as ProjectRow[];
@@ -164,15 +191,17 @@ async function fetchProjects() {
   return (orderedQuery.data ?? []) as ProjectRow[];
 }
 
-async function fetchTodosForIndicators() {
+async function fetchTodosForIndicators(workspaceId: string) {
   const withAssignedAt = await supabase
     .from('cdt_project_todos')
-    .select('id, title, project_id, activity_id, created_by, assigned_to, completed, assigned_at, updated_at, created_at, deadline, xp_reward');
+    .select('id, title, project_id, activity_id, created_by, assigned_to, completed, assigned_at, updated_at, created_at, deadline, xp_reward')
+    .eq('workspace_id', workspaceId);
 
   if (withAssignedAt.error && /assigned_at|does not exist|column.*not exist/i.test(String(withAssignedAt.error.message || ''))) {
     const fallback = await supabase
       .from('cdt_project_todos')
-      .select('id, title, project_id, activity_id, created_by, assigned_to, completed, updated_at, created_at, deadline, xp_reward');
+      .select('id, title, project_id, activity_id, created_by, assigned_to, completed, updated_at, created_at, deadline, xp_reward')
+      .eq('workspace_id', workspaceId);
     if (fallback.error) throw fallback.error;
     return (fallback.data ?? []) as TodoRow[];
   }
@@ -181,15 +210,17 @@ async function fetchTodosForIndicators() {
   return (withAssignedAt.data ?? []) as TodoRow[];
 }
 
-async function fetchActivitiesForIndicators() {
+async function fetchActivitiesForIndicators(workspaceId: string) {
   const withUpdatedAt = await supabase
     .from('cdt_activities')
-    .select('id, name, status, assigned_to, due_date, created_by, updated_at, created_at');
+    .select('id, name, status, assigned_to, due_date, created_by, updated_at, created_at')
+    .eq('workspace_id', workspaceId);
 
   if (withUpdatedAt.error && /updated_at|does not exist|column.*not exist/i.test(String(withUpdatedAt.error.message || ''))) {
     const fallback = await supabase
       .from('cdt_activities')
-      .select('id, name, status, assigned_to, due_date, created_by');
+      .select('id, name, status, assigned_to, due_date, created_by')
+      .eq('workspace_id', workspaceId);
     if (fallback.error) throw fallback.error;
     return (fallback.data ?? []) as ActivityRow[];
   }
@@ -472,6 +503,7 @@ function buildTeamTotals(params: {
  */
 router.get('/', async (req, res) => {
   const userId = getEffectiveUserId(req);
+  const workspaceId = getWorkspaceIdOrFail(req, res);
   console.log('[DBG d3f9fe H2] indicators request', {
     userId,
     scopeQuery: typeof req.query.scope === 'string' ? req.query.scope : null,
@@ -482,6 +514,7 @@ router.get('/', async (req, res) => {
   if (!userId) {
     return res.status(401).json({ error: 'Nao autenticado' });
   }
+  if (!workspaceId) return;
 
   try {
     const isAdmin = await hasRole(userId, 'admin');
@@ -498,11 +531,11 @@ router.get('/', async (req, res) => {
     // #endregion
 
     const [users, commentsRes, todosRes, projects, activitiesList] = await Promise.all([
-      fetchUsers(),
-      supabase.from('cdt_comments').select('id, created_by, project_id'),
-      fetchTodosForIndicators(),
-      fetchProjects(),
-      fetchActivitiesForIndicators(),
+      fetchUsers(workspaceId),
+      supabase.from('cdt_comments').select('id, created_by, project_id').eq('workspace_id', workspaceId),
+      fetchTodosForIndicators(workspaceId),
+      fetchProjects(workspaceId),
+      fetchActivitiesForIndicators(workspaceId),
     ]);
 
     if (commentsRes.error) throw commentsRes.error;

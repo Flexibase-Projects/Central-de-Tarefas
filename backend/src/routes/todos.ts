@@ -1,6 +1,8 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { hasRole } from '../services/permissions.js';
+import { getRealUserId, getRequesterId as getResolvedRequesterId } from '../middleware/auth.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 import { gamificationMigration503Payload } from '../constants/gamificationMigrationSql.js';
 import {
   awardTodoCompletionXp,
@@ -22,6 +24,7 @@ const router = express.Router();
 
 type TodoRecord = {
   id: string;
+  workspace_id?: string | null;
   title: string;
   project_id: string | null;
   activity_id: string | null;
@@ -47,23 +50,21 @@ const OPTIONAL_TODO_COLUMNS = [
 
 type OptionalTodoColumn = (typeof OPTIONAL_TODO_COLUMNS)[number];
 
-function getRequesterId(req: express.Request): string | null {
-  return (
-    ((req as express.Request & { userId?: string }).userId ?? null) ||
-    (req.headers['x-user-id'] as string | undefined) ||
-    null
-  );
-}
-
 function getPrivilegeRequesterId(req: express.Request): string | null {
-  return (
-    ((req as express.Request & { realUserId?: string }).realUserId ?? null) ||
-    getRequesterId(req)
-  );
+  return getRealUserId(req) ?? getResolvedRequesterId(req);
 }
 
 function getAuthRequesterId(req: express.Request): string | null {
-  return ((req as express.Request & { authUserId?: string }).authUserId ?? null) || null;
+  return getResolvedRequesterId(req);
+}
+
+function getWorkspaceIdOrFail(req: express.Request, res: express.Response): string | null {
+  const workspace = getWorkspaceContext(req);
+  if (!workspace?.workspace.id) {
+    res.status(500).json({ error: 'Workspace context unavailable.' });
+    return null;
+  }
+  return workspace.workspace.id;
 }
 
 function parseDecimal(value: unknown, fallback: number): number {
@@ -203,6 +204,7 @@ async function updateTodoCompat(id: string, updateData: Record<string, unknown>)
 async function getTodoByIdCompat(id: string) {
   const columns: string[] = [
     'id',
+    'workspace_id',
     'title',
     'project_id',
     'activity_id',
@@ -240,7 +242,7 @@ async function getTodoByIdCompat(id: string) {
 }
 
 async function ensureAdmin(req: express.Request, res: express.Response): Promise<string | null> {
-  const requesterId = getRequesterId(req);
+  const requesterId = getResolvedRequesterId(req);
   const privilegeUserId = getPrivilegeRequesterId(req);
   if (!requesterId) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -255,6 +257,7 @@ async function ensureAdmin(req: express.Request, res: express.Response): Promise
 }
 
 async function getNextSortOrder(params: {
+  workspaceId: string;
   projectId?: string | null;
   activityId?: string | null;
 }): Promise<number> {
@@ -262,6 +265,7 @@ async function getNextSortOrder(params: {
     const { data: maxTodo } = await supabase
       .from('cdt_project_todos')
       .select('sort_order')
+      .eq('workspace_id', params.workspaceId)
       .eq('project_id', params.projectId)
       .order('sort_order', { ascending: false })
       .limit(1)
@@ -272,6 +276,7 @@ async function getNextSortOrder(params: {
   const { data: maxTodo } = await supabase
     .from('cdt_project_todos')
     .select('sort_order')
+    .eq('workspace_id', params.workspaceId)
     .eq('activity_id', params.activityId ?? '')
     .order('sort_order', { ascending: false })
     .limit(1)
@@ -314,11 +319,14 @@ async function calculateTodoAwardXp(todo: TodoRecord): Promise<number> {
 // Listar to-dos de uma atividade (sem projeto) — antes de GET /:projectId
 router.get('/by-activity/:activityId', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { activityId } = req.params;
 
     const { data, error } = await supabase
       .from('cdt_project_todos')
       .select('*')
+      .eq('workspace_id', workspaceId)
       .eq('activity_id', activityId)
       .order('sort_order', { ascending: true });
 
@@ -333,11 +341,14 @@ router.get('/by-activity/:activityId', async (req, res) => {
 // Get all todos for a project
 router.get('/:projectId', async (req, res) => {
   try {
+    const workspaceId = getWorkspaceIdOrFail(req, res);
+    if (!workspaceId) return;
     const { projectId } = req.params;
 
     const { data, error } = await supabase
       .from('cdt_project_todos')
       .select('*')
+      .eq('workspace_id', workspaceId)
       .eq('project_id', projectId)
       .order('sort_order', { ascending: true });
 
@@ -352,11 +363,13 @@ router.get('/:projectId', async (req, res) => {
 // Create a new todo — project_id OU activity_id (exatamente um)
 router.post('/', async (req, res) => {
   try {
-    const requesterId = getRequesterId(req);
+    const requesterId = getResolvedRequesterId(req);
     const authRequesterId = getAuthRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    if (!workspaceId) return;
 
     const isAdmin = await hasRole(requesterId, 'admin');
     const {
@@ -380,12 +393,14 @@ router.post('/', async (req, res) => {
 
     const resolvedAssignedTo = isAdmin ? (assigned_to || null) : requesterId;
     const sortOrder = await getNextSortOrder({
+      workspaceId,
       projectId: hasProject ? project_id : null,
       activityId: hasActivity ? activity_id : null,
     });
 
     const { data, error } = await insertTodoCompat(
       {
+        workspace_id: workspaceId,
         project_id: hasProject ? project_id : null,
         activity_id: hasActivity ? activity_id : null,
         title,
@@ -407,6 +422,7 @@ router.post('/', async (req, res) => {
 
     if (resolvedAssignedTo && resolvedAssignedTo !== requesterId) {
       await notifyTodoAssigned({
+        workspaceId,
         todoId: data.id,
         title: data.title,
         assignedTo: resolvedAssignedTo,
@@ -417,6 +433,7 @@ router.post('/', async (req, res) => {
 
     if (!isAdmin) {
       await notifyAdminsTodoXpPending({
+        workspaceId,
         todoId: data.id,
         title: data.title,
         projectId: data.project_id,
@@ -442,10 +459,12 @@ router.post('/', async (req, res) => {
 // Update a todo
 router.put('/:id', async (req, res) => {
   try {
-    const requesterId = getRequesterId(req);
+    const requesterId = getResolvedRequesterId(req);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    if (!workspaceId) return;
 
     const { id } = req.params;
     const isAdmin = await hasRole(requesterId, 'admin');
@@ -460,6 +479,9 @@ router.put('/:id', async (req, res) => {
     }
 
     const existingTodo = currentTodo as TodoRecord;
+    if (existingTodo.workspace_id && existingTodo.workspace_id !== workspaceId) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
 
     if (!isAdmin) {
       const onlyCompletionUpdate =
@@ -577,6 +599,7 @@ router.put('/:id', async (req, res) => {
       }
       if (assigned_to !== requesterId) {
         await notifyTodoAssigned({
+          workspaceId,
           todoId: id,
           title: String(title || updatedTodo.title),
           assignedTo: assigned_to,
@@ -610,7 +633,9 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const requesterId = await ensureAdmin(req, res);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) return;
+    if (!workspaceId) return;
 
     const { id } = req.params;
     const { data: currentTodo, error: currentTodoError } = await getTodoByIdCompat(id);
@@ -620,6 +645,9 @@ router.delete('/:id', async (req, res) => {
     }
 
     const existingTodo = currentTodo as TodoRecord;
+    if (existingTodo.workspace_id && existingTodo.workspace_id !== workspaceId) {
+      return res.status(404).json({ error: 'Todo not found' });
+    }
     let xpDelta = 0;
     let xpAction: 'none' | 'reverted' = 'none';
 
@@ -652,7 +680,8 @@ router.delete('/:id', async (req, res) => {
     const { error } = await supabase
       .from('cdt_project_todos')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('workspace_id', workspaceId);
 
     if (error) throw error;
     res.json({ success: true, xpDelta, xpAction });
@@ -666,7 +695,9 @@ router.delete('/:id', async (req, res) => {
 router.post('/reorder-activity', async (req, res) => {
   try {
     const requesterId = await ensureAdmin(req, res);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) return;
+    if (!workspaceId) return;
 
     const { activity_id, todo_ids } = req.body;
 
@@ -679,6 +710,7 @@ router.post('/reorder-activity', async (req, res) => {
         .from('cdt_project_todos')
         .update({ sort_order: index })
         .eq('id', todoId)
+        .eq('workspace_id', workspaceId)
         .eq('activity_id', activity_id),
     );
 
@@ -694,7 +726,9 @@ router.post('/reorder-activity', async (req, res) => {
 router.post('/reorder', async (req, res) => {
   try {
     const requesterId = await ensureAdmin(req, res);
+    const workspaceId = getWorkspaceIdOrFail(req, res);
     if (!requesterId) return;
+    if (!workspaceId) return;
 
     const { project_id, todo_ids } = req.body;
 
@@ -707,6 +741,7 @@ router.post('/reorder', async (req, res) => {
         .from('cdt_project_todos')
         .update({ sort_order: index })
         .eq('id', todoId)
+        .eq('workspace_id', workspaceId)
         .eq('project_id', project_id),
     );
 

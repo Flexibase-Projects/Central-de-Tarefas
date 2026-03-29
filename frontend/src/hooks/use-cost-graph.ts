@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import type { CostManagementGraph } from '@/types/cost-org'
-
-const API_URL = import.meta.env.VITE_API_URL || ''
+import { apiUrl } from '@/lib/api'
 
 export function useCostGraph() {
   const { getAuthHeaders } = useAuth()
@@ -14,8 +13,7 @@ export function useCostGraph() {
     setLoading(true)
     setError(null)
     try {
-      const url = API_URL ? `${API_URL}/api/cost-management/graph` : '/api/cost-management/graph'
-      const res = await fetch(url, { headers: getAuthHeaders() })
+      const res = await fetch(apiUrl('/api/cost-management/graph'), { headers: getAuthHeaders() })
       const data = (await res.json()) as CostManagementGraph & { error?: string }
       if (!res.ok) throw new Error(data.error || 'Erro ao carregar dados de custos')
       setGraph({
@@ -57,8 +55,7 @@ export function useCostSummary() {
   const fetchSummary = useCallback(async () => {
     setLoading(true)
     try {
-      const url = API_URL ? `${API_URL}/api/cost-management/summary` : '/api/cost-management/summary'
-      const res = await fetch(url, { headers: getAuthHeaders() })
+      const res = await fetch(apiUrl('/api/cost-management/summary'), { headers: getAuthHeaders() })
       const data = (await res.json()) as CostSummaryResponse & { error?: string }
       if (!res.ok) throw new Error(data.error || 'Erro ao carregar resumo')
       setSummary(data)

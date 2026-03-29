@@ -102,6 +102,9 @@ export interface GitHubRepository {
 
 export interface User {
   id: string;
+  central_user_id?: string | null;
+  identity_status?: 'legacy_only' | 'linked' | 'manual_review' | 'conflict' | 'disabled';
+  last_identity_sync_at?: string | null;
   email: string;
   name: string;
   avatar_url: string | null;

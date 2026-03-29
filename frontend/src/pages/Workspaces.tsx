@@ -11,15 +11,35 @@ import {
   Typography,
 } from '@mui/material'
 import { ArrowRight, Building2, LogOut } from 'lucide-react'
-import type { Workspace, WorkspaceGroup } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
-import { getApiBase } from '@/lib/api'
-import { buildWorkspacePath } from '@/lib/workspace-routing'
+import { apiUrl } from '@/lib/api'
+import { buildWorkspaceLoginPath, buildWorkspacePath } from '@/lib/workspace-routing'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'
 import StatusToken from '@/components/system/StatusToken'
 
-const API_URL = getApiBase()
+type Workspace = {
+  id: string
+  slug: string
+  name: string
+  description?: string | null
+  group_key?: string
+  has_access: boolean
+  avatar_url?: string | null
+}
+
+type WorkspaceGroup = {
+  key: string
+  label: string
+  description?: string | null
+}
+
+type AuthWithWorkspace = {
+  currentUser: { avatar_url?: string | null; name?: string | null; email?: string | null } | null
+  getAuthHeaders: () => Record<string, string>
+  switchWorkspace: (slug: string) => Promise<void>
+  logout: () => Promise<void>
+}
 
 type PublicWorkspaceResponse = {
   groups: WorkspaceGroup[]
@@ -28,7 +48,7 @@ type PublicWorkspaceResponse = {
 
 export default function Workspaces() {
   const navigate = useNavigate()
-  const { currentUser, getAuthHeaders, switchWorkspace, logout } = useAuth()
+  const { currentUser, getAuthHeaders, switchWorkspace, logout } = useAuth() as unknown as AuthWithWorkspace
   const [data, setData] = useState<PublicWorkspaceResponse>({ groups: [], workspaces: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +57,7 @@ export default function Workspaces() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`${API_URL}/api/auth/public-workspaces`, {
+      const response = await fetch(apiUrl('/api/auth/public-workspaces'), {
         headers: currentUser ? getAuthHeaders() : { 'Content-Type': 'application/json' },
       })
       const body = (await response.json().catch(() => null)) as PublicWorkspaceResponse | { error?: string } | null
@@ -67,11 +87,10 @@ export default function Workspaces() {
     async (workspace: Workspace) => {
       if (currentUser && workspace.has_access) {
         await switchWorkspace(workspace.slug)
-        navigate(buildWorkspacePath(workspace.slug), { replace: true })
         return
       }
 
-      navigate(`/w/${workspace.slug}/login`)
+      navigate(buildWorkspaceLoginPath(workspace.slug, buildWorkspacePath(workspace.slug)))
     },
     [currentUser, navigate, switchWorkspace],
   )
