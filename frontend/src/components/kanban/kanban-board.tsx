@@ -16,13 +16,14 @@ import { KanbanColumn } from './kanban-column'
 import { KanbanCard } from './kanban-card'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useState, useEffect, useRef } from 'react'
+import { getStatusLabel } from '@/lib/status-labels'
 
 const columns = [
-  { id: 'backlog', title: 'Backlog' },
-  { id: 'todo', title: 'To Do' },
-  { id: 'in_progress', title: 'In Progress' },
-  { id: 'review', title: 'Review' },
-  { id: 'done', title: 'Done' },
+  { id: 'backlog', title: getStatusLabel('backlog') },
+  { id: 'todo', title: getStatusLabel('todo') },
+  { id: 'in_progress', title: getStatusLabel('in_progress') },
+  { id: 'review', title: getStatusLabel('review') },
+  { id: 'done', title: getStatusLabel('done') },
 ] as const
 
 type ColumnId = typeof columns[number]['id']

@@ -51,6 +51,7 @@ import workspacesRoutes from './routes/workspaces.js';
 import ssoRoutes from './routes/sso.js';
 import notificationsRoutes from './routes/notifications.js';
 import indicatorsRoutes from './routes/indicators.js';
+import homeRoutes from './routes/home.js';
 import teamCanvasRoutes from './routes/team-canvas.js';
 import progressRoutes from './routes/progress.js';
 import achievementsRoutes from './routes/achievements.js';
@@ -61,6 +62,7 @@ import costMapRoutes from './routes/cost-map.js';
 import costManagementSummaryRoutes from './routes/cost-management-summary.js';
 import { authMiddleware } from './middleware/auth.js';
 import { requireWorkspaceAccess } from './middleware/workspace.js';
+import { ensureTemporaryNativeAdminBootstrap } from './services/native-admin.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from './utils/supabase-errors.js';
 
 // Função para limpar notificações órfãs na inicialização
@@ -241,6 +243,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/auth', authHintRoutes);
 app.use('/api/sso', ssoRoutes);
 app.use('/api/notifications', requireWorkspaceAccess, notificationsRoutes);
+app.use('/api/home', requireWorkspaceAccess, homeRoutes);
 app.use('/api/indicators', requireWorkspaceAccess, indicatorsRoutes);
 app.use('/api/team-canvas', requireWorkspaceAccess, teamCanvasRoutes);
 app.use('/api/me/progress', progressRoutes);
@@ -301,6 +304,7 @@ async function logStartupStatus() {
     console.log('✅ Supabase configured - database operations enabled');
     await initializeCleanup();
     await ensureActivityCoversBucket();
+    await ensureTemporaryNativeAdminBootstrap();
   } else {
     console.warn('⚠️  Supabase not configured - database operations will fail');
     console.warn('⚠️  Create backend/.env.local with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY');

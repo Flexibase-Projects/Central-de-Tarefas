@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "Workspaces" [ref=e6] [cursor=pointer]:
+        - img [ref=e8]
+        - text: Workspaces
+      - button "Modo escuro" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+    - generic [ref=e14]:
+      - heading "Acesso ao workspace" [level=4] [ref=e15]
+      - paragraph [ref=e16]: Entre com sua conta da plataforma dentro do contexto correto.
+    - generic [ref=e17]:
+      - img [ref=e19]
+      - generic [ref=e23]:
+        - heading "Carregando workspace" [level=6] [ref=e24]
+        - paragraph [ref=e25]: O acesso e definido por workspace antes do login.
+    - generic [ref=e26]:
+      - paragraph [ref=e28]: Login, solicitacao de acesso e definicao de senha inicial usam o mesmo fluxo.
+      - paragraph [ref=e30]: O contexto do workspace aplica navegacao, modulos e permissoes corretos assim que voce entra.
+  - progressbar [ref=e34]:
+    - img [ref=e35]

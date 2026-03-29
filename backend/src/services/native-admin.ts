@@ -1,7 +1,78 @@
 import { supabase } from '../config/supabase.js';
+import {
+  findCdtUserByField,
+  insertCdtUserCompat,
+  updateCdtUserByIdCompat,
+} from './cdt-users.js';
 
 function normalizeEmail(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase();
+}
+
+type WorkspaceMembershipCompatRow = {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+};
+
+const OPTIONAL_MEMBERSHIP_COLUMNS = [
+  'role_key',
+  'membership_status',
+  'is_default',
+  'joined_at',
+  'status',
+  'role_name',
+  'role_display_name',
+  'source',
+  'approved_at',
+  'revoked_at',
+  'created_at',
+  'updated_at',
+] as const;
+
+type OptionalMembershipColumn = (typeof OPTIONAL_MEMBERSHIP_COLUMNS)[number];
+
+function getMissingOptionalMembershipColumn(error: unknown): OptionalMembershipColumn | null {
+  const msg = String((error as { message?: string } | null)?.message || '');
+
+  const quoted = msg.match(/'([^']+)' column/i)?.[1];
+  if (quoted && OPTIONAL_MEMBERSHIP_COLUMNS.includes(quoted as OptionalMembershipColumn)) {
+    return quoted as OptionalMembershipColumn;
+  }
+
+  for (const column of OPTIONAL_MEMBERSHIP_COLUMNS) {
+    if (
+      msg.includes(column) &&
+      (/does not exist/i.test(msg) || /Could not find/i.test(msg) || /schema cache/i.test(msg))
+    ) {
+      return column;
+    }
+  }
+
+  return null;
+}
+
+function omitOptionalMembershipColumn<T extends Record<string, unknown>>(
+  payload: T,
+  column: OptionalMembershipColumn,
+): T {
+  const next = { ...payload };
+  delete next[column];
+  return next;
+}
+
+function getTemporaryNativeAdminConfig() {
+  const email = normalizeEmail(process.env.TEMP_NATIVE_ADMIN_EMAIL);
+  const password = String(process.env.TEMP_NATIVE_ADMIN_PASSWORD ?? '').trim();
+  const name = String(process.env.TEMP_NATIVE_ADMIN_NAME ?? 'Acesso Temporário').trim() || 'Acesso Temporário';
+
+  if (!email || !password) return null;
+
+  return {
+    email,
+    password,
+    name,
+  };
 }
 
 export function getNativeAdminEmails(): string[] {
@@ -9,7 +80,8 @@ export function getNativeAdminEmails(): string[] {
     .split(',')
     .map((email) => normalizeEmail(email))
     .filter(Boolean);
-  return Array.from(new Set(fromEnv));
+  const tempEmail = getTemporaryNativeAdminConfig()?.email ?? null;
+  return Array.from(new Set(tempEmail ? [...fromEnv, tempEmail] : fromEnv));
 }
 
 export function isNativeAdminEmail(email: string | null | undefined): boolean {
@@ -55,78 +127,75 @@ async function ensureUserRow(params: {
 }): Promise<string | null> {
   const nowIso = new Date().toISOString();
 
-  const byCentralUserId = await supabase
-    .from('cdt_users')
-    .select('id')
-    .eq('central_user_id', params.authUserId)
-    .maybeSingle();
+  const byCentralUserId = await findCdtUserByField({
+    field: 'central_user_id',
+    value: params.authUserId,
+    includeColumns: ['central_user_id'],
+  });
 
-  if (!byCentralUserId.error && byCentralUserId.data?.id) {
-    await supabase
-      .from('cdt_users')
-      .update({
-        is_active: true,
-        name: params.name,
-        avatar_url: params.avatarUrl,
-        identity_status: 'linked',
-        last_identity_sync_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq('id', byCentralUserId.data.id);
-    return byCentralUserId.data.id as string;
+  if (byCentralUserId?.id) {
+    await updateCdtUserByIdCompat(byCentralUserId.id, {
+      is_active: true,
+      email: params.email,
+      name: params.name,
+      avatar_url: params.avatarUrl,
+      central_user_id: params.authUserId,
+      identity_status: 'linked',
+      last_identity_sync_at: nowIso,
+      updated_at: nowIso,
+    });
+    return byCentralUserId.id;
   }
 
-  const byId = await supabase
-    .from('cdt_users')
-    .select('id, central_user_id')
-    .eq('id', params.authUserId)
-    .maybeSingle();
+  const byId = await findCdtUserByField({
+    field: 'id',
+    value: params.authUserId,
+    includeColumns: ['central_user_id'],
+  });
 
-  if (!byId.error && byId.data?.id) {
-    if (!byId.data.central_user_id || byId.data.central_user_id === params.authUserId) {
-      await supabase
-        .from('cdt_users')
-        .update({
-          central_user_id: params.authUserId,
-          identity_status: 'linked',
-          last_identity_sync_at: nowIso,
-          updated_at: nowIso,
-        })
-        .eq('id', byId.data.id);
-    }
-    return byId.data.id as string;
-  }
-
-  const byEmail = await supabase
-    .from('cdt_users')
-    .select('id, central_user_id')
-    .eq('email', params.email)
-    .maybeSingle();
-
-  if (!byEmail.error && byEmail.data?.id) {
-    if (byEmail.data.central_user_id && byEmail.data.central_user_id !== params.authUserId) {
-      console.error('[native-admin] Existing cdt_users row has conflicting central_user_id');
-      return null;
-    }
-
-    await supabase
-      .from('cdt_users')
-      .update({
+  if (byId?.id) {
+    if (!byId.central_user_id || byId.central_user_id === params.authUserId) {
+      await updateCdtUserByIdCompat(byId.id, {
         is_active: true,
+        email: params.email,
         name: params.name,
         avatar_url: params.avatarUrl,
         central_user_id: params.authUserId,
         identity_status: 'linked',
         last_identity_sync_at: nowIso,
         updated_at: nowIso,
-      })
-      .eq('id', byEmail.data.id);
-    return byEmail.data.id as string;
+      });
+    }
+    return byId.id;
   }
 
-  const inserted = await supabase
-    .from('cdt_users')
-    .insert({
+  const byEmail = await findCdtUserByField({
+    field: 'email',
+    value: params.email,
+    includeColumns: ['central_user_id'],
+  });
+
+  if (byEmail?.id) {
+    if (byEmail.central_user_id && byEmail.central_user_id !== params.authUserId) {
+      console.error('[native-admin] Existing cdt_users row has conflicting central_user_id');
+      return null;
+    }
+
+    await updateCdtUserByIdCompat(byEmail.id, {
+      is_active: true,
+      email: params.email,
+      name: params.name,
+      avatar_url: params.avatarUrl,
+      central_user_id: params.authUserId,
+      identity_status: 'linked',
+      last_identity_sync_at: nowIso,
+      updated_at: nowIso,
+    });
+    return byEmail.id;
+  }
+
+  try {
+    await insertCdtUserCompat({
       id: params.authUserId,
       central_user_id: params.authUserId,
       identity_status: 'linked',
@@ -135,16 +204,22 @@ async function ensureUserRow(params: {
       name: params.name,
       avatar_url: params.avatarUrl,
       is_active: true,
-    })
-    .select('id')
-    .single();
-
-  if (inserted.error || !inserted.data?.id) {
-    console.error('[native-admin] Failed to create cdt_users row:', inserted.error?.message);
+    });
+  } catch (error) {
+    console.error(
+      '[native-admin] Failed to create cdt_users row:',
+      error instanceof Error ? error.message : String(error),
+    );
     return null;
   }
 
-  return inserted.data.id as string;
+  const inserted = await findCdtUserByField({
+    field: 'id',
+    value: params.authUserId,
+    includeColumns: ['central_user_id'],
+  });
+
+  return inserted?.id ?? null;
 }
 
 async function ensureAdminRoleAssignment(userId: string, roleId: string): Promise<void> {
@@ -167,6 +242,153 @@ async function ensureAdminRoleAssignment(userId: string, roleId: string): Promis
 
   if (inserted.error) {
     console.error('[native-admin] Failed to assign admin role:', inserted.error.message);
+  }
+}
+
+async function listActiveWorkspaceIds(): Promise<Array<{ id: string; slug: string }>> {
+  const richQuery = await supabase
+    .from('cdt_workspaces')
+    .select('id, slug, is_active, sort_order')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('slug', { ascending: true });
+
+  if (!richQuery.error) {
+    return ((richQuery.data ?? []) as Array<{ id: string; slug: string }>).map((workspace) => ({
+      id: workspace.id,
+      slug: workspace.slug,
+    }));
+  }
+
+  const fallbackQuery = await supabase
+    .from('cdt_workspaces')
+    .select('id, slug')
+    .order('slug', { ascending: true });
+
+  if (fallbackQuery.error) throw fallbackQuery.error;
+  return (fallbackQuery.data ?? []) as Array<{ id: string; slug: string }>;
+}
+
+async function getExistingMembershipRow(params: {
+  workspaceId: string;
+  userId: string;
+}): Promise<WorkspaceMembershipCompatRow | null> {
+  const withCreatedAt = await supabase
+    .from('cdt_workspace_memberships')
+    .select('id, workspace_id, user_id, created_at')
+    .eq('workspace_id', params.workspaceId)
+    .eq('user_id', params.userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!withCreatedAt.error) {
+    return withCreatedAt.data as WorkspaceMembershipCompatRow | null;
+  }
+
+  const fallback = await supabase
+    .from('cdt_workspace_memberships')
+    .select('id, workspace_id, user_id')
+    .eq('workspace_id', params.workspaceId)
+    .eq('user_id', params.userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (fallback.error) throw fallback.error;
+  return fallback.data as WorkspaceMembershipCompatRow | null;
+}
+
+async function insertWorkspaceMembershipCompat(insertData: Record<string, unknown>) {
+  let payload = { ...insertData };
+  const removed = new Set<string>();
+
+  while (true) {
+    const result = await supabase
+      .from('cdt_workspace_memberships')
+      .insert(payload)
+      .select('id, workspace_id, user_id')
+      .maybeSingle();
+
+    if (!result.error) return result;
+
+    const missingColumn = getMissingOptionalMembershipColumn(result.error);
+    if (!missingColumn || removed.has(missingColumn) || !(missingColumn in payload)) {
+      return result;
+    }
+
+    removed.add(missingColumn);
+    payload = omitOptionalMembershipColumn(payload, missingColumn);
+  }
+}
+
+async function updateWorkspaceMembershipCompat(
+  membershipId: string,
+  updateData: Record<string, unknown>,
+) {
+  let payload = { ...updateData };
+  const removed = new Set<string>();
+
+  while (true) {
+    const result = await supabase
+      .from('cdt_workspace_memberships')
+      .update(payload)
+      .eq('id', membershipId)
+      .select('id, workspace_id, user_id')
+      .maybeSingle();
+
+    if (!result.error) return result;
+
+    const missingColumn = getMissingOptionalMembershipColumn(result.error);
+    if (!missingColumn || removed.has(missingColumn) || !(missingColumn in payload)) {
+      return result;
+    }
+
+    removed.add(missingColumn);
+    payload = omitOptionalMembershipColumn(payload, missingColumn);
+  }
+}
+
+async function ensureNativeAdminWorkspaceMemberships(userId: string): Promise<void> {
+  const workspaces = await listActiveWorkspaceIds();
+  if (workspaces.length === 0) return;
+
+  const nowIso = new Date().toISOString();
+  const defaultWorkspace = workspaces.find((workspace) => workspace.slug === 'desenvolvimento-de-sistemas') ?? workspaces[0];
+
+  for (const workspace of workspaces) {
+    const payload: Record<string, unknown> = {
+      workspace_id: workspace.id,
+      user_id: userId,
+      role_key: 'admin',
+      membership_status: 'active',
+      is_default: workspace.id === defaultWorkspace?.id,
+      joined_at: nowIso,
+      status: 'active',
+      role_name: 'admin',
+      role_display_name: 'Administrador',
+      source: 'native_admin_bootstrap',
+      approved_at: nowIso,
+      revoked_at: null,
+      updated_at: nowIso,
+    };
+
+    const existing = await getExistingMembershipRow({
+      workspaceId: workspace.id,
+      userId,
+    });
+
+    if (existing?.id) {
+      const result = await updateWorkspaceMembershipCompat(existing.id, payload);
+      if (result.error) {
+        console.error('[native-admin] Failed to update workspace membership:', result.error.message);
+      }
+      continue;
+    }
+
+    const result = await insertWorkspaceMembershipCompat(payload);
+    if (result.error) {
+      console.error('[native-admin] Failed to create workspace membership:', result.error.message);
+    }
   }
 }
 
@@ -193,16 +415,79 @@ export async function ensureNativeAdminAccess(params: {
   if (!adminRoleId) return userId;
 
   await ensureAdminRoleAssignment(userId, adminRoleId);
+  await ensureNativeAdminWorkspaceMemberships(userId);
   return userId;
 }
 
 export async function isNativeAdminUserId(userId: string): Promise<boolean> {
-  const userRes = await supabase
-    .from('cdt_users')
-    .select('email')
-    .eq('id', userId)
-    .maybeSingle();
+  const user = await findCdtUserByField({
+    field: 'id',
+    value: userId,
+    includeColumns: [],
+  });
 
-  if (userRes.error || !userRes.data?.email) return false;
-  return isNativeAdminEmail(userRes.data.email);
+  if (!user?.email) return false;
+  return isNativeAdminEmail(user.email);
+}
+
+async function findAuthUserByEmail(email: string): Promise<string | null> {
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+
+    if (error) throw error;
+    const match = (data.users ?? []).find((user) => normalizeEmail(user.email) === email);
+    if (match?.id) return match.id;
+    if (!data.users || data.users.length < 1000) break;
+  }
+
+  return null;
+}
+
+export async function ensureTemporaryNativeAdminBootstrap(): Promise<void> {
+  const config = getTemporaryNativeAdminConfig();
+  if (!config) return;
+
+  let authUserId = await findAuthUserByEmail(config.email);
+
+  if (!authUserId) {
+    const created = await supabase.auth.admin.createUser({
+      email: config.email,
+      password: config.password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: config.name,
+        name: config.name,
+      },
+    });
+
+    if (created.error || !created.data.user?.id) {
+      console.error('[native-admin] Failed to create temporary auth user:', created.error?.message);
+      return;
+    }
+
+    authUserId = created.data.user.id;
+  } else {
+    const updated = await supabase.auth.admin.updateUserById(authUserId, {
+      password: config.password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: config.name,
+        name: config.name,
+      },
+    });
+
+    if (updated.error) {
+      console.error('[native-admin] Failed to update temporary auth user:', updated.error.message);
+    }
+  }
+
+  await ensureNativeAdminAccess({
+    authUserId,
+    email: config.email,
+    name: config.name,
+    avatarUrl: null,
+  });
 }

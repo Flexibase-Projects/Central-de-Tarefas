@@ -109,7 +109,7 @@ export default function Login() {
         if (!mounted) return
 
         if (!match) {
-          setWorkspaceError('Workspace nao encontrado.')
+          setWorkspaceError('Workspace não encontrado.')
           setWorkspace(null)
           return
         }
@@ -236,7 +236,7 @@ export default function Login() {
       slug: workspace.slug,
       description:
         workspace.description ||
-        'Acesso contextualizado com modulos, titulos e permissoes proprios para este workspace.',
+        'Acesso contextualizado com módulos, títulos e permissões próprias para este workspace.',
     }
   }, [workspace])
 
@@ -292,7 +292,7 @@ export default function Login() {
           return
         }
         if (newPassword !== confirmNewPassword) {
-          setError('As senhas nao coincidem.')
+          setError('As senhas não coincidem.')
           return
         }
 
@@ -303,7 +303,7 @@ export default function Login() {
         })
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         if (!res.ok) {
-          setError(body.error || 'Nao foi possivel definir a senha.')
+          setError(body.error || 'Não foi possível definir a senha.')
           return
         }
 
@@ -335,7 +335,7 @@ export default function Login() {
       return
     }
     if (!EMAIL_LOOKS_VALID.test(email.trim().toLowerCase())) {
-      setError('Informe um e-mail valido para a solicitacao.')
+      setError('Informe um e-mail válido para a solicitação.')
       return
     }
     if (password.length < 8) {
@@ -361,7 +361,7 @@ export default function Login() {
         error?: string
       }
       if (!response.ok) {
-        throw new Error(body.error || 'Falha ao enviar a solicitacao.')
+        throw new Error(body.error || 'Falha ao enviar a solicitação.')
       }
 
       if (body.status === 'success') {
@@ -456,12 +456,12 @@ export default function Login() {
         <Stack spacing={1}>
           <AppSurface compact surface="default">
             <Typography variant="body2" color="text.secondary">
-              Login, solicitacao de acesso e definicao de senha inicial usam o mesmo fluxo.
+              Login, solicitação de acesso e definição de senha inicial usam o mesmo fluxo.
             </Typography>
           </AppSurface>
           <AppSurface compact surface="default">
             <Typography variant="body2" color="text.secondary">
-              O contexto do workspace aplica navegacao, modulos e permissoes corretos assim que voce entra.
+              O contexto do workspace aplica navegação, módulos e permissões corretos assim que você entra.
             </Typography>
           </AppSurface>
         </Stack>
@@ -484,9 +484,9 @@ export default function Login() {
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {requestMode
-                      ? 'Envie sua solicitacao para este workspace.'
+                      ? 'Envie sua solicitação para este workspace.'
                       : centralSsoEnabled
-                        ? 'SSO central e login legado estao disponiveis neste workspace.'
+                        ? 'SSO central e login legado estão disponíveis neste workspace.'
                         : 'Entre com seu e-mail e senha da plataforma.'}
                   </Typography>
                 </Box>
@@ -630,7 +630,7 @@ export default function Login() {
 
                   {requestMode ? (
                     <TextField
-                      label="Mensagem para aprovacao"
+                      label="Mensagem para aprovação"
                       value={requestMessage}
                       onChange={(event) => setRequestMessage(event.target.value)}
                       fullWidth
@@ -680,7 +680,7 @@ export default function Login() {
                       onClick={() => void handleRequestAccess()}
                       startIcon={<Send size={16} />}
                     >
-                      Enviar solicitacao
+                      Enviar solicitação
                     </Button>
                   ) : (
                     <Button
@@ -707,7 +707,7 @@ export default function Login() {
               <Stack direction="row" spacing={1} alignItems="flex-start">
                 <Info size={16} />
                 <Typography variant="body2" color="text.secondary">
-                  Voce esta entrando em <strong>{workspaceMeta?.title}</strong>. Se quiser trocar de area, volte para a selecao de workspaces.
+                  Você está entrando em <strong>{workspaceMeta?.title}</strong>. Se quiser trocar de área, volte para a seleção de workspaces.
                 </Typography>
               </Stack>
             </Stack>

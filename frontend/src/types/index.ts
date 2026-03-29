@@ -310,6 +310,74 @@ export interface UserProgress {
   achievements: UserProgressAchievement[]
 }
 
+export interface WorkspaceQuickEntry {
+  key: 'pilot' | 'admin'
+  title: string
+  description: string
+  href: string
+  cta: string
+  disabled?: boolean
+  badge?: string | null
+}
+
+export type ExecutionViewMode = 'list' | 'kanban'
+
+export interface HomeTodoItem {
+  id: string
+  title: string
+  deadline: string | null
+  projectId: string | null
+  projectName: string | null
+  activityId: string | null
+  activityName: string | null
+  assigneeName?: string | null
+}
+
+export interface HomeReviewItem {
+  id: string
+  kind: 'project' | 'activity'
+  title: string
+  status: string
+  dueDate: string | null
+  ownerName?: string | null
+}
+
+export interface HomeSummary {
+  myOpen: number
+  overdue: number
+  waiting: number
+  delegated: number
+  teamOpen?: number
+  xpPending?: number
+}
+
+export interface HomeViewData {
+  persona: 'admin' | 'member'
+  summary: HomeSummary
+  buckets: {
+    now: HomeTodoItem[]
+    overdue: HomeTodoItem[]
+    waiting: HomeReviewItem[]
+    delegated: HomeTodoItem[]
+  }
+  quickTargets: {
+    projectsOpen: string
+    activitiesOpen: string
+    indicatorsUrl: string
+    adminUrl?: string
+  }
+}
+
+export interface ExecutionCardSummaryRow {
+  entity_type: 'project' | 'activity'
+  project_id: string
+  project_name: string
+  project_status: string
+  myAssignedOpenCount: number
+  totalOpenCount: number
+  xpPendingCount: number
+}
+
 export interface Achievement {
   id: string
   slug: string

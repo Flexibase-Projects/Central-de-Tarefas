@@ -1,12 +1,13 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Box, Tab, Tabs, Typography } from '@mui/material'
 import { usePermissions } from '@/hooks/use-permissions'
+import { stripWorkspacePrefix } from '@/lib/workspace-routing'
 
 type SubTab = { value: string; label: string; path: string; adminOnly: boolean }
 
 const SUB_TABS: SubTab[] = [
-  { value: 'hub', label: 'Visão geral', path: '/configuracoes', adminOnly: false },
-  { value: 'administracao', label: 'Administração', path: '/configuracoes/administracao', adminOnly: true },
+  { value: 'hub', label: 'Visão geral', path: '.', adminOnly: false },
+  { value: 'administracao', label: 'Administração', path: 'administracao', adminOnly: true },
 ]
 
 function tabValueFromPath(pathname: string): string {
@@ -19,9 +20,10 @@ export default function ConfiguracoesLayout() {
   const navigate = useNavigate()
   const { hasRole } = usePermissions()
   const isAdmin = hasRole('admin')
+  const normalizedPath = stripWorkspacePrefix(location.pathname)
 
   const visibleTabs = SUB_TABS.filter((t) => !t.adminOnly || isAdmin)
-  const current = tabValueFromPath(location.pathname)
+  const current = tabValueFromPath(normalizedPath)
   const tabValue = visibleTabs.some((t) => t.value === current) ? current : visibleTabs[0]?.value ?? 'hub'
 
   const handleTabChange = (_: React.SyntheticEvent, value: string) => {

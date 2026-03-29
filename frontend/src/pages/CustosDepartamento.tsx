@@ -26,7 +26,7 @@ import {
   Tooltip,
   Drawer,
 } from '@mui/material'
-import { DollarSign, Plus, RefreshCw, Link2, UserPlus, Building2, UserCircle, Pencil, X, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Link2, UserPlus, Building2, UserCircle, Pencil, X, Trash2 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import {
   CostTreeFlow,
@@ -40,6 +40,9 @@ import { useUsersList } from '@/hooks/use-users-list'
 import { useOrgEntries, type OrgEntry } from '@/hooks/use-org'
 import type { CostCanvasFocus } from '@/types/cost-org'
 import { CostCanvasDrawerPanel } from '@/components/cost-management/CostCanvasDrawerPanel'
+import AppSurface from '@/components/system/AppSurface'
+import SectionHeader from '@/components/system/SectionHeader'
+import StatusToken from '@/components/system/StatusToken'
 import { apiUrl } from '@/lib/api'
 const MAIN_HEADER_PX = 59
 const DRAWER_WIDTH = { xs: '100%', sm: 420 } as const
@@ -653,34 +656,32 @@ export default function CustosDepartamento() {
           pb: 2,
         }}
       >
-        <Box sx={{ flexShrink: 0 }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <DollarSign style={{ color: 'var(--mui-palette-primary-main)', width: 32, height: 32 }} />
-              <Typography variant="h5" component="h1" fontWeight={600}>
-                Custos do Departamento
-              </Typography>
-            </Box>
-            <Button variant="contained" startIcon={<Plus size={18} />} onClick={openManageDialog} sx={{ ml: { md: 'auto' } }}>
-              Gerenciar custos do departamento
-            </Button>
+        <AppSurface surface="subtle" sx={{ flexShrink: 0 }}>
+          <SectionHeader
+            title="Custos do Departamento"
+            description="Canvas financeiro com foco em centros de custo, vínculos e responsáveis do organograma, sempre com inspector lateral para edição contextual."
+            actions={
+              <Button variant="contained" startIcon={<Plus size={18} />} onClick={openManageDialog}>
+                Gerenciar custos
+              </Button>
+            }
+            sx={{ pb: 1.25 }}
+          />
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+            <StatusToken tone="info">Canvas + inspector</StatusToken>
+            <StatusToken tone="neutral">Clique para editar contexto</StatusToken>
+            <StatusToken tone="success">Ações rápidas no botão direito</StatusToken>
           </Box>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 900 }}>
-            Mapa no mesmo estilo do organograma (layout automático + grade). <strong>Clique</strong> em um card para
-            abrir o painel à direita (filhos vinculados e edição). <strong>Responsáveis</strong> vêm do{' '}
-            <strong>Organograma da Empresa</strong>. <strong>Arraste</strong> entre departamento e custo para vincular;{' '}
-            <strong>Delete</strong> na aresta remove. <strong>Botão direito</strong> no mapa para ações rápidas.
-          </Typography>
-
           {error?.includes('MIGRATION') || error?.includes('migração') ? (
-            <Alert severity="warning" sx={{ mb: 1.5 }}>
+            <Alert severity="warning" sx={{ mb: 0.5 }}>
               Execute <strong>backend/migrations/003_cost_management.sql</strong> no Supabase.
             </Alert>
           ) : null}
-        </Box>
+        </AppSurface>
 
-        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <AppSurface surface="raised" sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.25 }}>
           <CostTreeFlow
             graph={graph}
             loading={loading}
@@ -696,7 +697,7 @@ export default function CustosDepartamento() {
             orgEntries={orgEntries}
             fillHeight
           />
-        </Box>
+        </AppSurface>
 
         <Drawer
           anchor="right"

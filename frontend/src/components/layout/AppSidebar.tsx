@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   Dashboard,
   MapIcon,
@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   Menu,
   BarChart2,
-  Paintbrush,
   Flag,
   OrgChartIcon,
   DollarSign,
@@ -17,8 +16,6 @@ import {
 import {
   Box,
   IconButton,
-  Menu as MuiMenu,
-  MenuItem,
   Tooltip,
   Typography,
   useTheme,
@@ -28,12 +25,10 @@ import {
 import { ChevronDown, ChevronRight, Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/theme/ThemeProvider'
 import { usePermissions } from '@/hooks/use-permissions'
-import { LEVEL_CARD_MENU_ITEMS } from '@/components/layout/sidebar-level-nav'
 import type { UserProgress } from '@/types'
 import { buildWorkspacePath, stripWorkspacePrefix } from '@/lib/workspace-routing'
 import { useAuth } from '@/contexts/AuthContext'
 import AppSurface from '@/components/system/AppSurface'
-import ProgressIndicator from '@/components/system/ProgressIndicator'
 import StatusToken from '@/components/system/StatusToken'
 
 type NavItem = { title: string; url: string; icon: React.ElementType; permission: string | null; requireRole?: string }
@@ -44,27 +39,32 @@ const SIDEBAR_COLLAPSED_WIDTH = 72
 
 const SIDEBAR_SECTIONS: NavSection[] = [
   {
-    title: 'Operacao',
-    hint: 'Rotina principal do workspace',
+    title: 'Central',
+    hint: 'Fila principal e execução imediata',
     items: [
-      { title: 'Dashboard', url: '/', icon: Dashboard, permission: null },
+      { title: 'Central de Tarefas', url: '/', icon: Dashboard, permission: null },
+    ],
+  },
+  {
+    title: 'Execução',
+    hint: 'Projetos, atividades e priorização',
+    items: [
       { title: 'Projetos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos' },
       { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades' },
-      { title: 'Canva em equipe', url: '/canva-equipe', icon: Paintbrush, permission: null },
+      { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null },
     ],
   },
   {
     title: 'Insights',
-    hint: 'Leituras e priorizacao',
+    hint: 'Análise e leitura do workspace',
     items: [
-      { title: 'Mapa', url: '/mapa', icon: MapIcon, permission: null },
-      { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null },
       { title: 'Indicadores', url: '/indicadores', icon: BarChart2, permission: null },
+      { title: 'Mapa', url: '/mapa', icon: MapIcon, permission: null },
     ],
   },
   {
-    title: 'Gestao',
-    hint: 'Administracao e estrutura',
+    title: 'Administração',
+    hint: 'Estrutura, custos e configurações',
     items: [
       { title: 'Organograma', url: '/organograma', icon: OrgChartIcon, permission: null, requireRole: 'admin' },
       { title: 'Custos', url: '/custos-departamento', icon: DollarSign, permission: null, requireRole: 'admin' },
@@ -85,7 +85,7 @@ export function DemandCard({
   count,
   compact = false,
   headerInline = false,
-  targetPath = '/indicadores',
+  targetPath = '/',
 }: {
   count: number | null
   compact?: boolean
@@ -159,18 +159,14 @@ export function AppSidebar(props: AppSidebarProps) {
     isCollapsed: controlledCollapsed,
     onCollapsedChange,
     pendingTodosCount,
-    progressData,
-    progressLoading,
   } = props
   const location = useLocation()
-  const navigate = useNavigate()
   const theme = useTheme()
   const { mode, toggleTheme } = useThemeMode()
   const { hasPermission, hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
   const [internalCollapsed, setInternalCollapsed] = useState(false)
-  const [levelMenuAnchor, setLevelMenuAnchor] = useState<HTMLElement | null>(null)
-  const [expandedSection, setExpandedSection] = useState<string>('Operacao')
+  const [expandedSection, setExpandedSection] = useState<string>('Central')
   const isCollapsed = controlledCollapsed ?? internalCollapsed
 
   const setIsCollapsed = (value: boolean) => {
@@ -216,8 +212,9 @@ export function AppSidebar(props: AppSidebarProps) {
         zIndex: 1200,
         width: sidebarWidth,
         transition: theme.transitions.create('width', { duration: 180 }),
-        bgcolor: 'background.paper',
+        bgcolor: 'background.default',
         color: 'text.primary',
+        boxShadow: 'inset -1px 0 0 rgba(0, 0, 0, 0.03)',
       }}
     >
       <Box
@@ -281,7 +278,7 @@ export function AppSidebar(props: AppSidebarProps) {
 
       {!isCollapsed ? (
         <Box sx={{ px: 1.25, pt: 1.25, pb: 0.5 }}>
-          <DemandCard count={pendingTodosCount} targetPath={buildWorkspacePath(currentWorkspace?.slug, '/indicadores')} />
+          <DemandCard count={pendingTodosCount} targetPath={buildWorkspacePath(currentWorkspace?.slug)} />
         </Box>
       ) : null}
 
@@ -428,82 +425,27 @@ export function AppSidebar(props: AppSidebarProps) {
         {!isCollapsed ? (
           <>
             <AppSurface
-              onClick={(event: React.MouseEvent<HTMLElement>) => setLevelMenuAnchor(event.currentTarget)}
               surface="subtle"
               sx={{
                 width: '100%',
-                textAlign: 'left',
-                cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 0.85,
+                gap: 0.5,
                 p: 1.25,
               }}
-              role="button"
-              tabIndex={0}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  Progresso
+                  Perfil e progresso
                 </Typography>
-                <StatusToken tone="info">
-                  Lv. {progressData?.level ?? 1}
+                <StatusToken tone="neutral">
+                  Via avatar
                 </StatusToken>
               </Box>
-
-              <ProgressIndicator
-                value={
-                  progressData
-                    ? Math.min(100, ((progressData.xpInCurrentLevel ?? 0) / Math.max(1, progressData.xpForNextLevel ?? 1)) * 100)
-                    : progressLoading ? 35 : 0
-                }
-                tone="gamification"
-                meta={progressData ? `${progressData.totalXp} XP` : progressLoading ? 'Carregando...' : 'Sem dados'}
-              />
+              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.55 }}>
+                Conquistas, níveis e preferências pessoais continuam acessíveis pelo drawer de perfil no cabeçalho.
+              </Typography>
             </AppSurface>
-
-            <MuiMenu
-              anchorEl={levelMenuAnchor}
-              open={Boolean(levelMenuAnchor)}
-              onClose={() => setLevelMenuAnchor(null)}
-              anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'center', horizontal: 'left' }}
-              slotProps={{
-                paper: {
-                  sx: {
-                    minWidth: 220,
-                    mt: 0,
-                    ml: 0.5,
-                  },
-                },
-              }}
-            >
-              {LEVEL_CARD_MENU_ITEMS.map((item) => {
-                const Icon = item.icon
-                const active = normalizedPath === item.url
-                return (
-                  <MenuItem
-                    key={item.url}
-                    onClick={() => {
-                      setLevelMenuAnchor(null)
-                      navigate(buildWorkspacePath(currentWorkspace?.slug, item.url))
-                    }}
-                    sx={{
-                      gap: 1.5,
-                      py: 1.1,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: active ? 'primary.main' : 'text.primary',
-                    }}
-                  >
-                    <span style={{ display: 'inline-flex', flexShrink: 0 }}>
-                      <Icon size={18} style={{ flexShrink: 0, ...item.iconStyle }} />
-                    </span>
-                    {item.title}
-                  </MenuItem>
-                )
-              })}
-            </MuiMenu>
           </>
         ) : (
           <Tooltip title="Workspace atual" placement="right">

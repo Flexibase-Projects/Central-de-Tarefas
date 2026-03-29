@@ -6,6 +6,11 @@ import { getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { hasRole } from '../services/permissions.js';
 import { isNativeAdminUserId } from '../services/native-admin.js';
 import {
+  findCdtUserByField,
+  insertCdtUserCompat,
+  updateCdtUserByIdCompat,
+} from '../services/cdt-users.js';
+import {
   isSupabaseConnectionRefused,
   SUPABASE_UNAVAILABLE_MESSAGE,
 } from '../utils/supabase-errors.js';
@@ -152,71 +157,63 @@ router.post('/from-auth', checkRole('admin'), async (req, res) => {
     const displayName = optionalString(body.name, 'name', { maxLength: 200 }) || normalizedEmail.split('@')[0] || 'Usuario';
     let targetUserId = id;
 
-    const byCentralId = await supabase
-      .from('cdt_users')
-      .select('id')
-      .eq('central_user_id', id)
-      .maybeSingle();
+    const byCentralId = await findCdtUserByField({
+      field: 'central_user_id',
+      value: id,
+      includeColumns: ['central_user_id'],
+    });
 
-    if (!byCentralId.error && byCentralId.data?.id) {
-      targetUserId = byCentralId.data.id;
-      await supabase
-        .from('cdt_users')
-        .update({
+    if (byCentralId?.id) {
+      targetUserId = byCentralId.id;
+      await updateCdtUserByIdCompat(targetUserId, {
+        email: normalizedEmail,
+        name: displayName,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+        ...buildLinkedIdentityFields(id),
+      });
+    } else {
+      const byId = await findCdtUserByField({
+        field: 'id',
+        value: id,
+        includeColumns: ['central_user_id'],
+      });
+
+      if (byId?.id) {
+        if (byId.central_user_id && byId.central_user_id !== id) {
+          return res.status(409).json({ error: 'Este usuario ja esta vinculado a outra identidade central.' });
+        }
+
+        targetUserId = byId.id;
+        await updateCdtUserByIdCompat(targetUserId, {
           email: normalizedEmail,
           name: displayName,
           is_active: true,
           updated_at: new Date().toISOString(),
           ...buildLinkedIdentityFields(id),
-        })
-        .eq('id', targetUserId);
-    } else {
-      const byId = await supabase
-        .from('cdt_users')
-        .select('id, central_user_id')
-        .eq('id', id)
-        .maybeSingle();
+        });
+      } else {
+        const byEmail = await findCdtUserByField({
+          field: 'email',
+          value: normalizedEmail,
+          includeColumns: ['central_user_id'],
+        });
 
-      if (!byId.error && byId.data?.id) {
-        if (byId.data.central_user_id && byId.data.central_user_id !== id) {
-          return res.status(409).json({ error: 'Este usuario ja esta vinculado a outra identidade central.' });
-        }
+        if (byEmail?.id) {
+          if (byEmail.central_user_id && byEmail.central_user_id !== id) {
+            return res.status(409).json({ error: 'Este email ja esta vinculado a outra identidade central.' });
+          }
 
-        targetUserId = byId.data.id;
-        await supabase
-          .from('cdt_users')
-          .update({
+          targetUserId = byEmail.id;
+          await updateCdtUserByIdCompat(targetUserId, {
             email: normalizedEmail,
             name: displayName,
             is_active: true,
             updated_at: new Date().toISOString(),
             ...buildLinkedIdentityFields(id),
-          })
-          .eq('id', targetUserId);
-      } else {
-        const byEmail = await supabase
-          .from('cdt_users')
-          .select('id, central_user_id')
-          .eq('email', normalizedEmail)
-          .maybeSingle();
-
-        if (!byEmail.error && byEmail.data?.id) {
-          if (byEmail.data.central_user_id && byEmail.data.central_user_id !== id) {
-            return res.status(409).json({ error: 'Este email ja esta vinculado a outra identidade central.' });
-          }
-
-          targetUserId = byEmail.data.id;
-          await supabase
-            .from('cdt_users')
-            .update({
-              name: displayName,
-              is_active: true,
-              updated_at: new Date().toISOString(),
-              ...buildLinkedIdentityFields(id),
-            })
-            .eq('id', targetUserId);
+          });
         } else {
-          const { error: insertError } = await supabase.from('cdt_users').insert({
+          await insertCdtUserCompat({
             id,
             email: normalizedEmail,
             name: displayName,
@@ -224,7 +221,6 @@ router.post('/from-auth', checkRole('admin'), async (req, res) => {
             is_active: true,
             ...buildLinkedIdentityFields(id),
           });
-          if (insertError) throw insertError;
         }
       }
     }
@@ -300,21 +296,21 @@ router.post('/with-auth', checkRole('admin'), async (req, res) => {
 
     const authUserId = authCreated.user.id;
 
-    const { error: insertError } = await supabase.from('cdt_users').insert({
-      id: authUserId,
-      ...buildLinkedIdentityFields(authUserId),
-      email: normalizedEmail,
-      name: displayName,
-      avatar_url: avatarUrl,
-      is_active: true,
-      must_set_password: true,
-    });
-
-    if (insertError) {
+    try {
+      await insertCdtUserCompat({
+        id: authUserId,
+        ...buildLinkedIdentityFields(authUserId),
+        email: normalizedEmail,
+        name: displayName,
+        avatar_url: avatarUrl,
+        is_active: true,
+        must_set_password: true,
+      });
+    } catch (insertError) {
       console.error('[with-auth] cdt_users insert failed after auth create:', insertError);
       return res.status(500).json({
         error:
-          insertError.message ||
+          (insertError instanceof Error ? insertError.message : String(insertError)) ||
           'Usuario criado no Auth mas falhou ao gravar em cdt_users. Corrija manualmente ou remova o usuario no painel Auth.',
       });
     }
@@ -419,15 +415,10 @@ router.post('/me/finish-first-login', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { error } = await supabase
-      .from('cdt_users')
-      .update({
-        must_set_password: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', requesterId);
-
-    if (error) throw error;
+    await updateCdtUserByIdCompat(requesterId, {
+      must_set_password: false,
+      updated_at: new Date().toISOString(),
+    });
     res.json({ ok: true });
   } catch (error: unknown) {
     if (isValidationError(error)) {
@@ -564,13 +555,8 @@ router.put('/:id', checkRole('admin'), async (req, res) => {
     if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
     if (isActive !== undefined) updateData.is_active = isActive;
 
-    const { data, error } = await supabase
-      .from('cdt_users')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-
+    await updateCdtUserByIdCompat(id, updateData);
+    const { data, error } = await supabase.from('cdt_users').select('*').eq('id', id).single();
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'User not found' });
 
@@ -595,13 +581,8 @@ router.delete('/:id', checkRole('admin'), async (req, res) => {
       return res.status(400).json({ error: 'Admin nativo nao pode ser desativado.' });
     }
 
-    const { data, error } = await supabase
-      .from('cdt_users')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-
+    await updateCdtUserByIdCompat(id, { is_active: false, updated_at: new Date().toISOString() });
+    const { data, error } = await supabase.from('cdt_users').select('*').eq('id', id).single();
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'User not found' });
     res.json(data);

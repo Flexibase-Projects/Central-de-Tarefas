@@ -1,0 +1,8 @@
+- generic [ref=e5]:
+  - generic [ref=e7]:
+    - heading "Conectando acesso central" [level=4] [ref=e8]
+    - paragraph [ref=e9]: Estamos concluindo a troca segura do authorization code pela sessao local do CDT.
+  - alert [ref=e10]:
+    - img [ref=e12]
+    - generic [ref=e14]: Central SSO is disabled for this application.
+  - button "Voltar ao login" [ref=e15] [cursor=pointer]

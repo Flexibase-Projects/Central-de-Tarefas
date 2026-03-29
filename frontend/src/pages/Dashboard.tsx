@@ -1,431 +1,478 @@
 import { useMemo } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import {
-  Box,
-  Typography,
-  useTheme,
-  CircularProgress,
   Alert,
+  Box,
   Button,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  Tooltip,
+  CircularProgress,
+  Divider,
+  Stack,
+  Typography,
 } from '@mui/material'
-import { RefreshCw } from 'lucide-react'
 import {
-  BarChart2,
-  CheckSquare,
-  CheckCircle,
-  Folder,
-  MessageCircleIcon,
+  AlertTriangle,
+  ArrowRight,
+  BarChart3,
   ClipboardList,
-} from '@/components/ui/icons'
-import {
-  DashboardMetricCard,
-  DashboardStatusChip,
-  DashboardBarRow,
-  dashboardTableCellSx,
-  type DashboardMetricCardProps,
-} from '@/components/dashboard/indicator-widgets'
-import { useIndicators } from '@/hooks/use-indicators'
+  FolderOpen,
+  RefreshCw,
+  ShieldCheck,
+} from 'lucide-react'
+import { useHome } from '@/hooks/use-home'
 import { useAuth } from '@/contexts/AuthContext'
-import { useMyPendingTodosCount } from '@/hooks/use-my-pending-todos'
-import type { ProjectIndicator } from '@/types'
-import { formatDatePtBr } from '@/lib/date-only'
 import { buildWorkspacePath } from '@/lib/workspace-routing'
+import { formatDatePtBr, isOverdueDate } from '@/lib/date-only'
+import { getStatusLabel } from '@/lib/status-labels'
+import type { HomeReviewItem, HomeTodoItem } from '@/types'
+import AppSurface from '@/components/system/AppSurface'
+import SectionHeader from '@/components/system/SectionHeader'
+import StatusToken from '@/components/system/StatusToken'
 
-const cell = dashboardTableCellSx
+function SummaryCard({
+  label,
+  value,
+  caption,
+  tone = 'neutral',
+}: {
+  label: string
+  value: number
+  caption: string
+  tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+}) {
+  return (
+    <AppSurface surface={tone === 'neutral' ? 'default' : 'interactive'} sx={{ minHeight: 140 }}>
+      <Stack spacing={1.5}>
+        <StatusToken tone={tone}>{label}</StatusToken>
+        <Typography variant="h2">{String(value).padStart(2, '0')}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+          {caption}
+        </Typography>
+      </Stack>
+    </AppSurface>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <Box
+      sx={{
+        minHeight: 140,
+        display: 'grid',
+        placeItems: 'center',
+        borderRadius: 'var(--radius-md)',
+        border: '1px dashed',
+        borderColor: 'divider',
+        bgcolor: 'background.default',
+        px: 2,
+      }}
+    >
+      <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 320 }}>
+        {message}
+      </Typography>
+    </Box>
+  )
+}
+
+function TodoBucket({
+  title,
+  description,
+  items,
+  emptyMessage,
+  hrefBuilder,
+}: {
+  title: string
+  description: string
+  items: HomeTodoItem[]
+  emptyMessage: string
+  hrefBuilder: (item: HomeTodoItem) => string
+}) {
+  return (
+    <AppSurface sx={{ height: '100%' }}>
+      <SectionHeader title={title} description={description} sx={{ pb: 2 }} />
+      {items.length === 0 ? (
+        <EmptyState message={emptyMessage} />
+      ) : (
+        <Stack spacing={1.25}>
+          {items.map((item) => (
+            <Box
+              key={item.id}
+              component={RouterLink}
+              to={hrefBuilder(item)}
+              sx={{
+                textDecoration: 'none',
+                color: 'inherit',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+                px: 1.5,
+                py: 1.25,
+                transition: 'transform 160ms ease, border-color 160ms ease, background-color 160ms ease',
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  borderColor: 'primary.main',
+                  bgcolor: 'action.hover',
+                },
+              }}
+            >
+              <Stack spacing={0.85}>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+                    {item.title}
+                  </Typography>
+                  <StatusToken tone={isOverdueDate(item.deadline) ? 'danger' : 'neutral'}>
+                    {formatDatePtBr(item.deadline, 'Sem prazo')}
+                  </StatusToken>
+                </Stack>
+
+                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.55 }}>
+                  {[item.projectName, item.activityName].filter(Boolean).join(' · ') || 'Item sem contexto associado'}
+                </Typography>
+
+                {item.assigneeName ? (
+                  <Typography variant="caption" color="text.secondary">
+                    Responsável: {item.assigneeName}
+                  </Typography>
+                ) : null}
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </AppSurface>
+  )
+}
+
+function ReviewBucket({
+  items,
+  hrefBuilder,
+}: {
+  items: HomeReviewItem[]
+  hrefBuilder: (item: HomeReviewItem) => string
+}) {
+  return (
+    <AppSurface sx={{ height: '100%' }}>
+      <SectionHeader
+        title="Aguardando"
+        description="Itens que pedem revisão, retorno ou decisão antes de seguir no fluxo."
+        sx={{ pb: 2 }}
+      />
+
+      {items.length === 0 ? (
+        <EmptyState message="Nenhum item aguardando revisão agora. Isso ajuda a manter a fila principal mais limpa." />
+      ) : (
+        <Stack spacing={1.25}>
+          {items.map((item) => (
+            <Box
+              key={`${item.kind}-${item.id}`}
+              component={RouterLink}
+              to={hrefBuilder(item)}
+              sx={{
+                textDecoration: 'none',
+                color: 'inherit',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.default',
+                px: 1.5,
+                py: 1.25,
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  bgcolor: 'action.hover',
+                },
+              }}
+            >
+              <Stack spacing={0.85}>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+                    {item.title}
+                  </Typography>
+                  <StatusToken tone="warning">{getStatusLabel(item.status)}</StatusToken>
+                </Stack>
+
+                <Typography variant="body2" color="text.secondary">
+                  {item.kind === 'project' ? 'Projeto em revisão' : 'Atividade em revisão'}
+                </Typography>
+
+                <Stack direction="row" spacing={1} divider={<Divider orientation="vertical" flexItem />} sx={{ color: 'text.secondary' }}>
+                  <Typography variant="caption">
+                    Prazo: {formatDatePtBr(item.dueDate, 'Sem prazo')}
+                  </Typography>
+                  <Typography variant="caption">
+                    {item.ownerName ? `Responsável: ${item.ownerName}` : 'Sem responsável destacado'}
+                  </Typography>
+                </Stack>
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </AppSurface>
+  )
+}
 
 export default function Dashboard() {
-  const theme = useTheme()
-  const isLight = theme.palette.mode === 'light'
-  const { data, loading, error, refresh } = useIndicators()
-  const { hasRole, currentWorkspace } = useAuth()
-  const isAdmin = hasRole('admin')
-  const { count: pendingCount } = useMyPendingTodosCount()
+  const { data, loading, error, refresh } = useHome()
+  const { currentWorkspace } = useAuth()
 
-  // Dados do próprio usuário na lista by_user
-  const personal = data?.personal ?? null
+  const homePaths = useMemo(() => {
+    const workspaceSlug = currentWorkspace?.slug
+    const buildTodoPath = (item: HomeTodoItem) => {
+      if (item.activityId) {
+        return buildWorkspacePath(
+          workspaceSlug,
+          `/atividades?view=list&activity=${encodeURIComponent(item.activityId)}&todo=${encodeURIComponent(item.id)}`,
+        )
+      }
+      if (item.projectId) {
+        return buildWorkspacePath(
+          workspaceSlug,
+          `/desenvolvimentos?view=list&project=${encodeURIComponent(item.projectId)}&todo=${encodeURIComponent(item.id)}`,
+        )
+      }
+      return buildWorkspacePath(workspaceSlug, '/atividades?view=list')
+    }
 
-  // Atividades abertas: admin vê todas; usuário vê só as suas
-  const activitiesOpen = useMemo(() => {
-    const list = data?.by_activity?.filter((a) => a.status !== 'done') ?? []
-    return isAdmin ? list : list
-  }, [data?.by_activity, isAdmin])
-  const recentTodos = data?.recentAssignedTodos ?? []
-  const pendingTodosOnly = data?.pendingAssignedTodos ?? []
+    const buildReviewPath = (item: HomeReviewItem) =>
+      item.kind === 'project'
+        ? buildWorkspacePath(
+            workspaceSlug,
+            `/desenvolvimentos?view=list&project=${encodeURIComponent(item.id)}`,
+          )
+        : buildWorkspacePath(
+            workspaceSlug,
+            `/atividades?view=list&activity=${encodeURIComponent(item.id)}`,
+          )
 
-  const team = data?.team
+    return {
+      buildTodoPath,
+      buildReviewPath,
+      projects: buildWorkspacePath(workspaceSlug, data?.quickTargets.projectsOpen ?? '/desenvolvimentos?view=list'),
+      activities: buildWorkspacePath(workspaceSlug, data?.quickTargets.activitiesOpen ?? '/atividades?view=list'),
+      indicators: buildWorkspacePath(workspaceSlug, data?.quickTargets.indicatorsUrl ?? '/indicadores'),
+      admin: data?.quickTargets.adminUrl
+        ? buildWorkspacePath(workspaceSlug, data.quickTargets.adminUrl)
+        : null,
+    }
+  }, [currentWorkspace?.slug, data?.quickTargets])
 
-  // Totais para os cards: admin usa totais do time; usuário usa seus próprios
-  const todosCreated = isAdmin ? (team?.total_todos_created ?? 0) : (personal?.todosAssignedTotal ?? 0)
-  const todosCompleted = isAdmin ? (team?.total_todos_completed ?? 0) : (personal?.todosAssignedCompleted ?? 0)
-  const comments = isAdmin ? (team?.total_comments ?? 0) : (personal?.commentsCount ?? 0)
-  const activitiesAssigned = isAdmin ? (team?.total_activities ?? 0) : (personal?.activitiesAssigned ?? 0)
-  const todosPending = Math.max(0, todosCreated - todosCompleted)
-  const completionRatePct =
-    todosCreated > 0 ? Math.round((todosCompleted / todosCreated) * 100) : null
-
-  const topProjects = useMemo(() => {
-    const list = data?.by_project ?? []
-    return [...list].sort((a, b) => b.todos_count - a.todos_count).slice(0, 5)
-  }, [data?.by_project])
-
-  const recentTodosPreview = useMemo(
-    () =>
-      [...recentTodos]
-        .sort((a, b) => {
-          if (a.completed !== b.completed) return a.completed ? 1 : -1
-          return 0
-        })
-        .slice(0, 8),
-    [recentTodos],
-  )
-  const pendingTodosPreview = useMemo(
-    () => (isAdmin ? pendingTodosOnly : pendingTodosOnly.slice(0, 8)),
-    [isAdmin, pendingTodosOnly],
-  )
-
-  const maxTodoBar = Math.max(1, todosCreated, todosCompleted)
-  const indicatorsPath = buildWorkspacePath(currentWorkspace?.slug, '/indicadores')
-  const projectsPath = buildWorkspacePath(currentWorkspace?.slug, '/desenvolvimentos')
-  const activitiesPath = buildWorkspacePath(currentWorkspace?.slug, '/atividades')
-
-  const metrics: DashboardMetricCardProps[] = [
-        {
-          label: 'Projetos',
-          value: isAdmin ? (team?.total_projects ?? 0) : topProjects.length,
-          icon: Folder,
-          iconColor: theme.palette.primary.main,
-          iconBg: isLight ? 'rgba(37,99,235,0.1)' : 'rgba(96,165,250,0.15)',
-          caption: isAdmin ? 'Cadastrados no sistema' : 'Com to-dos atribuídos a você',
-        },
-        {
-          label: isAdmin ? 'Atividades em aberto' : 'Minhas atividades',
-          value: isAdmin ? activitiesOpen.length : activitiesAssigned,
-          icon: ClipboardList,
-          iconColor: isLight ? '#D97706' : '#FBBF24',
-          iconBg: isLight ? 'rgba(217,119,6,0.1)' : 'rgba(251,191,36,0.12)',
-          caption: isAdmin ? `${team?.total_activities ?? 0} no total` : `${activitiesAssigned} atribuídas`,
-        },
-        {
-          label: isAdmin ? 'Comentários' : 'Meus comentários',
-          value: comments,
-          icon: MessageCircleIcon,
-          iconColor: isLight ? '#7C3AED' : '#A78BFA',
-          iconBg: isLight ? 'rgba(124,58,237,0.1)' : 'rgba(167,139,250,0.12)',
-        },
-        {
-          label: isAdmin ? 'TO-DOs concluídos' : 'Meus TO-DOs concluídos',
-          value: todosCompleted,
-          icon: CheckCircle,
-          iconColor: isLight ? '#059669' : '#34D399',
-          iconBg: isLight ? 'rgba(5,150,105,0.1)' : 'rgba(52,211,153,0.12)',
-          caption:
-            todosCreated > 0
-              ? `${todosPending} pendentes · ${todosCreated} criados${
-                  completionRatePct != null ? ` · ${completionRatePct}% concluídos` : ''
-                }`
-              : undefined,
-        },
-      ]
+  if (loading && !data) {
+    return (
+      <Box sx={{ minHeight: '100%', display: 'grid', placeItems: 'center', p: 4 }}>
+        <Stack spacing={1.5} alignItems="center">
+          <CircularProgress size={34} />
+          <Typography variant="body2" color="text.secondary">
+            Carregando a central de tarefas...
+          </Typography>
+        </Stack>
+      </Box>
+    )
+  }
 
   return (
-    <Box sx={{ height: '100%', overflow: 'auto', p: 3 }}>
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight={700} sx={{ mb: 0.25 }}>
-            Dashboard
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {isAdmin
-              ? 'Indicadores do time em tempo real — mesma base da página Indicadores'
-              : 'Seus indicadores em tempo real'}
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Tooltip title="Atualizar dados">
-            <span>
-              <IconButton
-                onClick={() => void refresh()}
-                disabled={loading}
-                color="primary"
-                aria-label="Atualizar indicadores"
-              >
-                <RefreshCw size={20} style={{ opacity: loading ? 0.5 : 1 }} />
-              </IconButton>
-            </span>
-          </Tooltip>
+    <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      <SectionHeader
+        title="Central de Tarefas"
+        description={
+          data?.persona === 'admin'
+            ? 'Visão operacional do workspace com fila de execução, itens em revisão e atalhos de gestão.'
+            : 'Sua fila principal de trabalho, organizada para reduzir ruído e acelerar a próxima ação.'
+        }
+        actions={
+          <>
+            <Button
+              variant="outlined"
+              onClick={() => void refresh()}
+              startIcon={<RefreshCw size={16} />}
+            >
+              Atualizar
+            </Button>
             <Button
               component={RouterLink}
-              to={indicatorsPath}
-              variant="outlined"
-              size="small"
-              startIcon={<BarChart2 size={18} />}
-          >
-            Ver indicadores completos
-          </Button>
-        </Box>
-      </Box>
-
-      {/* Banner de TO-DOs pendentes */}
-      {pendingCount != null && pendingCount > 0 && (
-        <Alert
-          severity="info"
-          icon={<CheckCircle fontSize="inherit" />}
-          sx={{ mb: 2.5, borderRadius: 2, fontWeight: 500 }}
-        >
-          Você tem <strong>{pendingCount} TO-DO{pendingCount > 1 ? 's' : ''}</strong> pendente{pendingCount > 1 ? 's' : ''} atribuído{pendingCount > 1 ? 's' : ''} a você.
-        </Alert>
-      )}
+              to={homePaths.indicators}
+              variant="contained"
+              startIcon={<BarChart3 size={16} />}
+            >
+              Indicadores
+            </Button>
+          </>
+        }
+      />
 
       {error ? (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => void refresh()}>
+        <Alert severity="error" onClose={() => void refresh()}>
           {error}
         </Alert>
       ) : null}
 
-      {loading && !data ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200, mb: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
+      {data ? (
         <>
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-              gap: 2.5,
-              mb: 3,
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: data.persona === 'admin' ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)',
+                xl: data.persona === 'admin' ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+              },
+              gap: 2,
             }}
           >
-            {metrics.map((m) => (
-              <DashboardMetricCard key={m.label} {...m} />
-            ))}
+            <SummaryCard
+              label="Minhas agora"
+              value={data.summary.myOpen}
+              caption="Itens atribuídos a você e prontos para execução imediata."
+              tone="info"
+            />
+            <SummaryCard
+              label="Atrasadas"
+              value={data.summary.overdue}
+              caption="Demandas que já passaram do prazo e merecem ação ou renegociação."
+              tone={data.summary.overdue > 0 ? 'danger' : 'neutral'}
+            />
+            <SummaryCard
+              label="Aguardando"
+              value={data.summary.waiting}
+              caption="Projetos e atividades em revisão ou aguardando uma decisão para avançar."
+              tone="warning"
+            />
+            {data.persona === 'admin' ? (
+              <SummaryCard
+                label="Delegadas"
+                value={data.summary.delegated}
+                caption={`Acompanhamento de itens passados para o time. ${data.summary.teamOpen ?? 0} itens seguem abertos no workspace.`}
+                tone="success"
+              />
+            ) : null}
           </Box>
-
-          {(todosCreated > 0 || todosCompleted > 0) ? (
-            <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-              <Typography variant="subtitle2" fontWeight={600} color="text.secondary" sx={{ mb: 1.5 }}>
-                {isAdmin ? 'TO-DOs do time' : 'Meus TO-DOs'}
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <DashboardBarRow label={isAdmin ? 'Criados' : 'Atribuídos'} value={todosCreated} max={maxTodoBar} color="primary.main" />
-                <DashboardBarRow label="Concluídos" value={todosCompleted} max={maxTodoBar} color="success.main" />
-              </Box>
-            </Paper>
-          ) : null}
-
-          <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', mb: 3 }}>
-            <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-              <Typography variant="subtitle2" fontWeight={600}>
-                TO-DOs pendentes
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {isAdmin ? `Total de ${pendingTodosPreview.length} item(ns)` : 'Em linha, até 8 itens'}
-              </Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    <TableCell sx={{ ...cell, fontWeight: 600 }}>TO-DO</TableCell>
-                    <TableCell sx={{ ...cell, fontWeight: 600 }}>Projeto</TableCell>
-                    {isAdmin && <TableCell sx={{ ...cell, fontWeight: 600 }}>Responsável</TableCell>}
-                    <TableCell sx={{ ...cell, fontWeight: 600 }}>Prazo</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {pendingTodosPreview.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={isAdmin ? 4 : 3} sx={cell}>
-                        <Typography variant="body2" color="text.secondary">
-                          Nenhum TO-DO pendente.
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    pendingTodosPreview.map((todo) => (
-                      <TableRow key={todo.id} hover>
-                        <TableCell sx={cell}>
-                          <Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: 320 }}>
-                            {todo.title}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={cell}>
-                          <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 180 }}>
-                            {todo.projectName ?? '—'}
-                          </Typography>
-                        </TableCell>
-                        {isAdmin && (
-                          <TableCell sx={cell}>
-                            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 180 }}>
-                              {todo.assigneeName ?? '—'}
-                            </Typography>
-                          </TableCell>
-                        )}
-                        <TableCell sx={cell}>
-                          <Typography variant="body2" color="text.secondary" noWrap>
-                            {formatDatePtBr(todo.deadline, 'Sem prazo')}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
 
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
-              gap: 2.5,
-              mb: 3,
+              gridTemplateColumns: { xs: '1fr', xl: '1.05fr 0.95fr' },
+              gap: 2,
             }}
           >
-            <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  Projetos com mais TO-DOs
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Top 5 por quantidade de itens
-                </Typography>
-              </Box>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                      <TableCell sx={{ ...cell, fontWeight: 600 }}>Projeto</TableCell>
-                      <TableCell sx={{ ...cell, fontWeight: 600 }}>Status</TableCell>
-                      <TableCell align="right" sx={{ ...cell, fontWeight: 600 }}>
-                        TO-DOs
-                      </TableCell>
-                      <TableCell align="right" sx={{ ...cell, fontWeight: 600 }}>
-                        Ok
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {topProjects.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} sx={cell}>
-                          <Typography variant="body2" color="text.secondary">
-                            Nenhum projeto cadastrado.
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      topProjects.map((p: ProjectIndicator) => (
-                        <TableRow key={p.project_id} hover>
-                          <TableCell sx={cell}>
-                            <Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: 200 }}>
-                              {p.project_name}
-                            </Typography>
-                          </TableCell>
-                          <TableCell sx={cell}>
-                            <DashboardStatusChip status={p.project_status} />
-                          </TableCell>
-                          <TableCell align="right" sx={cell}>
-                            {p.todos_count}
-                          </TableCell>
-                          <TableCell align="right" sx={{ ...cell, color: 'success.main', fontWeight: 600 }}>
-                            {p.todos_completed}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
+            <TodoBucket
+              title="Minhas agora"
+              description="A fila mais importante do momento, ordenada para você agir sem precisar caçar contexto."
+              items={data.buckets.now}
+              emptyMessage="Sua fila imediata está limpa. Este é um bom momento para puxar algo novo de Projetos ou Atividades."
+              hrefBuilder={homePaths.buildTodoPath}
+            />
 
-            <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-              <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-                <Typography variant="subtitle2" fontWeight={600}>
-                  {isAdmin ? 'Últimos TO-DOs do time' : 'Últimos TO-DOs'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {isAdmin ? 'Últimos 8 itens do time' : 'Até 8 itens'}
-                </Typography>
-              </Box>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                      <TableCell sx={{ ...cell, fontWeight: 600 }}>TO-DO</TableCell>
-                    {isAdmin && <TableCell sx={{ ...cell, fontWeight: 600 }}>Responsável</TableCell>}
-                      <TableCell sx={{ ...cell, fontWeight: 600 }}>Status</TableCell>
-                      <TableCell sx={{ ...cell, fontWeight: 600 }}>Projeto</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {recentTodosPreview.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={isAdmin ? 4 : 3} sx={cell}>
-                          <Typography variant="body2" color="text.secondary">
-                            Nenhum TO-DO recente.
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      recentTodosPreview.map((todo) => (
-                        <TableRow key={todo.id} hover>
-                          <TableCell sx={cell}>
-                            <Typography variant="body2" fontWeight={500} noWrap sx={{ maxWidth: 180 }}>
-                              {todo.title}
-                            </Typography>
-                          </TableCell>
-                          {isAdmin && (
-                            <TableCell sx={cell}>
-                              <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 160 }}>
-                                {todo.assigneeName ?? '—'}
-                              </Typography>
-                            </TableCell>
-                          )}
-                          <TableCell sx={cell}>
-                            <DashboardStatusChip status={todo.completed ? 'done' : 'in_progress'} />
-                          </TableCell>
-                          <TableCell sx={cell}>
-                            <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 140 }}>
-                              {todo.projectName ?? '—'}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
+            <AppSurface sx={{ height: '100%' }}>
+              <SectionHeader
+                title="Atalhos operacionais"
+                description="Entradas rápidas para continuar o fluxo sem voltar para uma navegação orientada a módulos."
+                sx={{ pb: 2 }}
+              />
+
+              <Stack spacing={1.25}>
+                <Button
+                  component={RouterLink}
+                  to={homePaths.projects}
+                  variant="outlined"
+                  startIcon={<FolderOpen size={16} />}
+                  endIcon={<ArrowRight size={16} />}
+                  sx={{ justifyContent: 'space-between' }}
+                >
+                  Projetos em lista
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to={homePaths.activities}
+                  variant="outlined"
+                  startIcon={<ClipboardList size={16} />}
+                  endIcon={<ArrowRight size={16} />}
+                  sx={{ justifyContent: 'space-between' }}
+                >
+                  Atividades em lista
+                </Button>
+                <Button
+                  component={RouterLink}
+                  to={homePaths.indicators}
+                  variant="outlined"
+                  startIcon={<BarChart3 size={16} />}
+                  endIcon={<ArrowRight size={16} />}
+                  sx={{ justifyContent: 'space-between' }}
+                >
+                  Indicadores e leitura analítica
+                </Button>
+                {homePaths.admin ? (
+                  <Button
+                    component={RouterLink}
+                    to={homePaths.admin}
+                    variant="contained"
+                    color="secondary"
+                    startIcon={<ShieldCheck size={16} />}
+                    endIcon={<ArrowRight size={16} />}
+                    sx={{ justifyContent: 'space-between' }}
+                  >
+                    Administração
+                  </Button>
+                ) : null}
+
+                <Divider sx={{ my: 0.5 }} />
+
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Leitura rápida
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <StatusToken tone="info">{data.summary.myOpen} em execução</StatusToken>
+                    <StatusToken tone={data.summary.overdue > 0 ? 'danger' : 'neutral'}>
+                      {data.summary.overdue} com atraso
+                    </StatusToken>
+                    {typeof data.summary.teamOpen === 'number' ? (
+                      <StatusToken tone="success">{data.summary.teamOpen} abertas no time</StatusToken>
+                    ) : null}
+                    {typeof data.summary.xpPending === 'number' ? (
+                      <StatusToken tone="neutral">{data.summary.xpPending} sem XP configurado</StatusToken>
+                    ) : null}
+                  </Stack>
+                </Stack>
+              </Stack>
+            </AppSurface>
           </Box>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
-            <Button component={RouterLink} to={projectsPath} variant="text" size="small" startIcon={<Folder size={18} />}>
-              Desenvolvimentos
-            </Button>
-            <Button component={RouterLink} to={activitiesPath} variant="text" size="small" startIcon={<CheckSquare size={18} />}>
-              Atividades
-            </Button>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', xl: data.persona === 'admin' ? '1fr 1fr 1fr' : '1fr 1fr' },
+              gap: 2,
+            }}
+          >
+            <TodoBucket
+              title="Atrasadas"
+              description="O que precisa de recuperação de prazo, apoio ou replanejamento."
+              items={data.buckets.overdue}
+              emptyMessage="Nenhuma demanda atrasada por aqui. Isso ajuda a manter a operação respirando melhor."
+              hrefBuilder={homePaths.buildTodoPath}
+            />
+
+            <ReviewBucket items={data.buckets.waiting} hrefBuilder={homePaths.buildReviewPath} />
+
+            {data.persona === 'admin' ? (
+              <TodoBucket
+                title="Delegadas"
+                description="Itens que você distribuiu e ainda pedem acompanhamento próximo."
+                items={data.buckets.delegated}
+                emptyMessage="Nenhuma delegação aberta agora. O acompanhamento está sob controle."
+                hrefBuilder={homePaths.buildTodoPath}
+              />
+            ) : null}
           </Box>
         </>
+      ) : (
+        <AppSurface>
+          <Stack spacing={1.25} alignItems="center" sx={{ py: 5 }}>
+            <AlertTriangle size={18} />
+            <Typography variant="body2" color="text.secondary">
+              Não foi possível montar a central de tarefas neste momento.
+            </Typography>
+          </Stack>
+        </AppSurface>
       )}
     </Box>
   )

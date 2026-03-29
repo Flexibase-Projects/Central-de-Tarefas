@@ -1,0 +1,10 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e8]:
+      - heading "Selecionar workspace" [level=4] [ref=e9]
+      - paragraph [ref=e10]: Escolha o contexto de trabalho. Cada workspace aplica módulos, títulos e permissões próprios.
+    - generic [ref=e12]:
+      - heading "Acesso por area" [level=6] [ref=e13]
+      - paragraph [ref=e14]: Selecione um workspace para entrar no contexto correto do sistema.
+  - progressbar [ref=e16]:
+    - img [ref=e17]

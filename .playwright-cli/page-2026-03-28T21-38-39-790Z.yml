@@ -1,0 +1,8 @@
+- generic [ref=e9]:
+  - generic [ref=e11]:
+    - heading "Conectando acesso central" [level=4] [ref=e12]
+    - paragraph [ref=e13]: Estamos concluindo a troca segura do authorization code pela sessao local do CDT.
+  - alert [ref=e14]:
+    - img [ref=e16]
+    - generic [ref=e18]: Negado pelo portal
+  - button "Voltar ao login" [ref=e19] [cursor=pointer]

@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Guia de Rotas do Sistema</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #eff3f8;
+        --surface: rgba(255, 255, 255, 0.92);
+        --surface-strong: #ffffff;
+        --line: #d7e0ec;
+        --ink: #122033;
+        --muted: #5a6980;
+        --blue: #2563eb;
+        --green: #2f855a;
+        --amber: #c56b18;
+        --purple: #6b46c1;
+        --red: #c53030;
+        --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      @page {
+        size: A3 landscape;
+        margin: 12mm;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Manrope', 'Segoe UI', sans-serif;
+        color: var(--ink);
+        background:
+          linear-gradient(180deg, rgba(37, 99, 235, 0.06), rgba(197, 107, 24, 0.03) 38%, rgba(255, 255, 255, 0) 100%),
+          linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+          linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+          var(--bg);
+        background-size: auto, 28px 28px, 28px 28px, auto;
+      }
+
+      main {
+        width: 100%;
+      }
+
+      .sheet {
+        background: var(--surface);
+        border: 1px solid rgba(215, 224, 236, 0.95);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        padding: 28px 32px;
+        backdrop-filter: blur(10px);
+        margin-bottom: 18px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+        align-items: stretch;
+      }
+
+      .hero-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid rgba(37, 99, 235, 0.16);
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--blue);
+        background: rgba(37, 99, 235, 0.08);
+      }
+
+      h1 {
+        margin: 18px 0 12px;
+        font-size: 42px;
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .hero p,
+      .section-copy,
+      .note-list li,
+      .summary-hint,
+      .api-card p,
+      .route-summary,
+      .api-card-meta,
+      footer {
+        color: var(--muted);
+      }
+
+      .hero p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.72;
+        max-width: 900px;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .summary-card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 18px;
+        border-radius: 22px;
+        background: var(--surface-strong);
+        border: 1px solid rgba(215, 224, 236, 0.95);
+      }
+
+      .summary-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .summary-value {
+        font-size: 28px;
+        line-height: 1;
+      }
+
+      .summary-hint {
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .section-head h2 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+      }
+
+      .section-eyebrow {
+        display: inline-block;
+        margin-bottom: 8px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--blue);
+        font-weight: 800;
+      }
+
+      .section-copy {
+        max-width: 720px;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .diagram-wrap {
+        padding: 20px;
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+        border: 1px solid rgba(215, 224, 236, 0.95);
+        overflow: hidden;
+      }
+
+      .diagram-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .mermaid {
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      .mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      .note-list {
+        margin: 16px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 22px;
+        background: var(--surface-strong);
+        border: 1px solid rgba(215, 224, 236, 0.95);
+      }
+
+      thead {
+        background: rgba(15, 23, 42, 0.03);
+      }
+
+      th,
+      td {
+        padding: 12px 14px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid rgba(215, 224, 236, 0.75);
+        font-size: 13px;
+      }
+
+      th {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      code {
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 12px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1px solid transparent;
+        white-space: nowrap;
+      }
+
+      .badge-screen {
+        background: rgba(37, 99, 235, 0.08);
+        color: #1747b8;
+        border-color: rgba(37, 99, 235, 0.14);
+      }
+
+      .badge-redirect,
+      .badge-alias {
+        background: rgba(107, 70, 193, 0.08);
+        color: #5a2faf;
+        border-color: rgba(107, 70, 193, 0.14);
+      }
+
+      .badge-callback {
+        background: rgba(47, 133, 90, 0.1);
+        color: #1e6a45;
+        border-color: rgba(47, 133, 90, 0.16);
+      }
+
+      .badge-public,
+      .badge-global-scope {
+        background: rgba(37, 99, 235, 0.08);
+        color: #1747b8;
+        border-color: rgba(37, 99, 235, 0.14);
+      }
+
+      .badge-auth,
+      .badge-workspace-scope {
+        background: rgba(47, 133, 90, 0.1);
+        color: #1e6a45;
+        border-color: rgba(47, 133, 90, 0.16);
+      }
+
+      .badge-admin {
+        background: rgba(197, 107, 24, 0.1);
+        color: #8c470c;
+        border-color: rgba(197, 107, 24, 0.18);
+      }
+
+      .badge-permission {
+        background: rgba(197, 107, 24, 0.08);
+        color: #8c470c;
+        border-color: rgba(197, 107, 24, 0.14);
+      }
+
+      .badge-count {
+        background: rgba(15, 23, 42, 0.05);
+        color: #334155;
+        border-color: rgba(15, 23, 42, 0.08);
+      }
+
+      .api-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .api-card {
+        background: var(--surface-strong);
+        border: 1px solid rgba(215, 224, 236, 0.95);
+        border-radius: 22px;
+        padding: 16px;
+        break-inside: avoid;
+      }
+
+      .api-card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+
+      .api-card-head h3 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        letter-spacing: -0.02em;
+      }
+
+      .api-card-head p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .api-card-badges {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-end;
+      }
+
+      .api-card-meta {
+        margin-top: 12px;
+        font-size: 11px;
+      }
+
+      .endpoint-list {
+        list-style: none;
+        margin: 14px 0 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+      }
+
+      .endpoint-list li {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+        padding: 8px 10px;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.03);
+      }
+
+      .method {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+
+      .method-get {
+        background: rgba(37, 99, 235, 0.12);
+        color: #1747b8;
+      }
+
+      .method-post {
+        background: rgba(47, 133, 90, 0.14);
+        color: #1e6a45;
+      }
+
+      .method-put,
+      .method-patch {
+        background: rgba(197, 107, 24, 0.14);
+        color: #8c470c;
+      }
+
+      .method-delete {
+        background: rgba(197, 48, 48, 0.12);
+        color: #9b2226;
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 11px;
+        margin-top: 10px;
+      }
+
+      .page-break {
+        break-before: page;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="sheet hero">
+        <div>
+          <span class="hero-tag">Processo • Fluxograma • Rotas reais do código</span>
+          <h1>Guia de Rotas do Sistema</h1>
+          <p>
+            Documento gerado a partir do roteamento do frontend e dos mounts do Express no backend.
+            O objetivo é mostrar o fluxo de navegação do usuário, os guards que mudam o caminho
+            dentro do workspace e o mapa completo dos endpoints disponíveis na API.
+          </p>
+          <p style="margin-top: 12px;">
+            Fontes principais: frontend/src/App.tsx, frontend/src/components/layout/AppSidebar.tsx,
+            frontend/src/components/auth/AuthGuard.tsx, frontend/src/components/auth/ProtectedRoute.tsx,
+            backend/src/index.ts e backend/src/routes/*.ts.
+          </p>
+        </div>
+        <div class="summary-grid">
+          
+    <article class="summary-card">
+      <span class="summary-label">Telas frontend</span>
+      <strong class="summary-value">18</strong>
+      <span class="summary-hint">Rotas de tela, callback e entrada contextual.</span>
+    </article>
+  
+          
+    <article class="summary-card">
+      <span class="summary-label">Redirecionamentos</span>
+      <strong class="summary-value">6</strong>
+      <span class="summary-hint">Aliases, fallbacks e atalhos administrativos.</span>
+    </article>
+  
+          
+    <article class="summary-card">
+      <span class="summary-label">Módulos da API</span>
+      <strong class="summary-value">24</strong>
+      <span class="summary-hint">10 globais e 14 com escopo de workspace.</span>
+    </article>
+  
+          
+    <article class="summary-card">
+      <span class="summary-label">Endpoints mapeados</span>
+      <strong class="summary-value">119</strong>
+      <span class="summary-hint">Contagem total extraída das rotas Express atuais.</span>
+    </article>
+  
+        </div>
+      </section>
+
+      <section class="sheet">
+        <div class="section-head">
+          <div>
+            <span class="section-eyebrow">Frontend</span>
+            <h2>Fluxo principal de navegação</h2>
+          </div>
+          <div class="section-copy">
+            O fluxo parte do catálogo público de workspaces, decide entre entrada direta ou autenticação
+            contextual e, só então, libera o conjunto de rotas internas do workspace.
+          </div>
+        </div>
+        <div class="diagram-wrap">
+          <div class="diagram-grid">
+            <pre class="mermaid">flowchart TB
+    Entry[&quot;Entrada pública&lt;br/&gt;/, /login e *&quot;]
+    Catalog[&quot;/workspaces&lt;br/&gt;seleção do contexto&quot;]
+    Access{&quot;Já existe sessão válida&lt;br/&gt;e acesso ao workspace?&quot;}
+    Login[&quot;/w/:workspaceSlug/login&lt;br/&gt;SSO, login legado,&lt;br/&gt;primeiro acesso e solicitação&quot;]
+    Sso[&quot;SSO central&lt;br/&gt;/api/sso/start&quot;]
+    Callback[&quot;/auth/callback&quot;]
+    Legacy[&quot;Login legado&quot;]
+    First[&quot;Definir senha inicial&lt;br/&gt;/api/auth/set-initial-password&quot;]
+    Request[&quot;Solicitar acesso&lt;br/&gt;/api/auth/request-access&quot;]
+    Pending[&quot;Fila de aprovação&quot;]
+    Guard[&quot;AuthGuard&lt;br/&gt;protege /w/:workspaceSlug/*&quot;]
+    Root[&quot;/w/:workspaceSlug&lt;br/&gt;raiz do workspace&quot;]
+    Dashboard[&quot;/ (Dashboard)&quot;]
+    Projects[&quot;/desenvolvimentos&quot;]
+    Activities[&quot;/atividades&quot;]
+    TeamCanvas[&quot;/canva-equipe&quot;]
+    Map[&quot;/mapa&quot;]
+    Priorities[&quot;/prioridades&quot;]
+    Indicators[&quot;/indicadores&quot;]
+    Profile[&quot;/perfil&quot;]
+    Achievements[&quot;/conquistas&quot;]
+    Levels[&quot;/niveis&quot;]
+    Tutorial[&quot;/tutorial&quot;]
+    AdminGuard[&quot;ProtectedRoute&lt;br/&gt;role=admin&quot;]
+    Org[&quot;/organograma&quot;]
+    Costs[&quot;/custos-departamento&quot;]
+    Settings[&quot;/configuracoes&quot;]
+    SettingsAdmin[&quot;/configuracoes/administracao&quot;]
+    AdminAliases[&quot;Atalhos admin&lt;br/&gt;/admin&lt;br/&gt;/configuracoes/organograma&lt;br/&gt;/configuracoes/custos-departamento&quot;]
+
+    Entry --&gt; Catalog --&gt; Access
+    Access --&gt;|Não| Login
+    Access --&gt;|Sim| Guard
+    Login --&gt;|Fluxo SSO| Sso --&gt; Callback --&gt; Guard
+    Login --&gt;|E-mail e senha| Legacy --&gt; Guard
+    Login --&gt;|Primeiro acesso| First --&gt; Guard
+    Login --&gt;|Sem acesso| Request --&gt; Pending
+    Guard --&gt; Root
+
+    Root --&gt; Dashboard
+    Root --&gt; Projects
+    Root --&gt; Activities
+    Root --&gt; TeamCanvas
+    Root --&gt; Map
+    Root --&gt; Priorities
+    Root --&gt; Indicators
+    Root --&gt; Profile
+    Root --&gt; Achievements
+    Root --&gt; Levels
+    Root --&gt; Tutorial
+    Root --&gt; AdminGuard
+    AdminGuard --&gt; Org
+    AdminGuard --&gt; Costs
+    AdminGuard --&gt; Settings --&gt; SettingsAdmin
+    Settings --&gt; AdminAliases
+
+    classDef public fill:#e8f1ff,stroke:#2d6cdf,color:#163b78,stroke-width:1.5px;
+    classDef auth fill:#effbf5,stroke:#2f855a,color:#164c34,stroke-width:1.5px;
+    classDef workspace fill:#f8f6ff,stroke:#6b46c1,color:#3b256c,stroke-width:1.5px;
+    classDef admin fill:#fff5eb,stroke:#c56b18,color:#7a420b,stroke-width:1.5px;
+    classDef pending fill:#fff3f3,stroke:#c53030,color:#7a1e1e,stroke-width:1.5px;
+
+    class Entry,Catalog,Callback public;
+    class Login,Sso,Legacy,First,Guard auth;
+    class Root,Dashboard,Projects,Activities,TeamCanvas,Map,Priorities,Indicators,Profile,Achievements,Levels,Tutorial workspace;
+    class AdminGuard,Org,Costs,Settings,SettingsAdmin,AdminAliases admin;
+    class Request,Pending pending;</pre>
+          </div>
+        </div>
+        <ul class="note-list">
+          <li>Todo /w/:workspaceSlug/* passa pelo AuthGuard antes de renderizar o layout principal.</li><li>O AuthGuard envia usuários sem sessão ou sem vínculo válido para /w/:workspaceSlug/login com returnTo seguro.</li><li>ProtectedRoute protege páginas de administração e devolve o usuário para a raiz do workspace quando falta cargo ou permissão.</li><li>A página /w/:workspaceSlug/configuracoes/administracao contém abas internas (Usuários, Cargos, Permissões e Conquistas), mas sem novas rotas.</li>
+        </ul>
+      </section>
+
+      <section class="sheet">
+        <div class="section-head">
+          <div>
+            <span class="section-eyebrow">Backend</span>
+            <h2>Pipeline das rotas de API</h2>
+          </div>
+          <div class="section-copy">
+            O backend deixa o health check fora da autenticação, hidrata contexto por token no authMiddleware
+            e só exige vínculo com workspace nos módulos montados com requireWorkspaceAccess.
+          </div>
+        </div>
+        <div class="diagram-wrap">
+          <pre class="mermaid">flowchart TB
+    Client[&quot;Cliente / SPA&quot;]
+    Health[&quot;GET /api/health&lt;br/&gt;health check público&quot;]
+    Auth[&quot;authMiddleware&lt;br/&gt;extrai usuário do JWT Supabase&quot;]
+    Global[&quot;Módulos globais ou token-aware&lt;br/&gt;/api/auth&lt;br/&gt;/api/sso&lt;br/&gt;/api/workspaces&lt;br/&gt;/api/users&lt;br/&gt;/api/roles&lt;br/&gt;/api/permissions&lt;br/&gt;/api/github&lt;br/&gt;/api/achievements&lt;br/&gt;/api/me/progress&quot;]
+    WorkspaceGate[&quot;requireWorkspaceAccess&lt;br/&gt;valida x-workspace-slug e vínculo&quot;]
+    Workspace[&quot;Módulos com escopo de workspace&lt;br/&gt;/api/projects&lt;br/&gt;/api/tasks&lt;br/&gt;/api/activities&lt;br/&gt;/api/todos&lt;br/&gt;/api/project-comments&lt;br/&gt;/api/notifications&lt;br/&gt;/api/indicators&lt;br/&gt;/api/team-canvas&lt;br/&gt;/api/org&lt;br/&gt;/api/departments&lt;br/&gt;/api/cost-items&lt;br/&gt;/api/cost-map&lt;br/&gt;/api/cost-management&quot;]
+    Api404[&quot;/api/* desconhecido&lt;br/&gt;404 JSON&quot;]
+    SpaFallback[&quot;Produção: não-API&lt;br/&gt;frontend/dist/index.html&quot;]
+
+    Client --&gt; Health
+    Client --&gt; Auth
+    Auth --&gt; Global
+    Auth --&gt; WorkspaceGate --&gt; Workspace
+    Global --&gt; Api404
+    Workspace --&gt; Api404
+    Client --&gt; SpaFallback
+
+    classDef public fill:#e8f1ff,stroke:#2d6cdf,color:#163b78,stroke-width:1.5px;
+    classDef auth fill:#effbf5,stroke:#2f855a,color:#164c34,stroke-width:1.5px;
+    classDef workspace fill:#fff5eb,stroke:#c56b18,color:#7a420b,stroke-width:1.5px;
+    classDef neutral fill:#f5f7fb,stroke:#7b8794,color:#334155,stroke-width:1.5px;
+
+    class Client,SpaFallback neutral;
+    class Health public;
+    class Auth,Global auth;
+    class WorkspaceGate,Workspace workspace;
+    class Api404 neutral;</pre>
+        </div>
+        <ul class="note-list">
+          <li>GET /api/health é a única rota antes do authMiddleware.</li><li>Depois do health check, todo /api/* passa pelo authMiddleware, que hidrata o usuário a partir do JWT quando ele existe.</li><li>Os módulos montados com requireWorkspaceAccess exigem contexto do workspace e validam o vínculo do usuário antes da lógica do domínio.</li><li>Em produção, rotas não-API caem no build da SPA; rotas /api/* desconhecidas retornam 404 em JSON.</li>
+        </ul>
+      </section>
+
+      <section class="sheet page-break">
+        <div class="section-head">
+          <div>
+            <span class="section-eyebrow">Inventário</span>
+            <h2>Mapa completo das rotas do frontend</h2>
+          </div>
+          <div class="section-copy">
+            Lista consolidada com caminho final, natureza da rota e observação operacional.
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Escopo</th>
+              <th>Rota</th>
+              <th>Tipo</th>
+              <th>Acesso</th>
+              <th>Uso</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+      <tr>
+        <td>Global</td>
+        <td><code>/</code></td>
+        <td><span class="badge badge-redirect">Redirect</span></td>
+        <td><span class="badge badge-public">Público</span></td>
+        <td>
+          <strong>Entrada raiz</strong>
+          <div class="route-summary">Redireciona sempre para /workspaces.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Global</td>
+        <td><code>/login</code></td>
+        <td><span class="badge badge-redirect">Redirect</span></td>
+        <td><span class="badge badge-public">Público</span></td>
+        <td>
+          <strong>Alias legado de entrada</strong>
+          <div class="route-summary">Redireciona para /workspaces.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Global</td>
+        <td><code>*</code></td>
+        <td><span class="badge badge-redirect">Redirect</span></td>
+        <td><span class="badge badge-public">Público</span></td>
+        <td>
+          <strong>Fallback global</strong>
+          <div class="route-summary">Qualquer rota desconhecida fora do workspace volta para /workspaces.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Global</td>
+        <td><code>/workspaces</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-public">Público</span></td>
+        <td>
+          <strong>Seletor de workspace</strong>
+          <div class="route-summary">Lista áreas, grupos e direciona para login ou entrada direta.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Global</td>
+        <td><code>/auth/callback</code></td>
+        <td><span class="badge badge-callback">Callback</span></td>
+        <td><span class="badge badge-public">Público</span></td>
+        <td>
+          <strong>Retorno do SSO central</strong>
+          <div class="route-summary">Troca code/state por sessão local e envia o usuário de volta ao destino seguro.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/login</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-public">Público contextual</span></td>
+        <td>
+          <strong>Acesso ao workspace</strong>
+          <div class="route-summary">Concentra SSO, login legado, primeiro acesso e solicitação de acesso.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Dashboard</strong>
+          <div class="route-summary">Ponto de entrada após o AuthGuard dentro do contexto escolhido.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/mapa</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Mapa</strong>
+          <div class="route-summary">Visão de leitura ampla da operação e das frentes do workspace.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/prioridades</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Prioridades</strong>
+          <div class="route-summary">Organiza leitura de importância e urgência.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/desenvolvimentos</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-permission">Permissão access_desenvolvimentos</span></td>
+        <td>
+          <strong>Projetos</strong>
+          <div class="route-summary">Área de projetos/desenvolvimentos com quadro operacional.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/atividades</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-permission">Permissão access_atividades</span></td>
+        <td>
+          <strong>Atividades</strong>
+          <div class="route-summary">Fluxo de atividades detalhadas e execução diária.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/canva-equipe</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Canva em equipe</strong>
+          <div class="route-summary">Espaço colaborativo de desenho e organização visual do time.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/indicadores</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Indicadores</strong>
+          <div class="route-summary">Métricas, pendências e leitura analítica do workspace.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/perfil</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Perfil</strong>
+          <div class="route-summary">Visão individual do usuário no contexto do workspace.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/conquistas</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Conquistas</strong>
+          <div class="route-summary">Lista de achievements e progresso desbloqueado.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/niveis</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Níveis</strong>
+          <div class="route-summary">Progressão de level/xp do usuário.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/tutorial</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-auth">Autenticado + acesso ao workspace</span></td>
+        <td>
+          <strong>Tutorial</strong>
+          <div class="route-summary">Explica a lógica do sistema e do modo de funcionamento.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/organograma</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Organograma</strong>
+          <div class="route-summary">Área administrativa de estrutura organizacional. ProtectedRoute redireciona para a raiz se o cargo não for admin.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/custos-departamento</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Custos</strong>
+          <div class="route-summary">Mapa de custos por departamento, também protegido por cargo admin.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/configuracoes</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Configurações</strong>
+          <div class="route-summary">Hub administrativo com aba Visão geral como índice interno.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/configuracoes/administracao</code></td>
+        <td><span class="badge badge-screen">Tela</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Administração</strong>
+          <div class="route-summary">Usuários, cargos, permissões e conquistas. As abas internas não criam novas URLs.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/configuracoes/organograma</code></td>
+        <td><span class="badge badge-alias">Alias</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Atalho administrativo</strong>
+          <div class="route-summary">Redireciona para /w/:workspaceSlug/organograma.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/configuracoes/custos-departamento</code></td>
+        <td><span class="badge badge-alias">Alias</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Atalho administrativo</strong>
+          <div class="route-summary">Redireciona para /w/:workspaceSlug/custos-departamento.</div>
+        </td>
+      </tr>
+    
+      <tr>
+        <td>Workspace</td>
+        <td><code>/w/:workspaceSlug/admin</code></td>
+        <td><span class="badge badge-alias">Alias</span></td>
+        <td><span class="badge badge-admin">Admin</span></td>
+        <td>
+          <strong>Atalho legado</strong>
+          <div class="route-summary">Redireciona para /w/:workspaceSlug/configuracoes/administracao.</div>
+        </td>
+      </tr>
+    
+          </tbody>
+        </table>
+      </section>
+
+      <section class="sheet page-break">
+        <div class="section-head">
+          <div>
+            <span class="section-eyebrow">Inventário</span>
+            <h2>Mapa de endpoints da API</h2>
+          </div>
+          <div class="section-copy">
+            Cards organizados por mount do Express, já com caminho final completo e método HTTP.
+          </div>
+        </div>
+        <div class="api-grid">
+          
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/health</h3>
+            <p>Health check público do backend.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">1 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/index.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/health</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/achievements</h3>
+            <p>Cadastro e manutenção das conquistas do sistema.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">5 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/achievements.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/achievements</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/achievements</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/achievements/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-patch">PATCH</span>
+          <code>/api/achievements/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/achievements/:id</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/activities</h3>
+            <p>CRUD de atividades e upload de capa.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">6 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/activities.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/activities</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/activities</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/activities/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/activities/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/activities/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/activities/:id/cover</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/auth</h3>
+            <p>Catálogo público de workspaces, primeiro acesso e solicitação de acesso.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">4 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/auth-hint.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/auth/first-access-hint</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/auth/public-workspaces</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/auth/request-access</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/auth/set-initial-password</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/cost-items</h3>
+            <p>Itens de custo e suas alocações.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">8 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/cost-items.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/cost-items</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/cost-items</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/cost-items/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-patch">PATCH</span>
+          <code>/api/cost-items/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/cost-items/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/cost-items/:id/allocations</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/cost-items/:id/allocations</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/cost-items/:id/allocations/:allocationId</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/cost-management</h3>
+            <p>Resumo e grafo agregado da gestão de custos.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">2 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/cost-management-summary.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/cost-management/graph</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/cost-management/summary</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/cost-map</h3>
+            <p>Persistência do layout visual do mapa de custos.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">2 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/cost-map.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/cost-map/layout</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/cost-map/layout</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/departments</h3>
+            <p>Departamentos, membros e custos associados.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">12 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/departments.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/departments</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/departments</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/departments/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-patch">PATCH</span>
+          <code>/api/departments/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/departments/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/departments/:id/costs</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/departments/:id/costs</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/departments/:id/costs/:costId</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/departments/:id/members</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/departments/:id/members</code>
+        </li>
+      
+        <li>
+          <span class="method method-patch">PATCH</span>
+          <code>/api/departments/:id/members/:userId</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/departments/:id/members/:userId</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/github</h3>
+            <p>Leitura de dados de repositório no GitHub.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">5 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/github.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/github/commits</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/github/commits-count</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/github/contributors</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/github/readme</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/github/repo</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/home</h3>
+            <p>Módulo sem descrição manual registrada.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">1 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/home.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/home</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/indicators</h3>
+            <p>Indicadores consolidados do workspace.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">1 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/indicators.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/indicators</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/notifications</h3>
+            <p>Listagem e leitura de notificações.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">5 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/notifications.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/notifications</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/notifications/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/notifications/:id/read</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/notifications/read-all</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/notifications/unread-count</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/org</h3>
+            <p>Árvore organizacional e detalhes de subárvore.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">8 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/org.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/org/entries</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/org/entries</code>
+        </li>
+      
+        <li>
+          <span class="method method-patch">PATCH</span>
+          <code>/api/org/entries/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/org/entries/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/org/entry/:entryId/subtree</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/org/entry/:entryId/subtree</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/org/entry/:entryId/summary</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/org/tree</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/permissions</h3>
+            <p>Consulta das permissões cadastradas.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">2 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/permissions.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/permissions</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/permissions/:id</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/me/progress</h3>
+            <p>Progresso gamificado do usuário autenticado.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">2 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/progress.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/me/progress</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/me/progress/thresholds</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/project-comments</h3>
+            <p>Comentários vinculados a projetos e atividades.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">5 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/project-comments.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/project-comments</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/project-comments/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/project-comments/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/project-comments/:projectId</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/project-comments/by-activity/:activityId</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/projects</h3>
+            <p>Projetos, ordenação e cartões resumo.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">9 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/projects.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/projects</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/projects</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/projects/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/projects/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/projects/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/projects/health-check</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/projects/reorder</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/projects/todo-card-summary</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/projects/version-check</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/roles</h3>
+            <p>Cargos e vínculo de permissões.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">7 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/roles.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/roles</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/roles</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/roles/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/roles/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/roles/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/roles/:id/permissions</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/roles/:id/permissions/:permissionId</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/sso</h3>
+            <p>Início, configuração e logout do SSO central.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">4 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/sso.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/sso/config</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/sso/exchange</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/sso/logout-url</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/sso/start</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/tasks</h3>
+            <p>Tarefas associadas aos projetos.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">5 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/tasks.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/tasks</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/tasks/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/tasks/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/tasks/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/tasks/project/:projectId</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/team-canvas</h3>
+            <p>Estado persistido do canvas de equipe.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">2 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/team-canvas.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/team-canvas</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/team-canvas</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/todos</h3>
+            <p>Todos de projeto/atividade e reordenação.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-workspace-scope">Workspace scope</span>
+            <span class="badge badge-count">7 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/todos.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/todos</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/todos/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/todos/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/todos/:projectId</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/todos/by-activity/:activityId</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/todos/reorder</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/todos/reorder-activity</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/users</h3>
+            <p>Identidade de usuário, vínculo de cargo e bootstrap de conta.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">12 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/users.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/users</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/users</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/users/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-put">PUT</span>
+          <code>/api/users/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/users/:id</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/users/:id/role</code>
+        </li>
+      
+        <li>
+          <span class="method method-delete">DELETE</span>
+          <code>/api/users/:id/role</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/users/auth-list</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/users/from-auth</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/users/me</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/users/me/finish-first-login</code>
+        </li>
+      
+        <li>
+          <span class="method method-post">POST</span>
+          <code>/api/users/with-auth</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+      <article class="api-card">
+        <div class="api-card-head">
+          <div>
+            <h3>/api/workspaces</h3>
+            <p>Contexto, membros e catálogo do workspace atual.</p>
+          </div>
+          <div class="api-card-badges">
+            <span class="badge badge-global-scope">Global / public-aware</span>
+            <span class="badge badge-count">4 endpoints</span>
+          </div>
+        </div>
+        <div class="api-card-meta">
+          <span>Fonte: backend/src/workspaces.ts</span>
+        </div>
+        <ul class="endpoint-list">
+          
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/workspaces/:workspaceSlug/context</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/workspaces/:workspaceSlug/members</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/workspaces/current/members</code>
+        </li>
+      
+        <li>
+          <span class="method method-get">GET</span>
+          <code>/api/workspaces/mine</code>
+        </li>
+      
+        </ul>
+      </article>
+    
+        </div>
+      </section>
+
+      <footer>
+        <span>Central de Tarefas • guia gerado automaticamente em domingo, 29 de março de 2026 às 09:53</span>
+        <span>Arquivo destino: output/guia-rotas-sistema.pdf</span>
+      </footer>
+    </main>
+
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
+
+      window.__diagramReady = false
+
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        flowchart: {
+          htmlLabels: true,
+          curve: 'basis',
+          nodeSpacing: 34,
+          rankSpacing: 48,
+        },
+        themeVariables: {
+          fontFamily: 'Manrope, Segoe UI, sans-serif',
+          fontSize: '15px',
+          primaryColor: '#e8f1ff',
+          primaryTextColor: '#122033',
+          primaryBorderColor: '#2d6cdf',
+          lineColor: '#5a6980',
+          tertiaryColor: '#ffffff',
+          background: '#ffffff',
+        },
+      })
+
+      try {
+        await mermaid.run({ querySelector: '.mermaid' })
+        window.__diagramReady = true
+        document.body.dataset.diagrams = 'ready'
+      } catch (error) {
+        console.error(error)
+        document.body.dataset.diagrams = 'failed'
+      }
+    </script>
+  </body>
+</html>

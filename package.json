@@ -8,14 +8,14 @@
     "backend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
-    "dev:server": "concurrently \"npm run dev --workspace=backend\" \"npm run dev:server --workspace=frontend\"",
-    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
-    "lint": "npm run lint --workspace=frontend",
+    "dev": "node ./scripts/run-project.mjs dev",
+    "dev:server": "node ./scripts/run-project.mjs dev:server",
+    "build": "node ./scripts/run-project.mjs build",
+    "lint": "node ./scripts/run-project.mjs lint",
     "audit:runtime": "npm audit --omit=dev",
     "audit:full": "npm audit",
     "ci": "npm run lint && npm run build && npm run audit:runtime",
-    "start": "npm run start --workspace=backend",
+    "start": "node ./scripts/run-project.mjs start",
     "install:all": "npm install && npm install --workspace=frontend && npm install --workspace=backend"
   },
   "engines": {

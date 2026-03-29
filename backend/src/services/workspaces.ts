@@ -1,4 +1,11 @@
 import { supabase } from '../config/supabase.js';
+import {
+  type CdtUserCompatRow,
+  findCdtUserByField,
+  insertCdtUserCompat,
+  listCdtUsersByIds,
+  updateCdtUserByIdCompat,
+} from './cdt-users.js';
 
 export type WorkspaceRouteStatus = 'success' | 'pending' | 'blocked' | 'not_found';
 export type WorkspaceAccessState = 'active' | 'pending' | 'blocked' | 'none';
@@ -47,6 +54,9 @@ export type WorkspaceMembershipRow = {
   joined_at: string;
   created_at: string;
   updated_at: string;
+  role_id?: string | null;
+  legacy_is_active?: boolean | null;
+  legacy_left_at?: string | null;
 };
 
 export type WorkspaceAccessRequestRow = {
@@ -116,6 +126,180 @@ function isMissingColumnError(error: unknown): boolean {
   return code === '42703' || /column .* does not exist|does not exist/i.test(message);
 }
 
+function isMissingRelationError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+
+  const code = 'code' in error ? String((error as { code?: unknown }).code ?? '') : '';
+  const message = 'message' in error ? String((error as { message?: unknown }).message ?? '') : '';
+
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    /relation .* does not exist/i.test(message) ||
+    /Could not find the table/i.test(message)
+  );
+}
+
+const MEMBERSHIP_REQUIRED_COLUMNS = ['id', 'workspace_id', 'user_id'] as const;
+
+const MEMBERSHIP_OPTIONAL_COLUMNS = [
+  'role_key',
+  'membership_status',
+  'is_default',
+  'joined_at',
+  'created_at',
+  'updated_at',
+  'role_id',
+  'is_active',
+  'left_at',
+  'status',
+  'role_name',
+] as const;
+
+type OptionalMembershipReadColumn = (typeof MEMBERSHIP_OPTIONAL_COLUMNS)[number];
+
+function getMissingWorkspaceMembershipColumn(error: unknown): OptionalMembershipReadColumn | null {
+  const msg = String((error as { message?: string } | null)?.message || '');
+
+  const quoted = msg.match(/'([^']+)' column/i)?.[1];
+  if (quoted && MEMBERSHIP_OPTIONAL_COLUMNS.includes(quoted as OptionalMembershipReadColumn)) {
+    return quoted as OptionalMembershipReadColumn;
+  }
+
+  for (const column of MEMBERSHIP_OPTIONAL_COLUMNS) {
+    if (
+      msg.includes(column) &&
+      (/does not exist/i.test(msg) || /Could not find/i.test(msg) || /schema cache/i.test(msg))
+    ) {
+      return column;
+    }
+  }
+
+  return null;
+}
+
+function normalizeWorkspaceMembershipRow(row: Record<string, unknown> | null): WorkspaceMembershipRow | null {
+  if (!row?.id || typeof row.id !== 'string') return null;
+  if (typeof row.workspace_id !== 'string' || typeof row.user_id !== 'string') return null;
+
+  const legacyIsActive = typeof row.is_active === 'boolean' ? row.is_active : null;
+  const legacyLeftAt = typeof row.left_at === 'string' ? row.left_at : null;
+  const membershipStatusRaw =
+    (typeof row.membership_status === 'string' ? row.membership_status : null) ??
+    (typeof row.status === 'string' ? row.status : null) ??
+    (legacyIsActive === null ? null : legacyIsActive ? 'active' : legacyLeftAt ? 'revoked' : 'blocked') ??
+    'active';
+
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    user_id: row.user_id,
+    role_key:
+      (typeof row.role_key === 'string' ? row.role_key : null) ??
+      (typeof row.role_name === 'string' ? row.role_name : null) ??
+      'member',
+    membership_status: membershipStatusRaw.toLowerCase(),
+    is_default: typeof row.is_default === 'boolean' ? row.is_default : false,
+    joined_at:
+      (typeof row.joined_at === 'string' ? row.joined_at : null) ??
+      (typeof row.created_at === 'string' ? row.created_at : null) ??
+      '',
+    created_at:
+      (typeof row.created_at === 'string' ? row.created_at : null) ??
+      (typeof row.joined_at === 'string' ? row.joined_at : null) ??
+      '',
+    updated_at:
+      (typeof row.updated_at === 'string' ? row.updated_at : null) ??
+      (typeof row.created_at === 'string' ? row.created_at : null) ??
+      '',
+    role_id: typeof row.role_id === 'string' ? row.role_id : null,
+    legacy_is_active: legacyIsActive,
+    legacy_left_at: legacyLeftAt,
+  };
+}
+
+function sortWorkspaceMembershipRows(rows: WorkspaceMembershipRow[]): WorkspaceMembershipRow[] {
+  return [...rows].sort((a, b) => {
+    if (a.is_default !== b.is_default) {
+      return a.is_default ? -1 : 1;
+    }
+
+    return (a.joined_at || '').localeCompare(b.joined_at || '');
+  });
+}
+
+async function loadWorkspaceMembershipRows(params: {
+  workspaceId?: string;
+  userId?: string;
+}): Promise<WorkspaceMembershipRow[]> {
+  let columns = [...MEMBERSHIP_REQUIRED_COLUMNS, ...MEMBERSHIP_OPTIONAL_COLUMNS];
+  const removed = new Set<string>();
+
+  while (true) {
+    let query = supabase.from('cdt_workspace_memberships').select(columns.join(', '));
+
+    if (params.workspaceId) {
+      query = query.eq('workspace_id', params.workspaceId);
+    }
+
+    if (params.userId) {
+      query = query.eq('user_id', params.userId);
+    }
+
+    const result = await query;
+
+    if (!result.error) {
+      return ((result.data ?? []) as Record<string, unknown>[])
+        .map((row) => normalizeWorkspaceMembershipRow(row))
+        .filter((row): row is WorkspaceMembershipRow => Boolean(row));
+    }
+
+    const missingColumn = getMissingWorkspaceMembershipColumn(result.error);
+    if (!missingColumn || removed.has(missingColumn) || !columns.includes(missingColumn)) {
+      throw result.error;
+    }
+
+    removed.add(missingColumn);
+    columns = columns.filter((column) => column !== missingColumn);
+  }
+}
+
+async function loadWorkspaceMembershipByWorkspaceAndUser(
+  workspaceId: string,
+  userId: string,
+): Promise<WorkspaceMembershipRow | null> {
+  const rows = await loadWorkspaceMembershipRows({ workspaceId, userId });
+  return sortWorkspaceMembershipRows(rows)[0] ?? null;
+}
+
+async function loadWorkspaceAccessRequestRows(
+  workspaceId?: string,
+): Promise<WorkspaceAccessRequestRow[]> {
+  const selectColumns =
+    'id, workspace_id, user_id, requested_email, requested_name, message, status, decision_reason, created_at, updated_at, reviewed_at, reviewed_by';
+
+  for (const table of ['cdt_workspace_access_requests', 'cdt_access_requests'] as const) {
+    let query = supabase.from(table).select(selectColumns);
+    if (workspaceId) {
+      query = query.eq('workspace_id', workspaceId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (!error) {
+      return (data ?? []) as WorkspaceAccessRequestRow[];
+    }
+
+    if (isMissingRelationError(error) || isMissingColumnError(error)) {
+      continue;
+    }
+
+    throw error;
+  }
+
+  return [];
+}
+
 function withWorkspaceDefaults(
   workspace: Partial<WorkspaceRow> & Pick<WorkspaceRow, 'id' | 'slug' | 'name'>,
 ): WorkspaceRow {
@@ -137,6 +321,20 @@ function withWorkspaceDefaults(
 function normalizeEmail(value: string | null | undefined): string | null {
   const trimmed = value?.trim().toLowerCase() ?? '';
   return trimmed || null;
+}
+
+function toWorkspaceUserRow(user: CdtUserCompatRow | null): WorkspaceUserRow | null {
+  if (!user?.id) return null;
+
+  return {
+    id: user.id,
+    central_user_id: user.central_user_id ?? null,
+    email: user.email ?? '',
+    name: user.name ?? 'Usuario',
+    avatar_url: user.avatar_url ?? null,
+    is_active: user.is_active !== false,
+    identity_status: user.identity_status ?? null,
+  };
 }
 
 function titleize(value: string): string {
@@ -237,23 +435,21 @@ export async function resolveWorkspaceUser(params: {
   }
 
   for (const candidate of candidates) {
-    const { data, error } = await supabase
-      .from('cdt_users')
-      .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-      .eq(candidate.field, candidate.value)
-      .maybeSingle();
+    const data = await findCdtUserByField({
+      field: candidate.field,
+      value: candidate.value,
+      includeColumns: ['central_user_id', 'identity_status'],
+    });
+    const workspaceUser = toWorkspaceUserRow(data);
 
-    if (error) {
+    if (!workspaceUser) {
       continue;
     }
-    if (!data) {
-      continue;
-    }
-    if (!includeInactive && data.is_active === false) {
+    if (!includeInactive && workspaceUser.is_active === false) {
       continue;
     }
     return {
-      user: data,
+      user: workspaceUser,
       source: candidate.field,
     };
   }
@@ -341,32 +537,13 @@ async function loadWorkspaceAccessSnapshot(params: {
   }
 
   const membership = params.subjectUser
-    ? await supabase
-        .from('cdt_workspace_memberships')
-        .select('id, workspace_id, user_id, role_key, membership_status, is_default, joined_at, created_at, updated_at')
-        .eq('workspace_id', workspace.id)
-        .eq('user_id', params.subjectUser.id)
-        .maybeSingle()
-        .then(({ data, error }: { data: WorkspaceMembershipRow | null; error: unknown }) => {
-          if (error) throw error;
-          return data ?? null;
-        })
+    ? await loadWorkspaceMembershipByWorkspaceAndUser(workspace.id, params.subjectUser.id)
     : null;
 
   let request: WorkspaceAccessRequestRow | null = null;
   if (params.subjectUser) {
-    const { data: requests, error } = await supabase
-      .from('cdt_workspace_access_requests')
-      .select(
-        'id, workspace_id, user_id, requested_email, requested_name, message, status, decision_reason, created_at, updated_at, reviewed_at, reviewed_by',
-      )
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
     const normalizedEmail = normalizeEmail(params.subjectUser.email);
-    const requestRows = (requests ?? []) as WorkspaceAccessRequestRow[];
+    const requestRows = await loadWorkspaceAccessRequestRows(workspace.id);
     request =
       requestRows.find((row: WorkspaceAccessRequestRow) => row.user_id === params.subjectUser?.id) ??
       (normalizedEmail
@@ -412,28 +589,12 @@ function formatRoleKey(roleKey: string): string {
 }
 
 async function loadWorkspaceMembershipsForUser(userId: string): Promise<WorkspaceMembershipRow[]> {
-  const { data, error } = await supabase
-    .from('cdt_workspace_memberships')
-    .select('id, workspace_id, user_id, role_key, membership_status, is_default, joined_at, created_at, updated_at')
-    .eq('user_id', userId)
-    .order('is_default', { ascending: false })
-    .order('joined_at', { ascending: true });
-
-  if (error) throw error;
-  return data ?? [];
+  return sortWorkspaceMembershipRows(await loadWorkspaceMembershipRows({ userId }));
 }
 
 async function loadWorkspaceRequestsForUser(subjectUser: WorkspaceUserRow): Promise<WorkspaceAccessRequestRow[]> {
   const normalizedEmail = normalizeEmail(subjectUser.email);
-  const { data, error } = await supabase
-    .from('cdt_workspace_access_requests')
-    .select(
-      'id, workspace_id, user_id, requested_email, requested_name, message, status, decision_reason, created_at, updated_at, reviewed_at, reviewed_by',
-    )
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  const requestRows = (data ?? []) as WorkspaceAccessRequestRow[];
+  const requestRows = await loadWorkspaceAccessRequestRows();
   return requestRows.filter((row: WorkspaceAccessRequestRow) => {
     if (row.user_id === subjectUser.id) return true;
     if (!normalizedEmail) return false;
@@ -628,29 +789,21 @@ export async function loadWorkspaceMembersForSlug(params: {
     };
   }
 
-  const { data: memberships, error: membershipsError } = await supabase
-    .from('cdt_workspace_memberships')
-    .select('id, workspace_id, user_id, role_key, membership_status, is_default, joined_at, created_at, updated_at')
-    .eq('workspace_id', snapshot.workspace.id)
-    .eq('membership_status', 'active')
-    .order('is_default', { ascending: false })
-    .order('joined_at', { ascending: true });
-
-  if (membershipsError) throw membershipsError;
-
-  const membershipRows = (memberships ?? []) as WorkspaceMembershipRow[];
+  const membershipRows = sortWorkspaceMembershipRows(
+    (await loadWorkspaceMembershipRows({ workspaceId: snapshot.workspace.id })).filter(
+      (membership: WorkspaceMembershipRow) => membership.membership_status === 'active',
+    ),
+  );
   const userIds = Array.from(new Set(membershipRows.map((membership: WorkspaceMembershipRow) => membership.user_id)));
   const usersById = new Map<string, WorkspaceUserRow>();
 
   if (userIds.length > 0) {
-    const { data: users, error: usersError } = await supabase
-      .from('cdt_users')
-      .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-      .in('id', userIds);
-
-    if (usersError) throw usersError;
-
-    const userRows = (users ?? []) as WorkspaceUserRow[];
+    const userRows = (await listCdtUsersByIds(userIds, [
+      'central_user_id',
+      'identity_status',
+    ]))
+      .map((user) => toWorkspaceUserRow(user))
+      .filter((user): user is WorkspaceUserRow => Boolean(user));
     for (const user of userRows) {
       usersById.set(user.id, user);
     }
@@ -713,127 +866,112 @@ async function ensureLocalWorkspaceUser(params: {
   const nowIso = new Date().toISOString();
   const normalizedEmail = normalizeEmail(params.email) ?? params.email.toLowerCase();
 
-  const byCentralUserId = await supabase
-    .from('cdt_users')
-    .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-    .eq('central_user_id', params.authUserId)
-    .maybeSingle();
+  const byCentralUserId = toWorkspaceUserRow(await findCdtUserByField({
+    field: 'central_user_id',
+    value: params.authUserId,
+    includeColumns: ['central_user_id', 'identity_status'],
+  }));
 
-  if (byCentralUserId.error) throw byCentralUserId.error;
-  if (byCentralUserId.data?.id) {
-    const nextIsActive = byCentralUserId.data.is_active !== false;
-    const { error: updateError } = await supabase
-      .from('cdt_users')
-      .update({
-        email: normalizedEmail,
-        name: params.name,
-        is_active: nextIsActive,
-        identity_status: nextIsActive ? 'linked' : 'manual_review',
-        last_identity_sync_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq('id', byCentralUserId.data.id);
-    if (updateError) throw updateError;
+  if (byCentralUserId?.id) {
+    const nextIsActive = byCentralUserId.is_active !== false;
+    await updateCdtUserByIdCompat(byCentralUserId.id, {
+      email: normalizedEmail,
+      name: params.name,
+      is_active: nextIsActive,
+      identity_status: nextIsActive ? 'linked' : 'manual_review',
+      last_identity_sync_at: nowIso,
+      updated_at: nowIso,
+    });
 
-    const resolved = await supabase
-      .from('cdt_users')
-      .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-      .eq('id', byCentralUserId.data.id)
-      .single();
-    if (resolved.error) throw resolved.error;
+    const resolved = toWorkspaceUserRow(await findCdtUserByField({
+      field: 'id',
+      value: byCentralUserId.id,
+      includeColumns: ['central_user_id', 'identity_status'],
+    }));
 
-    return { user: resolved.data, created: false };
+    return { user: resolved, created: false };
   }
 
-  const byId = await supabase
-    .from('cdt_users')
-    .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-    .eq('id', params.authUserId)
-    .maybeSingle();
+  const byId = toWorkspaceUserRow(await findCdtUserByField({
+    field: 'id',
+    value: params.authUserId,
+    includeColumns: ['central_user_id', 'identity_status'],
+  }));
 
-  if (byId.error) throw byId.error;
-  if (byId.data?.id) {
-    const nextIsActive = byId.data.is_active !== false;
-    const { error: updateError } = await supabase
-      .from('cdt_users')
-      .update({
-        email: normalizedEmail,
-        name: params.name,
-        central_user_id: byId.data.central_user_id ?? params.authUserId,
-        is_active: nextIsActive,
-        identity_status: nextIsActive ? 'linked' : 'manual_review',
-        last_identity_sync_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq('id', byId.data.id);
-    if (updateError) throw updateError;
+  if (byId?.id) {
+    const nextIsActive = byId.is_active !== false;
+    await updateCdtUserByIdCompat(byId.id, {
+      email: normalizedEmail,
+      name: params.name,
+      central_user_id: byId.central_user_id ?? params.authUserId,
+      is_active: nextIsActive,
+      identity_status: nextIsActive ? 'linked' : 'manual_review',
+      last_identity_sync_at: nowIso,
+      updated_at: nowIso,
+    });
 
-    const resolved = await supabase
-      .from('cdt_users')
-      .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-      .eq('id', byId.data.id)
-      .single();
-    if (resolved.error) throw resolved.error;
+    const resolved = toWorkspaceUserRow(await findCdtUserByField({
+      field: 'id',
+      value: byId.id,
+      includeColumns: ['central_user_id', 'identity_status'],
+    }));
 
-    return { user: resolved.data, created: false };
+    return { user: resolved, created: false };
   }
 
-  const byEmail = await supabase
-    .from('cdt_users')
-    .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-    .eq('email', normalizedEmail)
-    .maybeSingle();
+  const byEmail = toWorkspaceUserRow(await findCdtUserByField({
+    field: 'email',
+    value: normalizedEmail,
+    includeColumns: ['central_user_id', 'identity_status'],
+  }));
 
-  if (byEmail.error) throw byEmail.error;
-  if (byEmail.data?.id) {
-    if (byEmail.data.central_user_id && byEmail.data.central_user_id !== params.authUserId) {
+  if (byEmail?.id) {
+    if (byEmail.central_user_id && byEmail.central_user_id !== params.authUserId) {
       throw new Error('Este email ja esta vinculado a outra identidade central.');
     }
 
-    const nextIsActive = byEmail.data.is_active !== false;
-    const { error: updateError } = await supabase
-      .from('cdt_users')
-      .update({
-        name: params.name,
-        central_user_id: params.authUserId,
-        is_active: nextIsActive,
-        identity_status: nextIsActive ? 'linked' : 'manual_review',
-        last_identity_sync_at: nowIso,
-        updated_at: nowIso,
-      })
-      .eq('id', byEmail.data.id);
-    if (updateError) throw updateError;
-
-    const resolved = await supabase
-      .from('cdt_users')
-      .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-      .eq('id', byEmail.data.id)
-      .single();
-    if (resolved.error) throw resolved.error;
-
-    return { user: resolved.data, created: false };
-  }
-
-  const inserted = await supabase
-    .from('cdt_users')
-    .insert({
-      id: params.authUserId,
-      central_user_id: params.authUserId,
-      identity_status: 'manual_review',
-      last_identity_sync_at: nowIso,
+    const nextIsActive = byEmail.is_active !== false;
+    await updateCdtUserByIdCompat(byEmail.id, {
       email: normalizedEmail,
       name: params.name,
-      avatar_url: null,
-      is_active: false,
-    })
-    .select('id, central_user_id, email, name, avatar_url, is_active, identity_status')
-    .single();
+      central_user_id: params.authUserId,
+      is_active: nextIsActive,
+      identity_status: nextIsActive ? 'linked' : 'manual_review',
+      last_identity_sync_at: nowIso,
+      updated_at: nowIso,
+    });
 
-  if (inserted.error || !inserted.data?.id) {
-    throw inserted.error ?? new Error('Falha ao criar usuario local para solicitacao de acesso.');
+    const resolved = toWorkspaceUserRow(await findCdtUserByField({
+      field: 'id',
+      value: byEmail.id,
+      includeColumns: ['central_user_id', 'identity_status'],
+    }));
+
+    return { user: resolved, created: false };
   }
 
-  return { user: inserted.data, created: true };
+  await insertCdtUserCompat({
+    id: params.authUserId,
+    central_user_id: params.authUserId,
+    identity_status: 'manual_review',
+    last_identity_sync_at: nowIso,
+    email: normalizedEmail,
+    name: params.name,
+    avatar_url: null,
+    is_active: false,
+  });
+
+  const inserted = toWorkspaceUserRow(await findCdtUserByField({
+    field: 'id',
+    value: params.authUserId,
+    includeColumns: ['central_user_id', 'identity_status'],
+  }));
+
+  if (!inserted?.id) {
+    throw new Error('Falha ao criar usuario local para solicitacao de acesso.');
+  }
+
+  return { user: inserted, created: true };
 }
 
 async function createAccessRequestRow(params: {
@@ -843,23 +981,36 @@ async function createAccessRequestRow(params: {
   name: string;
   message: string | null;
 }): Promise<WorkspaceAccessRequestRow> {
-  const { data, error } = await supabase
-    .from('cdt_workspace_access_requests')
-    .insert({
-      workspace_id: params.workspaceId,
-      user_id: params.user.id,
-      requested_email: params.email,
-      requested_name: params.name,
-      message: params.message,
-      status: 'pending',
-    })
-    .select(
-      'id, workspace_id, user_id, requested_email, requested_name, message, status, decision_reason, created_at, updated_at, reviewed_at, reviewed_by',
-    )
-    .single();
+  const payload = {
+    workspace_id: params.workspaceId,
+    user_id: params.user.id,
+    requested_email: params.email,
+    requested_name: params.name,
+    message: params.message,
+    status: 'pending',
+  };
 
-  if (error || !data) throw error ?? new Error('Falha ao registrar solicitacao de acesso.');
-  return data;
+  for (const table of ['cdt_workspace_access_requests', 'cdt_access_requests'] as const) {
+    const { data, error } = await supabase
+      .from(table)
+      .insert(payload)
+      .select(
+        'id, workspace_id, user_id, requested_email, requested_name, message, status, decision_reason, created_at, updated_at, reviewed_at, reviewed_by',
+      )
+      .maybeSingle();
+
+    if (!error && data) {
+      return data as WorkspaceAccessRequestRow;
+    }
+
+    if (error && (isMissingRelationError(error) || isMissingColumnError(error))) {
+      continue;
+    }
+
+    throw error ?? new Error('Falha ao registrar solicitacao de acesso.');
+  }
+
+  throw new Error('Fluxo de solicitacao de acesso indisponivel neste schema.');
 }
 
 async function findLatestAccessRequest(params: {
@@ -867,18 +1018,8 @@ async function findLatestAccessRequest(params: {
   email: string;
   userId?: string | null;
 }): Promise<WorkspaceAccessRequestRow | null> {
-  const { data, error } = await supabase
-    .from('cdt_workspace_access_requests')
-    .select(
-      'id, workspace_id, user_id, requested_email, requested_name, message, status, decision_reason, created_at, updated_at, reviewed_at, reviewed_by',
-    )
-    .eq('workspace_id', params.workspaceId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-
   const normalizedEmail = normalizeEmail(params.email);
-  const requestRows = (data ?? []) as WorkspaceAccessRequestRow[];
+  const requestRows = await loadWorkspaceAccessRequestRows(params.workspaceId);
   const matches = requestRows.filter((row: WorkspaceAccessRequestRow) => {
     if (params.userId && row.user_id === params.userId) return true;
     return normalizeEmail(row.requested_email) === normalizedEmail;
@@ -966,16 +1107,7 @@ export async function requestWorkspaceAccess(params: {
     userId: existingLocalUser.user?.id ?? null,
   });
   const existingMembership = existingLocalUser.user
-    ? await supabase
-        .from('cdt_workspace_memberships')
-        .select('id, workspace_id, user_id, role_key, membership_status, is_default, joined_at, created_at, updated_at')
-        .eq('workspace_id', workspace.id)
-        .eq('user_id', existingLocalUser.user.id)
-        .maybeSingle()
-        .then(({ data, error }: { data: WorkspaceMembershipRow | null; error: unknown }) => {
-          if (error) throw error;
-          return data ?? null;
-        })
+    ? await loadWorkspaceMembershipByWorkspaceAndUser(workspace.id, existingLocalUser.user.id)
     : null;
 
   const accessBefore = mapAccessState({
@@ -1138,16 +1270,7 @@ export async function loadCurrentWorkspaceMembers(params: {
     };
   }
 
-  const { data: memberships, error } = await supabase
-    .from('cdt_workspace_memberships')
-    .select('id, workspace_id, user_id, role_key, membership_status, is_default, joined_at, created_at, updated_at')
-    .eq('user_id', subjectUser.user.id)
-    .order('is_default', { ascending: false })
-    .order('joined_at', { ascending: true });
-
-  if (error) throw error;
-
-  const membershipRows = (memberships ?? []) as WorkspaceMembershipRow[];
+  const membershipRows = await loadWorkspaceMembershipsForUser(subjectUser.user.id);
   const activeMembership = membershipRows.find((membership: WorkspaceMembershipRow) => membership.membership_status === 'active') ?? null;
   const selectedMembership = activeMembership ?? membershipRows[0] ?? null;
 

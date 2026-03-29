@@ -31,7 +31,7 @@ Sistema de gerenciamento de tarefas e projetos desenvolvido para o Departamento 
 ## 📦 Instalação
 
 ### Pré-requisitos
-- Node.js 18+ e npm
+- Node.js 20.19.x e npm 10+
 - Conta no Supabase
 - (Opcional) Token de acesso pessoal do GitHub
 
@@ -117,6 +117,18 @@ Acesse o Supabase Dashboard > SQL Editor e execute o script completo do arquivo 
 5. **Execute o projeto**
 ```bash
 npm run dev
+```
+
+No Windows, os scripts da raiz agora normalizam esse cenário automaticamente, inclusive quando o PowerShell abrir o projeto em um caminho com prefixo `\\?\` (por exemplo `\\?\C:\...`).
+
+Se quiser rodar o launcher PowerShell diretamente, ele continua disponível:
+```powershell
+.\scripts\dev.ps1
+```
+
+Para build local no mesmo ambiente:
+```powershell
+.\scripts\build.ps1
 ```
 
 Isso iniciará:

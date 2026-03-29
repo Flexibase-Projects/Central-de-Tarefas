@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase.js';
 import { ensureNativeAdminAccess } from '../services/native-admin.js';
+import { findCdtUserByField, updateCdtUserByIdCompat } from '../services/cdt-users.js';
 import { hasRole } from '../services/permissions.js';
 
 type AuthRequest = Request & {
@@ -98,64 +99,57 @@ export async function authMiddleware(
     let realUserId: string | null = null;
 
     // Novo fluxo: vínculo explícito com a identidade central.
-    const byCentralUserId = await supabase
-      .from('cdt_users')
-      .select('id, is_active')
-      .eq('central_user_id', user.id)
-      .maybeSingle();
+    const byCentralUserId = await findCdtUserByField({
+      field: 'central_user_id',
+      value: user.id,
+      includeColumns: ['central_user_id'],
+    });
 
-    if (!byCentralUserId.error && byCentralUserId.data?.id && byCentralUserId.data.is_active !== false) {
-      realUserId = byCentralUserId.data.id;
+    if (byCentralUserId?.id && byCentralUserId.is_active !== false) {
+      realUserId = byCentralUserId.id;
     }
 
     // Compatibilidade com o modelo legado em que cdt_users.id == auth.users.id.
     if (!realUserId) {
-      const byId = await supabase
-        .from('cdt_users')
-        .select('id, central_user_id, is_active')
-        .eq('id', user.id)
-        .maybeSingle();
+      const byId = await findCdtUserByField({
+        field: 'id',
+        value: user.id,
+        includeColumns: ['central_user_id'],
+      });
 
-      if (!byId.error && byId.data?.id && byId.data.is_active !== false) {
-        realUserId = byId.data.id;
+      if (byId?.id && byId.is_active !== false) {
+        realUserId = byId.id;
 
-        if (!byId.data.central_user_id || byId.data.central_user_id === user.id) {
-          await supabase
-            .from('cdt_users')
-            .update({
-              central_user_id: user.id,
-              identity_status: 'linked',
-              last_identity_sync_at: nowIso,
-            })
-            .eq('id', byId.data.id);
+        if (!byId.central_user_id || byId.central_user_id === user.id) {
+          await updateCdtUserByIdCompat(byId.id, {
+            central_user_id: user.id,
+            identity_status: 'linked',
+            last_identity_sync_at: nowIso,
+          });
         }
       }
     }
 
     // Fallback legado por email: só vincula automaticamente quando não há conflito explícito.
     if (!realUserId && user.email) {
-      const byEmail = await supabase
-        .from('cdt_users')
-        .select('id, central_user_id, is_active')
-        .eq('email', user.email.toLowerCase())
-        .maybeSingle();
+      const byEmail = await findCdtUserByField({
+        field: 'email',
+        value: user.email.toLowerCase(),
+        includeColumns: ['central_user_id'],
+      });
 
       if (
-        !byEmail.error &&
-        byEmail.data?.id &&
-        byEmail.data.is_active !== false &&
-        (!byEmail.data.central_user_id || byEmail.data.central_user_id === user.id)
+        byEmail?.id &&
+        byEmail.is_active !== false &&
+        (!byEmail.central_user_id || byEmail.central_user_id === user.id)
       ) {
-        realUserId = byEmail.data.id;
+        realUserId = byEmail.id;
 
-        await supabase
-          .from('cdt_users')
-          .update({
-            ...(byEmail.data.central_user_id ? {} : { central_user_id: user.id }),
-            identity_status: 'linked',
-            last_identity_sync_at: nowIso,
-          })
-          .eq('id', byEmail.data.id);
+        await updateCdtUserByIdCompat(byEmail.id, {
+          ...(byEmail.central_user_id ? {} : { central_user_id: user.id }),
+          identity_status: 'linked',
+          last_identity_sync_at: nowIso,
+        });
       }
     }
 
@@ -185,13 +179,13 @@ export async function authMiddleware(
       if (requestedUserIdHeader && requestedUserIdHeader !== realUserId) {
         const realUserIsAdmin = await hasRole(realUserId, 'admin');
         if (realUserIsAdmin) {
-          const target = await supabase
-            .from('cdt_users')
-            .select('id, is_active')
-            .eq('id', requestedUserIdHeader)
-            .maybeSingle();
-          if (!target.error && target.data?.id && target.data.is_active !== false) {
-            effectiveUserId = target.data.id;
+          const target = await findCdtUserByField({
+            field: 'id',
+            value: requestedUserIdHeader,
+            includeColumns: [],
+          });
+          if (target?.id && target.is_active !== false) {
+            effectiveUserId = target.id;
           }
         }
       }

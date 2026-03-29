@@ -1,0 +1,135 @@
+{
+    "generated_at":  "2026-03-28T18:37:27",
+    "api":  [
+                {
+                    "path":  "/api/health",
+                    "method":  "GET",
+                    "status":  200,
+                    "body":  "{\"status\":\"ok\",\"timestamp\":\"2026-03-28T21:37:27.612Z\"}"
+                },
+                {
+                    "path":  "/api/sso/config",
+                    "method":  "GET",
+                    "status":  200,
+                    "body":  "{\"enabled\":false,\"allow_legacy_password_login\":true,\"client_id\":null,\"redirect_uri\":null,\"portal_url\":null,\"authorize_path\":\"/authorize\",\"logout_path\":\"/logout\",\"scope\":\"openid profile email\"}"
+                },
+                {
+                    "path":  "/api/sso/start",
+                    "method":  "POST",
+                    "status":  404,
+                    "body":  ""
+                },
+                {
+                    "path":  "/api/sso/exchange",
+                    "method":  "POST",
+                    "status":  404,
+                    "body":  ""
+                }
+            ],
+    "routes":  [
+                   {
+                       "name":  "root",
+                       "path":  "/",
+                       "final_url":  "http://127.0.0.1:3002/workspaces",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-37-30-376Z.yml",
+                       "snapshot_excerpt":  "- generic [ref=e3]:\r\n  - generic [ref=e4]:\r\n    - generic [ref=e5]:\r\n      - button \"Workspaces\" [ref=e6] [cursor=pointer]:\r\n        - img [ref=e8]\r\n        - text: Workspaces\r\n      - button \"Modo escuro\" [ref=e10] [cursor=pointer]:\r\n        - img [ref=e11]\r\n    - generic [ref=e14]:\r\n      - heading \"Acesso ao workspace\" [level=4] [ref=e15]\r\n      - paragraph [ref=e16]: Entre com sua conta da plataforma dentro do contexto correto.\r\n    - generic [ref=e17]:\r\n      - img [ref=e19]\r\n      - generic [ref=e23]:\r\n        - heading \"Carregando workspace\" [level=6] [ref=e24]\r\n        - paragraph [ref=e25]: O acesso e definido por workspace antes do login.\r\n    - generic [ref=e26]:\r\n      - paragraph [ref=e28]: Login, solicitacao de acesso e definicao de senha inicial usam o mesmo fluxo.\r\n      - paragraph [ref=e30]: O contexto do workspace aplica navegacao, modulos e permissoes corretos assim que voce entra.\r\n  - progressbar [ref=e34]:\r\n    - img [ref=e35]",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 21804.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/workspaces\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-37-30-376Z.yml)"
+                   },
+                   {
+                       "name":  "login",
+                       "path":  "/login",
+                       "final_url":  "http://127.0.0.1:3002/workspaces",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-37-34-877Z.yml",
+                       "snapshot_excerpt":  "- progressbar [ref=e4]:\r\n  - img [ref=e5]",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 7572.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/login\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/workspaces\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-37-34-877Z.yml)"
+                   },
+                   {
+                       "name":  "dashboard",
+                       "path":  "/dashboard",
+                       "final_url":  "http://127.0.0.1:3002/workspaces",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-37-38-947Z.yml",
+                       "snapshot_excerpt":  "- generic [ref=e3]:\r\n  - generic [ref=e4]:\r\n    - generic [ref=e5]:\r\n      - button \"Workspaces\" [ref=e6] [cursor=pointer]:\r\n        - img [ref=e8]\r\n        - text: Workspaces\r\n      - button \"Modo escuro\" [ref=e10] [cursor=pointer]:\r\n        - img [ref=e11]\r\n    - generic [ref=e14]:\r\n      - heading \"Acesso ao workspace\" [level=4] [ref=e15]\r\n      - paragraph [ref=e16]: Entre com sua conta da plataforma dentro do contexto correto.\r\n    - generic [ref=e17]:\r\n      - img [ref=e19]\r\n      - generic [ref=e23]:\r\n        - heading \"Carregando workspace\" [level=6] [ref=e24]\r\n        - paragraph [ref=e25]: O acesso e definido por workspace antes do login.\r\n    - generic [ref=e26]:\r\n      - paragraph [ref=e28]: Login, solicitacao de acesso e definicao de senha inicial usam o mesmo fluxo.\r\n      - paragraph [ref=e30]: O contexto do workspace aplica navegacao, modulos e permissoes corretos assim que voce entra.\r\n  - progressbar [ref=e34]:\r\n    - img [ref=e35]",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 15748.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/dashboard\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/workspaces\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-37-38-947Z.yml)"
+                   },
+                   {
+                       "name":  "workspaces",
+                       "path":  "/workspaces",
+                       "final_url":  "http://127.0.0.1:3002/workspaces",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-37-44-051Z.yml",
+                       "snapshot_excerpt":  "- generic [ref=e3]:\r\n  - generic [ref=e4]:\r\n    - generic [ref=e5]:\r\n      - button \"Workspaces\" [ref=e6] [cursor=pointer]:\r\n        - img [ref=e8]\r\n        - text: Workspaces\r\n      - button \"Modo escuro\" [ref=e10] [cursor=pointer]:\r\n        - img [ref=e11]\r\n    - generic [ref=e14]:\r\n      - heading \"Acesso ao workspace\" [level=4] [ref=e15]\r\n      - paragraph [ref=e16]: Entre com sua conta da plataforma dentro do contexto correto.\r\n    - generic [ref=e17]:\r\n      - img [ref=e19]\r\n      - generic [ref=e23]:\r\n        - heading \"Carregando workspace\" [level=6] [ref=e24]\r\n        - paragraph [ref=e25]: O acesso e definido por workspace antes do login.\r\n    - generic [ref=e26]:\r\n      - paragraph [ref=e28]: Login, solicitacao de acesso e definicao de senha inicial usam o mesmo fluxo.\r\n      - paragraph [ref=e30]: O contexto do workspace aplica navegacao, modulos e permissoes corretos assim que voce entra.\r\n  - progressbar [ref=e34]:\r\n    - img [ref=e35]",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 6916.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/workspaces\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/workspaces\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-37-44-051Z.yml)"
+                   },
+                   {
+                       "name":  "workspace_login",
+                       "path":  "/w/demo/login",
+                       "final_url":  "http://127.0.0.1:3002/workspaces",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-37-50-256Z.yml",
+                       "snapshot_excerpt":  "- generic [ref=e3]:\r\n  - generic [ref=e4]:\r\n    - generic [ref=e5]:\r\n      - button \"Workspaces\" [ref=e6] [cursor=pointer]:\r\n        - img [ref=e8]\r\n        - text: Workspaces\r\n      - button \"Modo escuro\" [ref=e10] [cursor=pointer]:\r\n        - img [ref=e11]\r\n    - generic [ref=e14]:\r\n      - heading \"Acesso ao workspace\" [level=4] [ref=e15]\r\n      - paragraph [ref=e16]: Entre com sua conta da plataforma dentro do contexto correto.\r\n    - generic [ref=e17]:\r\n      - img [ref=e19]\r\n      - generic [ref=e23]:\r\n        - heading \"Carregando workspace\" [level=6] [ref=e24]\r\n        - paragraph [ref=e25]: O acesso e definido por workspace antes do login.\r\n    - generic [ref=e26]:\r\n      - paragraph [ref=e28]: Login, solicitacao de acesso e definicao de senha inicial usam o mesmo fluxo.\r\n      - paragraph [ref=e30]: O contexto do workspace aplica navegacao, modulos e permissoes corretos assim que voce entra.\r\n  - progressbar [ref=e34]:\r\n    - img [ref=e35]",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 19496.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/w/demo/login\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/workspaces\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-37-50-256Z.yml)"
+                   },
+                   {
+                       "name":  "callback_missing",
+                       "path":  "/auth/callback",
+                       "final_url":  "http://127.0.0.1:3002/auth/callback",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-37-57-106Z.yml",
+                       "snapshot_excerpt":  "- generic [ref=e5]:\r\n  - generic [ref=e7]:\r\n    - heading \"Conectando acesso central\" [level=4] [ref=e8]\r\n    - paragraph [ref=e9]: Estamos concluindo a troca segura do authorization code pela sessao local do CDT.\r\n  - generic [ref=e10]:\r\n    - progressbar [ref=e11]:\r\n      - img [ref=e12]\r\n    - paragraph [ref=e14]: Validando state, trocando o code com o portal e reidratando sua sessao.",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 2160.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/auth/callback\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/auth/callback\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-37-57-106Z.yml)"
+                   },
+                   {
+                       "name":  "callback_provider_error",
+                       "path":  "/auth/callback?error=access_denied\u0026error_description=Negado%20pelo%20portal",
+                       "final_url":  "http://127.0.0.1:3002/auth/callback?error=access_denied\u0026error_description=Negado%20pelo%20portal",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-38-02-603Z.yml",
+                       "snapshot_excerpt":  "- generic \"Carregando pÃ¡gina\" [ref=e3]:\r\n  - progressbar [ref=e4]:\r\n    - img [ref=e5]",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 18868.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/auth/callback?error=access_denied\u0026error_description=Negado%20pelo%20portal\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/auth/callback?error=access_denied\u0026error_description=Negado%20pelo%20portal\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-38-02-603Z.yml)"
+                   },
+                   {
+                       "name":  "callback_fake_code",
+                       "path":  "/auth/callback?code=fake-code\u0026state=fake-state",
+                       "final_url":  "http://127.0.0.1:3002/auth/callback?code=fake-code\u0026state=fake-state",
+                       "title":  "CDT Inteligência - Central de Tarefas",
+                       "has_snapshot":  true,
+                       "snapshot_path":  "C:\\Users\\juand\\Documents\\GitHub\\Central-de-Tarefas\\.playwright-cli\\page-2026-03-28T21-38-09-091Z.yml",
+                       "snapshot_excerpt":  "- generic [ref=e5]:\r\n  - generic [ref=e7]:\r\n    - heading \"Conectando acesso central\" [level=4] [ref=e8]\r\n    - paragraph [ref=e9]: Estamos concluindo a troca segura do authorization code pela sessao local do CDT.\r\n  - generic [ref=e10]:\r\n    - progressbar [ref=e11]:\r\n      - img [ref=e12]\r\n    - paragraph [ref=e14]: Validando state, trocando o code com o portal e reidratando sua sessao.",
+                       "errors":  [
+
+                                  ],
+                       "raw_output":  "### Browser `default` opened with pid 18664.\r\n- default:\r\n  - browser-type: chrome\r\n  - user-data-dir: \u003cin-memory\u003e\r\n  - headed: false\r\n---\r\n### Ran Playwright code\r\n```js\r\nawait page.goto(\u0027http://127.0.0.1:3002/auth/callback?code=fake-code\u0026state=fake-state\u0027);\r\n```\r\n### Page\r\n- Page URL: http://127.0.0.1:3002/auth/callback?code=fake-code\u0026state=fake-state\r\n- Page Title: CDT Inteligência - Central de Tarefas\r\n### Snapshot\r\n- [Snapshot](.playwright-cli\\page-2026-03-28T21-38-09-091Z.yml)"
+                   }
+               ]
+}

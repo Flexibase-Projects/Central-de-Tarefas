@@ -1,7 +1,8 @@
 import type { Request } from 'express';
 import { supabase } from '../config/supabase.js';
-import { getRequesterId } from '../middleware/auth.js';
+import { getAuthUserEmail, getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { getUserPermissions } from './permissions.js';
+import { resolveWorkspaceContext as resolveWorkspaceContextCompat } from './workspaces.js';
 
 export type WorkspaceStatus = 'active' | 'pending' | 'revoked';
 
@@ -74,6 +75,49 @@ function normalizeEmail(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const normalized = raw.trim().toLowerCase();
   return normalized || null;
+}
+
+function toWorkspaceRecord(
+  workspace: Awaited<ReturnType<typeof resolveWorkspaceContextCompat>> extends { workspace: infer T }
+    ? Exclude<T, null>
+    : never,
+): WorkspaceRecord {
+  return {
+    id: workspace.id,
+    slug: workspace.slug,
+    name: workspace.name,
+    description: workspace.description ?? null,
+    group_key: workspace.group_key,
+    group_label: workspace.group?.label ?? workspace.group_key,
+    group_description: workspace.group?.description ?? null,
+    avatar_url: workspace.avatar_url ?? null,
+    is_public: workspace.is_public,
+    is_active: workspace.is_active,
+  };
+}
+
+function toWorkspaceMembershipRecord(
+  membership: NonNullable<
+    Awaited<ReturnType<typeof resolveWorkspaceContextCompat>> extends { membership: infer T } ? T : never
+  >,
+): WorkspaceMembershipRecord {
+  const roleName = membership.role_key ?? 'member';
+  return {
+    id: membership.id,
+    workspace_id: membership.workspace_id,
+    user_id: membership.user_id,
+    role_name: roleName,
+    role_display_name: roleName === 'admin' ? 'Administrador' : roleName === 'member' ? 'Membro' : roleName,
+    status:
+      membership.membership_status === 'pending'
+        ? 'pending'
+        : membership.membership_status === 'active'
+          ? 'active'
+          : 'revoked',
+    source: 'workspace_compat',
+    approved_at: membership.membership_status === 'active' ? membership.updated_at ?? membership.created_at : null,
+    revoked_at: membership.membership_status === 'revoked' ? membership.updated_at ?? membership.created_at : null,
+  };
 }
 
 export function readWorkspaceSlugFromRequest(req: Request): string | null {
@@ -430,8 +474,47 @@ export async function getCurrentWorkspaceContextFromRequest(req: Request) {
     return { status: 'missing_workspace' as const };
   }
 
-  return resolveWorkspaceContext({
-    workspaceSlug,
-    userId: requesterId,
+  const resolved = await resolveWorkspaceContextCompat({
+    slug: workspaceSlug,
+    requesterUserId: requesterId,
+    authUserId: getAuthUserId(req),
+    authUserEmail: getAuthUserEmail(req),
   });
+
+  if (resolved.status === 'not_found' || !resolved.workspace) {
+    return { status: 'not_found' as const };
+  }
+
+  const workspace = toWorkspaceRecord(resolved.workspace);
+
+  if (resolved.status === 'blocked') {
+    return { status: 'blocked' as const, workspace };
+  }
+
+  if (resolved.status === 'pending') {
+    return { status: 'pending' as const, workspace };
+  }
+
+  if (resolved.status !== 'success' || !resolved.membership) {
+    return { status: 'forbidden' as const, workspace };
+  }
+
+  const membership = toWorkspaceMembershipRecord(resolved.membership);
+  if (membership.status === 'pending') {
+    return { status: 'pending' as const, workspace };
+  }
+
+  if (membership.status !== 'active') {
+    return { status: 'revoked' as const, workspace };
+  }
+
+  const permissions = (await getUserPermissions(requesterId)).map((permission) => permission.name);
+  return {
+    status: 'ok' as const,
+    payload: {
+      workspace,
+      membership,
+      permissions,
+    },
+  };
 }

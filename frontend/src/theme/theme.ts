@@ -137,6 +137,7 @@ export function createAppTheme(mode: PaletteMode) {
             '--surface-default': neutrals.panel,
             '--surface-subtle': neutrals.panelAlt,
             '--surface-interactive': neutrals.panelInteractive,
+            '--surface-raised': light ? '#ffffff' : '#1b2129',
             '--border-default': neutrals.line,
             '--border-strong': neutrals.lineStrong,
             '--text-primary': neutrals.text,
@@ -187,7 +188,9 @@ export function createAppTheme(mode: PaletteMode) {
             backgroundColor: neutrals.panel,
             borderRadius: radii.md,
             border: `1px solid ${neutrals.line}`,
-            boxShadow: 'none',
+            boxShadow: light
+              ? '0 2px 10px rgba(15, 23, 42, 0.04)'
+              : '0 8px 18px rgba(0, 0, 0, 0.18)',
           },
         },
       },
@@ -198,7 +201,9 @@ export function createAppTheme(mode: PaletteMode) {
             backgroundColor: neutrals.panel,
             borderRadius: radii.md,
             border: `1px solid ${neutrals.line}`,
-            boxShadow: 'none',
+            boxShadow: light
+              ? '0 2px 10px rgba(15, 23, 42, 0.04)'
+              : '0 8px 18px rgba(0, 0, 0, 0.18)',
           },
         },
       },
@@ -239,10 +244,14 @@ export function createAppTheme(mode: PaletteMode) {
           },
           contained: {
             borderColor: alpha(primary.dark, 0.45),
-            boxShadow: 'none',
+            boxShadow: light
+              ? '0 6px 16px rgba(40, 89, 197, 0.18)'
+              : '0 8px 18px rgba(122, 162, 248, 0.18)',
             '&:hover': {
               backgroundColor: primary.dark,
-              boxShadow: 'none',
+              boxShadow: light
+                ? '0 10px 22px rgba(40, 89, 197, 0.22)'
+                : '0 12px 24px rgba(122, 162, 248, 0.22)',
             },
           },
           outlined: {

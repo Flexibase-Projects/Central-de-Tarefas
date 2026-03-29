@@ -2,18 +2,20 @@ import { Paper, type PaperProps, type SxProps, type Theme } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 
 type AppSurfaceVariant = 'default' | 'subtle' | 'interactive'
+type ExtendedAppSurfaceVariant = AppSurfaceVariant | 'raised'
 
 interface AppSurfaceProps extends Omit<PaperProps, 'variant'> {
-  surface?: AppSurfaceVariant
+  surface?: ExtendedAppSurfaceVariant
   compact?: boolean
 }
 
-function getSurfaceStyles(surface: AppSurfaceVariant): SxProps<Theme> {
+function getSurfaceStyles(surface: ExtendedAppSurfaceVariant): SxProps<Theme> {
   return (theme) => {
     const borderColor = theme.palette.divider
     const palette = {
       default: theme.palette.background.paper,
       subtle: theme.palette.action.hover,
+      raised: 'var(--surface-raised)',
       interactive: theme.palette.mode === 'light'
         ? alpha(theme.palette.primary.main, 0.035)
         : alpha(theme.palette.primary.main, 0.08),
@@ -23,7 +25,28 @@ function getSurfaceStyles(surface: AppSurfaceVariant): SxProps<Theme> {
       backgroundColor: palette[surface],
       border: `1px solid ${borderColor}`,
       borderRadius: 'var(--radius-md)',
-      boxShadow: 'none',
+      boxShadow:
+        surface === 'raised'
+          ? theme.palette.mode === 'light'
+            ? '0 10px 30px rgba(15, 23, 42, 0.08)'
+            : '0 14px 28px rgba(0, 0, 0, 0.28)'
+          : surface === 'interactive'
+            ? theme.palette.mode === 'light'
+              ? '0 4px 16px rgba(15, 23, 42, 0.05)'
+              : '0 8px 18px rgba(0, 0, 0, 0.2)'
+            : 'none',
+      transition: 'transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease',
+      ...(surface === 'interactive'
+        ? {
+            '&:hover': {
+              transform: 'translateY(-1px)',
+              boxShadow:
+                theme.palette.mode === 'light'
+                  ? '0 10px 24px rgba(15, 23, 42, 0.08)'
+                  : '0 14px 26px rgba(0, 0, 0, 0.28)',
+            },
+          }
+        : null),
     }
   }
 }

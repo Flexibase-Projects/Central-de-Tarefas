@@ -23,10 +23,12 @@ import {
   Tooltip,
 } from '@mui/material'
 import { Plus, Trash2, Pencil, X } from 'lucide-react'
-import { OrgChartIcon } from '@/components/ui/icons'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { OrgTreeFlow } from '@/components/org-chart/OrgTreeFlow'
 import { OrgSummaryPanel } from '@/components/org-chart/OrgSummaryPanel'
+import AppSurface from '@/components/system/AppSurface'
+import SectionHeader from '@/components/system/SectionHeader'
+import StatusToken from '@/components/system/StatusToken'
 import { useOrgTree, useOrgSummary, useOrgEntries } from '@/hooks/use-org'
 import { useCostGraph } from '@/hooks/use-cost-graph'
 import type { OrgTreeNode, Department } from '@/types/cost-org'
@@ -317,33 +319,33 @@ export default function Organograma() {
           pb: 2,
         }}
       >
-        <Box sx={{ flexShrink: 0 }}>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 1.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <OrgChartIcon style={{ color: 'var(--mui-palette-secondary-main)', width: 32, height: 32 }} />
-              <Typography variant="h5" component="h1" fontWeight={600}>
-                Organograma da Empresa
-              </Typography>
-            </Box>
-            <Button variant="contained" startIcon={<Plus size={18} />} onClick={openManage} sx={{ ml: { md: 'auto' } }}>
-              Gerenciar organograma
-            </Button>
+        <AppSurface surface="subtle" sx={{ flexShrink: 0 }}>
+          <SectionHeader
+            title="Organograma da Empresa"
+            description="Canvas principal da estrutura. O painel lateral funciona como inspector persistente para consulta e edição contextual."
+            actions={
+              <Button variant="contained" startIcon={<Plus size={18} />} onClick={openManage}>
+                Gerenciar estrutura
+              </Button>
+            }
+            sx={{ pb: 1.25 }}
+          />
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
+            <StatusToken tone="info">Canvas + inspector</StatusToken>
+            <StatusToken tone="neutral">Clique em um nó para editar</StatusToken>
+            {selectedEntryId ? <StatusToken tone="success">Inspector aberto</StatusToken> : null}
           </Box>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, maxWidth: 720 }}>
-            Clique em outro nó a qualquer momento: o painel à direita só atualiza os dados, sem fechar o mapa. Use o X
-            para fechar o painel.
-          </Typography>
-
           {error?.includes('MIGRATION') || error?.includes('migração') || error?.includes('004') || error?.includes('005') ? (
-            <Alert severity="warning" sx={{ mb: 1.5 }}>
+            <Alert severity="warning" sx={{ mb: 0.5 }}>
               Migrações: <strong>004</strong> (hierarquia por nome) e <strong>005_org_person_salary_cost.sql</strong> (salário/custo) no
               Supabase, se ainda não aplicou.
             </Alert>
           ) : null}
-        </Box>
+        </AppSurface>
 
-        <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <AppSurface surface="raised" sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', p: 1.25 }}>
           <OrgTreeFlow
             tree={tree}
             loading={loading}
@@ -352,7 +354,7 @@ export default function Organograma() {
             onSelectEntry={onSelectEntry}
             fillHeight
           />
-        </Box>
+        </AppSurface>
 
         <Drawer
           anchor="right"

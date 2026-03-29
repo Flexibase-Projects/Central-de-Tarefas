@@ -31,6 +31,7 @@ import { useAchievements } from '@/hooks/use-achievements'
 import { useTodos } from '@/hooks/use-todos'
 import { TodoList } from './todo-list'
 import { CommentsSection } from './comments-section'
+import { getStatusLabel } from '@/lib/status-labels'
 
 interface ActivityCardDialogProps {
   activity: Activity | null
@@ -42,11 +43,11 @@ interface ActivityCardDialogProps {
 }
 
 const statusOptions: { value: Activity['status']; label: string }[] = [
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'todo', label: 'To Do' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'review', label: 'Review' },
-  { value: 'done', label: 'Done' },
+  { value: 'backlog', label: getStatusLabel('backlog') },
+  { value: 'todo', label: getStatusLabel('todo') },
+  { value: 'in_progress', label: getStatusLabel('in_progress') },
+  { value: 'review', label: getStatusLabel('review') },
+  { value: 'done', label: getStatusLabel('done') },
 ]
 
 const priorityOptions: { value: Activity['priority']; label: string }[] = [
