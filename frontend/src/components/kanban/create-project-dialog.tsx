@@ -11,7 +11,7 @@ import {
   Select,
   MenuItem,
   Box,
-} from '@mui/material';
+} from '@/compat/mui/material';
 import { Project } from '@/types';
 import { useProjectResponsibleUsers } from '@/hooks/use-project-responsible-users';
 

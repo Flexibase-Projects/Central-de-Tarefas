@@ -1,5 +1,6 @@
 import { ReactNode, useMemo, useState } from 'react'
-import { Avatar, Box, Stack, Typography, Alert, Tooltip } from '@mui/material'
+import { Avatar, Box, Stack, Typography, Alert, Tooltip } from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { AppSidebar } from './AppSidebar'
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown'
 import { ViewAsUserButton } from './ViewAsUserButton'
@@ -77,7 +78,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
           flexDirection: 'column',
           minHeight: '100vh',
           ml: `${sidebarWidth}px`,
-          transition: (theme) => theme.transitions.create('margin', { duration: 180 }),
+          transition: (theme: Theme) => theme.transitions.create('margin', { duration: 180 }),
           overflow: 'hidden',
         }}
       >

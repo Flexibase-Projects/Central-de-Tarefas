@@ -25,7 +25,8 @@ import {
   IconButton,
   Tooltip,
   Drawer,
-} from '@mui/material'
+} from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { Plus, RefreshCw, Link2, UserPlus, Building2, UserCircle, Pencil, X, Trash2 } from 'lucide-react'
 import {
   CostTreeFlow,
@@ -715,7 +716,7 @@ export default function CustosDepartamento() {
               borderLeft: 1,
               borderColor: 'divider',
               bgcolor: 'background.paper',
-              boxShadow: (t) => t.shadows[12],
+              boxShadow: (t: Theme) => t.shadows[12],
             },
           }}
         >

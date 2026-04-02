@@ -14,8 +14,8 @@ import {
   Tooltip,
   Typography,
   Avatar,
-} from '@mui/material'
-import { Visibility, VisibilityOff, Search, Close } from '@mui/icons-material'
+} from '@/compat/mui/material'
+import { Visibility, VisibilityOff, Search, Close } from '@/compat/mui/icons-material'
 import { useAuth } from '@/contexts/AuthContext'
 import { isGlobalAdminRoleName } from '@/lib/global-admin'
 import { useUsers } from '@/hooks/use-users'

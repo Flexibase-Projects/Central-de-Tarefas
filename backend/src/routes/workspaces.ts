@@ -21,6 +21,7 @@ import {
   listWorkspaceResolvedUserProfiles,
   upsertWorkspaceUserProfile,
 } from '../services/workspace-user-profiles.js';
+import { resolveWorkspaceCapabilitySet } from '../services/workspace-capabilities.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 import {
   isValidationError,
@@ -513,6 +514,11 @@ router.get('/:workspaceSlug/context', async (req, res) => {
     const modules = await listWorkspaceModuleStates(workspaceContext.workspace.id);
     const membershipPayload = buildMembershipPayload(workspaceContext.membership);
     const roleKey = membershipPayload?.role_key ?? null;
+    const capabilities = await resolveWorkspaceCapabilitySet({
+      requesterUserId: getRequesterId(req) ?? workspaceContext.membership.user_id,
+      membershipRoleKey: roleKey,
+      modules,
+    });
 
     return res.json({
       status: 'success',
@@ -520,9 +526,12 @@ router.get('/:workspaceSlug/context', async (req, res) => {
       access_state: context.access_state,
       membership: membershipPayload,
       workspace_role_flags: {
-        is_managerial: isManagerialWorkspaceRole(roleKey),
+        is_managerial: capabilities.is_workspace_manager,
+        is_global_admin: capabilities.is_global_admin,
+        can_manage_workspace: capabilities.can_manage_workspace,
       },
       modules,
+      capabilities,
       request: context.request,
       subject_user: subjectUser.user,
       members: await withWorkspaceMemberPresentations(workspaceContext.workspace.id, context.members),
@@ -549,6 +558,11 @@ router.get('/:workspaceSlug/my-profile', async (req, res) => {
     const membershipPayload = buildMembershipPayload(workspaceContext.membership);
     const roleKey = membershipPayload?.role_key ?? null;
     const modules = await listWorkspaceModuleStates(workspaceContext.workspace.id);
+    const capabilities = await resolveWorkspaceCapabilitySet({
+      requesterUserId: getRequesterId(req) ?? workspaceContext.membership.user_id,
+      membershipRoleKey: roleKey,
+      modules,
+    });
     const gamificationModule = modules.find((module) => module.key === 'gamification') ?? null;
     const gamificationEnabled = Boolean(gamificationModule?.available && gamificationModule.is_enabled);
     const [profile, teamSummary] = await Promise.all([
@@ -562,9 +576,12 @@ router.get('/:workspaceSlug/my-profile', async (req, res) => {
       workspace: workspaceContext.workspace,
       membership: membershipPayload,
       workspace_role_flags: {
-        is_managerial: isManagerialWorkspaceRole(roleKey),
+        is_managerial: capabilities.is_workspace_manager,
+        is_global_admin: capabilities.is_global_admin,
+        can_manage_workspace: capabilities.can_manage_workspace,
       },
       modules,
+      capabilities,
       profile: buildProfilePayload(profile),
       team_gamification_summary: {
         enabled: gamificationEnabled,

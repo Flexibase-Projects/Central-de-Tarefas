@@ -24,7 +24,7 @@ import {
   type XYPosition,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, CircularProgress, Menu, MenuItem, Snackbar, Alert, Typography, useTheme } from '@mui/material'
+import { Box, CircularProgress, Menu, MenuItem, Snackbar, Alert, Typography, useTheme } from '@/compat/mui/material'
 import { layoutWithDagre } from '@/components/tree-funnel/dagreLayout'
 import type { CostManagementGraph, CostItem, CostCanvasFocus } from '@/types/cost-org'
 import type { OrgEntry } from '@/hooks/use-org'

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Collapse, LinearProgress, Stack, Typography } from '@mui/material'
+import { Collapse, LinearProgress, Stack, Typography } from '@/compat/mui/material'
 import { RefreshCw } from 'lucide-react'
 import AppSurface from '@/components/system/AppSurface'
 

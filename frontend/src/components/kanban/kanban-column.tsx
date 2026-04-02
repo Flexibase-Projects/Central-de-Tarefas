@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Box, Paper, Typography, useTheme } from '@mui/material';
+import { Box, Paper, Typography, useTheme } from '@/compat/mui/material';
 import { Project } from '@/types';
 import { KanbanCard } from './kanban-card';
 import { useProjectTodoCardSummary } from '@/hooks/use-project-todo-card-summary';

@@ -12,7 +12,7 @@ import {
   type Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Box, CircularProgress, Typography, useTheme } from '@mui/material'
+import { Box, CircularProgress, Typography, useTheme } from '@/compat/mui/material'
 import { layoutWithDagre } from '@/components/tree-funnel/dagreLayout'
 import type { OrgTreeNode } from '@/types/cost-org'
 import OrgPersonNode from './OrgPersonNode'

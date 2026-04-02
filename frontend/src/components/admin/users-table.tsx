@@ -23,8 +23,8 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material'
-import { ToggleOn, ToggleOff } from '@mui/icons-material'
+} from '@/compat/mui/material'
+import { ToggleOn, ToggleOff } from '@/compat/mui/icons-material'
 import { Plus } from '@/components/ui/icons'
 import { useAssignableUsersCatalog } from '@/hooks/use-assignable-users-catalog'
 import { useRoles } from '@/hooks/use-roles'

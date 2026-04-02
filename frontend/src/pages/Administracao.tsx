@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Tab, Tabs, Typography } from '@mui/material'
+import { Alert, Box, Tab, Tabs, Typography } from '@/compat/mui/material'
 import { People, Security, Key, Trophy } from '@/components/ui/icons'
 import { UsersTable } from '@/components/admin/users-table'
 import { RolesTable } from '@/components/admin/roles-table'
@@ -15,12 +15,12 @@ export default function Administracao() {
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
   const { hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
-  const { isManagerial } = useWorkspaceContext(currentWorkspace?.slug ?? null)
+  const { canManageWorkspace } = useWorkspaceContext(currentWorkspace?.slug ?? null)
   const isGlobalAdmin = hasRole('admin')
 
   const tabs = useMemo(() => {
     return [
-      { value: 'users' as const, label: 'Usuarios', icon: <People />, visible: isManagerial || isGlobalAdmin },
+      { value: 'users' as const, label: 'Usuarios', icon: <People />, visible: canManageWorkspace },
       { value: 'roles' as const, label: 'Cargos', icon: <Security />, visible: isGlobalAdmin },
       { value: 'permissions' as const, label: 'Permissoes', icon: <Key />, visible: isGlobalAdmin },
       {
@@ -30,14 +30,14 @@ export default function Administracao() {
         visible: isGlobalAdmin,
       },
     ].filter((tab) => tab.visible)
-  }, [isGlobalAdmin, isManagerial])
+  }, [canManageWorkspace, isGlobalAdmin])
 
   useEffect(() => {
     if (tabs.some((tab) => tab.value === activeTab)) return
     setActiveTab((tabs[0]?.value ?? 'users') as AdminTab)
   }, [activeTab, tabs])
 
-  if (!isManagerial && !isGlobalAdmin) {
+  if (!canManageWorkspace) {
     return (
       <Box sx={{ height: '100%', overflow: 'auto', p: 3 }}>
         <Alert severity="warning">

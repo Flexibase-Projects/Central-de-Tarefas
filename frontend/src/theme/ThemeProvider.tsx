@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, createContext, useContext, useState, useCallback } from 'react';
-import { ThemeProvider as MuiThemeProvider, CssBaseline } from '@mui/material';
-import type { PaletteMode } from '@mui/material';
+import { ThemeProvider as MuiThemeProvider, CssBaseline } from '@/compat/mui/material';
+import type { PaletteMode } from '@/compat/mui/material';
 import { createAppTheme } from './theme';
 
 export type ThemeMode = 'light' | 'dark';

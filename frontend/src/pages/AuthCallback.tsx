@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, Stack, Typography } from '@/compat/mui/material'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'

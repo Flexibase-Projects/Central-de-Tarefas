@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, Typography, Paper, CircularProgress } from '@mui/material'
+import { Box, Typography, Paper, CircularProgress } from '@/compat/mui/material'
 import { Permission } from '@/types'
 import { apiUrl } from '@/lib/api'
 

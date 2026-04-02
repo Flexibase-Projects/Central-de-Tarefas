@@ -1,4 +1,4 @@
-import { Box, Chip, Stack, Typography } from '@mui/material'
+import { Box, Chip, Stack, Typography } from '@/compat/mui/material'
 
 export default function CanvaEquipe() {
   return (

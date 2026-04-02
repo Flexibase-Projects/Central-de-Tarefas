@@ -9,8 +9,8 @@ import {
   Divider,
   Stack,
   Typography,
-} from '@mui/material'
-import { alpha } from '@mui/material/styles'
+} from '@/compat/mui/material'
+import { alpha, type Theme } from '@/compat/mui/styles'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowRight,
@@ -240,7 +240,7 @@ export default function Workspaces() {
         bgcolor: 'background.default',
         backgroundImage: currentUser
           ? 'none'
-          : (theme) =>
+          : (theme: Theme) =>
               `radial-gradient(circle at top left, ${alpha(theme.palette.primary.main, 0.08)}, transparent 36%),
                radial-gradient(circle at top right, ${alpha(theme.palette.secondary.main, 0.08)}, transparent 28%)`,
         px: { xs: 2, md: 4 },
@@ -385,7 +385,7 @@ export default function Workspaces() {
                   sx={{
                     overflow: 'hidden',
                     p: { xs: 2.5, md: 3.5 },
-                    backgroundImage: (theme) =>
+                    backgroundImage: (theme: Theme) =>
                       `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, transparent 58%)`,
                   }}
                 >
@@ -449,7 +449,7 @@ export default function Workspaces() {
                       surface="subtle"
                       sx={{
                         p: { xs: 2, md: 2.5 },
-                        backgroundColor: (theme) => alpha(theme.palette.background.paper, 0.76),
+                        backgroundColor: (theme: Theme) => alpha(theme.palette.background.paper, 0.76),
                       }}
                     >
                       <Stack spacing={2}>
@@ -707,7 +707,7 @@ export default function Workspaces() {
                 scrollMarginTop: { xs: 24, md: 32 },
                 outline: 'none',
                 '&:focus-visible': {
-                  outline: (theme) => `2px solid ${theme.palette.primary.main}`,
+                  outline: (theme: Theme) => `2px solid ${theme.palette.primary.main}`,
                   outlineOffset: 8,
                   borderRadius: 'var(--radius-md)',
                 },

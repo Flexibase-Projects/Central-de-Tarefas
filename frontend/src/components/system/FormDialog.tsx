@@ -9,7 +9,7 @@ import {
   Divider,
   IconButton,
   Typography,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { X } from 'lucide-react'
 
 interface FormDialogProps {

@@ -12,8 +12,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import type { ReactNode } from 'react'
+import type { Theme } from '@/compat/mui/styles'
 import type { CostCanvasFocus, CostManagementGraph } from '@/types/cost-org'
 import type { OrgEntry } from '@/hooks/use-org'
 
@@ -99,7 +100,7 @@ export function CostCanvasDrawerPanel({
           minHeight: 160,
           height: '100%',
           boxSizing: 'border-box',
-          background: (t) =>
+          background: (t: Theme) =>
             t.palette.mode === 'dark'
               ? 'linear-gradient(145deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0.95) 100%)'
               : 'linear-gradient(145deg, rgba(99,102,241,0.06) 0%, #fff 100%)',
@@ -138,7 +139,7 @@ export function CostCanvasDrawerPanel({
           display: 'flex',
           flexDirection: 'column',
           gap: 0,
-          background: (t) =>
+          background: (t: Theme) =>
             t.palette.mode === 'dark'
               ? 'linear-gradient(145deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0.95) 100%)'
               : 'linear-gradient(145deg, rgba(99,102,241,0.06) 0%, #fff 100%)',
@@ -362,7 +363,7 @@ export function CostCanvasDrawerPanel({
           display: 'flex',
           flexDirection: 'column',
           gap: 0,
-          background: (t) =>
+          background: (t: Theme) =>
             t.palette.mode === 'dark'
               ? 'linear-gradient(145deg, rgba(168,85,247,0.1) 0%, rgba(15,23,42,0.95) 100%)'
               : 'linear-gradient(145deg, rgba(168,85,247,0.08) 0%, #fff 100%)',
@@ -447,7 +448,7 @@ export function CostCanvasDrawerPanel({
         display: 'flex',
         flexDirection: 'column',
         gap: 0,
-        background: (t) =>
+        background: (t: Theme) =>
           t.palette.mode === 'dark'
             ? 'linear-gradient(145deg, rgba(34,197,94,0.12) 0%, rgba(15,23,42,0.95) 100%)'
             : 'linear-gradient(145deg, rgba(34,197,94,0.08) 0%, #fff 100%)',

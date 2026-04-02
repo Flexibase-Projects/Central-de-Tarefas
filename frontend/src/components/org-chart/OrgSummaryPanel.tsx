@@ -9,8 +9,9 @@ import {
   TableRow,
   TableContainer,
   Typography,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import type { ReactNode } from 'react'
+import type { Theme } from '@/compat/mui/styles'
 import type { OrgPersonSummary } from '@/types/cost-org'
 
 const brl = (n: number | null) =>
@@ -57,7 +58,7 @@ export function OrgSummaryPanel({
         borderColor: 'divider',
         bgcolor: 'background.paper',
         minHeight: 200,
-        background: (t) =>
+        background: (t: Theme) =>
           t.palette.mode === 'dark'
             ? 'linear-gradient(145deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0.95) 100%)'
             : 'linear-gradient(145deg, rgba(99,102,241,0.06) 0%, #fff 100%)',

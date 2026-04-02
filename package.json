@@ -35,7 +35,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "playwright": "^1.58.2"
+    "playwright": "^1.58.2",
+    "shadcn": "^4.1.2"
   },
   "dependencies": {
     "path-to-regexp": "^0.1.13",

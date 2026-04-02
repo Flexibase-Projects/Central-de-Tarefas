@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box } from '@/compat/mui/material'
 import { Project } from '@/types'
 import {
   Tooltip,

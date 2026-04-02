@@ -1,4 +1,5 @@
-import { Box, Chip, Divider, Typography } from '@mui/material'
+import { Box, Chip, Divider, Typography } from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import type { CostItem, DepartmentMemberRow } from '@/types/cost-org'
 
 type Props = {
@@ -22,7 +23,7 @@ export function CostDepartmentSummaryPanel({ departmentName, linkedCosts, member
         borderColor: 'divider',
         bgcolor: 'background.paper',
         minHeight: 220,
-        background: (t) =>
+        background: (t: Theme) =>
           t.palette.mode === 'dark'
             ? 'linear-gradient(160deg, rgba(16,185,129,0.08) 0%, rgba(15,23,42,0.95) 100%)'
             : 'linear-gradient(160deg, rgba(16,185,129,0.06) 0%, #fff 100%)',

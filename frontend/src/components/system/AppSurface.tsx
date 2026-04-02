@@ -1,5 +1,5 @@
-import { Paper, type PaperProps, type SxProps, type Theme } from '@mui/material'
-import { alpha } from '@mui/material/styles'
+import { Paper, type PaperProps, type SxProps, type Theme } from '@/compat/mui/material'
+import { alpha } from '@/compat/mui/styles'
 
 type AppSurfaceVariant = 'default' | 'subtle' | 'interactive'
 type ExtendedAppSurfaceVariant = AppSurfaceVariant | 'raised'
@@ -10,7 +10,7 @@ interface AppSurfaceProps extends Omit<PaperProps, 'variant'> {
 }
 
 function getSurfaceStyles(surface: ExtendedAppSurfaceVariant): SxProps<Theme> {
-  return (theme) => {
+  return (theme: Theme) => {
     const borderColor = theme.palette.divider
     const palette = {
       default: theme.palette.background.paper,

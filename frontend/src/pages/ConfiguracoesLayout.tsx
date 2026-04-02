@@ -1,6 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Box, Tab, Tabs, Typography } from '@mui/material'
-import { usePermissions } from '@/hooks/use-permissions'
+import { Box, Tab, Tabs, Typography } from '@/compat/mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import { stripWorkspacePrefix } from '@/lib/workspace-routing'
@@ -15,9 +14,8 @@ function tabValueFromPath(pathname: string): string {
 export default function ConfiguracoesLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
-  const { isManagerial } = useWorkspaceContext(currentWorkspace?.slug ?? null)
+  const { canManageWorkspace } = useWorkspaceContext(currentWorkspace?.slug ?? null)
   const normalizedPath = stripWorkspacePrefix(location.pathname)
 
   const tabs: SubTab[] = [
@@ -25,7 +23,7 @@ export default function ConfiguracoesLayout() {
     { value: 'administracao', label: 'Administracao', path: 'administracao', managerialOnly: true },
   ]
 
-  const canSeeAdministration = isManagerial || hasRole('admin')
+  const canSeeAdministration = canManageWorkspace
   const visibleTabs = tabs.filter((tab) => !tab.managerialOnly || canSeeAdministration)
   const current = tabValueFromPath(normalizedPath)
   const tabValue = visibleTabs.some((tab) => tab.value === current)

@@ -14,7 +14,7 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { ArrowLeft, Building2, Info, Lock, Moon, Send, Sun, Unlock, UserPlus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useThemeMode } from '@/theme/ThemeProvider'

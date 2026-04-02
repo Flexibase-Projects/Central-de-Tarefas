@@ -13,7 +13,7 @@ import {
   FormControl,
   InputLabel,
   Chip,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { useUserProgress } from '@/hooks/use-user-progress'
 import { useAchievements } from '@/hooks/use-achievements'
 import {

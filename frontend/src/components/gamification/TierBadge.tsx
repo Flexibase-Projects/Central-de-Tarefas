@@ -1,4 +1,4 @@
-import { Tooltip } from '@mui/material'
+import { Tooltip } from '@/compat/mui/material'
 import { getTierForLevel } from '@/utils/tier'
 import StatusToken from '@/components/system/StatusToken'
 

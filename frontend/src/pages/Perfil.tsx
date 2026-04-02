@@ -14,7 +14,7 @@ import {
   TextField,
   Typography,
   useTheme,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAchievements } from '@/hooks/use-achievements'
 import { useUserProgress } from '@/hooks/use-user-progress'

@@ -18,7 +18,7 @@ import {
   TableRow,
   TextField,
   Typography,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { Search } from 'lucide-react'
 import { Plus } from '@/components/ui/icons'
 import { KanbanBoard } from '@/components/kanban/kanban-board'

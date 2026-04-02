@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Box, Chip, Paper, Typography } from '@mui/material'
+import { Box, Chip, Paper, Typography } from '@/compat/mui/material'
 import {
   DndContext,
   KeyboardSensor,

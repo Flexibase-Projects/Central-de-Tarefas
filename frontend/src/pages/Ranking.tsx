@@ -1,4 +1,4 @@
-import { Alert, Box, Card, CardContent, Stack, Typography } from '@mui/material'
+import { Alert, Box, Card, CardContent, Stack, Typography } from '@/compat/mui/material'
 import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import { useAuth } from '@/contexts/AuthContext'
 

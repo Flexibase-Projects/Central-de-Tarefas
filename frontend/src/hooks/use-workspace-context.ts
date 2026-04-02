@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiUrl } from '@/lib/api'
 import type {
+  WorkspaceCapabilitySet,
   WorkspaceContextData,
+  WorkspaceModuleCapability,
   WorkspaceModuleState,
 } from '@/types'
 
@@ -21,6 +23,40 @@ type RawWorkspaceMembership = {
   role_display_name?: string | null
   membership_status?: string | null
   is_managerial?: boolean
+}
+
+type RawWorkspaceCapabilities = Partial<WorkspaceCapabilitySet> & {
+  module_capabilities?: Record<string, Partial<WorkspaceModuleCapability>> | null
+}
+
+function normalizeWorkspaceCapabilities(raw: unknown): WorkspaceCapabilitySet {
+  const value = (raw ?? {}) as RawWorkspaceCapabilities
+  const moduleCapabilities = Object.entries(value.module_capabilities ?? {}).reduce<Record<string, WorkspaceModuleCapability>>(
+    (acc, [moduleKey, capability]) => {
+      acc[moduleKey] = {
+        module_key: capability?.module_key ?? moduleKey,
+        can_access: Boolean(capability?.can_access),
+        is_visible: Boolean(capability?.is_visible),
+        is_managerial_only: Boolean(capability?.is_managerial_only),
+        reason: typeof capability?.reason === 'string' ? capability.reason : null,
+      }
+      return acc
+    },
+    {},
+  )
+
+  return {
+    is_global_admin: Boolean(value.is_global_admin),
+    is_workspace_manager: Boolean(value.is_workspace_manager),
+    can_manage_workspace: Boolean(value.can_manage_workspace),
+    accessible_module_keys: Array.isArray(value.accessible_module_keys)
+      ? value.accessible_module_keys.filter((key): key is string => typeof key === 'string')
+      : [],
+    visible_module_keys: Array.isArray(value.visible_module_keys)
+      ? value.visible_module_keys.filter((key): key is string => typeof key === 'string')
+      : [],
+    module_capabilities: moduleCapabilities,
+  }
 }
 
 function formatRoleDisplayName(roleKey?: string | null): string | null {
@@ -66,6 +102,28 @@ function normalizeWorkspaceContext(raw: unknown): WorkspaceContextData | null {
           reason: typeof module.reason === 'string' ? module.reason : null,
         }))
     : []
+  const capabilities = normalizeWorkspaceCapabilities(data.capabilities)
+
+  if (modules.length > 0 && Object.keys(capabilities.module_capabilities).length === 0) {
+    for (const module of modules) {
+      const canAccess = Boolean(module.available && module.is_enabled)
+      capabilities.module_capabilities[module.key] = {
+        module_key: module.key,
+        can_access: canAccess,
+        is_visible: canAccess,
+        is_managerial_only: false,
+        reason: module.reason ?? null,
+      }
+    }
+    capabilities.accessible_module_keys = modules
+      .filter((module) => module.available && module.is_enabled)
+      .map((module) => module.key)
+    capabilities.visible_module_keys = [...capabilities.accessible_module_keys]
+    capabilities.is_workspace_manager = Boolean(
+      membershipRaw.is_managerial ?? (roleKey ? MANAGERIAL_ROLES.has(roleKey) : false),
+    )
+    capabilities.can_manage_workspace = capabilities.is_workspace_manager
+  }
 
   return {
     workspace: {
@@ -82,6 +140,7 @@ function normalizeWorkspaceContext(raw: unknown): WorkspaceContextData | null {
       is_managerial: Boolean(membershipRaw.is_managerial ?? (roleKey ? MANAGERIAL_ROLES.has(roleKey) : false)),
     },
     modules,
+    capabilities,
   }
 }
 
@@ -220,18 +279,24 @@ export function useWorkspaceContext(workspaceSlug?: string | null) {
 
   const gamificationModule = modulesByKey.get('gamification') ?? null
   const rankingModule = modulesByKey.get('ranking') ?? null
+  const capabilities = data?.capabilities ?? normalizeWorkspaceCapabilities(null)
 
   return {
     data,
     workspace: data?.workspace ?? null,
     membership: data?.membership ?? null,
     modules: data?.modules ?? [],
+    capabilities,
+    accessibleModuleKeys: capabilities.accessible_module_keys,
+    visibleModuleKeys: capabilities.visible_module_keys,
+    moduleCapabilities: capabilities.module_capabilities,
     modulesByKey,
     gamificationModule,
     rankingModule,
     gamificationEnabled: Boolean(gamificationModule?.is_enabled && gamificationModule?.available),
     rankingEnabled: Boolean(rankingModule?.is_enabled && rankingModule?.available),
-    isManagerial: Boolean(data?.membership?.is_managerial),
+    isManagerial: Boolean(data?.membership?.is_managerial ?? capabilities.is_workspace_manager),
+    canManageWorkspace: Boolean(capabilities.can_manage_workspace || data?.membership?.is_managerial),
     loading,
     refreshing,
     error,

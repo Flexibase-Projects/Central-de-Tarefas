@@ -23,7 +23,7 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { Plus, Pencil } from '@/components/ui/icons'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Achievement } from '@/types'

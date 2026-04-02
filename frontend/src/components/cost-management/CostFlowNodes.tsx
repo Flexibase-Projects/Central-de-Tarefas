@@ -1,6 +1,7 @@
 import { memo, type CSSProperties } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Avatar, Box, Chip, Typography } from '@mui/material'
+import { Avatar, Box, Chip, Typography } from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 
 export const HANDLE_CLASS = 'cdt-rf-handle'
 
@@ -59,7 +60,7 @@ export const DepartmentCostNode = memo(function DepartmentCostNode({ data }: Nod
         border: '2px solid',
         borderColor: d.highlighted ? 'primary.main' : 'divider',
         bgcolor: d.highlighted ? 'primary.dark' : 'background.paper',
-        background: (t) =>
+        background: (t: Theme) =>
           d.highlighted
             ? t.palette.mode === 'dark'
               ? 'linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(30,27,75,0.9) 100%)'

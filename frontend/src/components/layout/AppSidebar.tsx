@@ -22,16 +22,17 @@ import {
   useTheme,
   Collapse,
   ButtonBase,
-} from '@mui/material'
+} from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { ChevronDown, ChevronRight, Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/theme/ThemeProvider'
-import { usePermissions } from '@/hooks/use-permissions'
 import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import type { UserProgress } from '@/types'
 import { buildWorkspacePath, stripWorkspacePrefix } from '@/lib/workspace-routing'
 import { useAuth } from '@/contexts/AuthContext'
 import AppSurface from '@/components/system/AppSurface'
 import StatusToken from '@/components/system/StatusToken'
+import { listWorkspaceSidebarSections } from '@/features/workspace/module-manifest'
 import {
   APP_SHELL_HEADER_HEIGHT,
   APP_SHELL_INFO_CARD_MIN_HEIGHT,
@@ -130,7 +131,7 @@ export function DemandCard({
           },
           '&:focus-visible > *': {
             borderColor: 'primary.main',
-            boxShadow: (theme) => `0 0 0 1px ${theme.palette.primary.main}`,
+            boxShadow: (theme: Theme) => `0 0 0 1px ${theme.palette.primary.main}`,
           },
         }}
       >
@@ -193,7 +194,7 @@ export function DemandCard({
         },
         '&:focus-visible > *': {
           borderColor: 'primary.main',
-          boxShadow: (theme) => `0 0 0 1px ${theme.palette.primary.main}`,
+          boxShadow: (theme: Theme) => `0 0 0 1px ${theme.palette.primary.main}`,
         },
       }}
     >
@@ -271,9 +272,13 @@ export function AppSidebar(props: AppSidebarProps) {
   const location = useLocation()
   const theme = useTheme()
   const { mode, toggleTheme } = useThemeMode()
-  const { hasPermission, hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
-  const { modulesByKey, gamificationEnabled, isManagerial } = useWorkspaceContext(currentWorkspace?.slug ?? null)
+  const {
+    gamificationEnabled,
+    canManageWorkspace,
+    moduleCapabilities,
+    visibleModuleKeys,
+  } = useWorkspaceContext(currentWorkspace?.slug ?? null)
   const [internalCollapsed, setInternalCollapsed] = useState(false)
   const [expandedSection, setExpandedSection] = useState<string>('Central')
   const isCollapsed = controlledCollapsed ?? internalCollapsed
@@ -284,26 +289,44 @@ export function AppSidebar(props: AppSidebarProps) {
   }
 
   const normalizedPath = stripWorkspacePrefix(location.pathname)
-  const hasResolvedModules = modulesByKey.size > 0
+  const visibleModuleKeySet = useMemo(() => new Set(visibleModuleKeys), [visibleModuleKeys])
   const visibleSections = useMemo(() => {
+    if (visibleModuleKeys.length > 0 || Object.keys(moduleCapabilities).length > 0) {
+      return listWorkspaceSidebarSections(visibleModuleKeys).map((section) => ({
+        title: section.title,
+        hint: section.hint,
+        items: section.items.map((item) => ({
+          title: item.title,
+          url: item.path,
+          icon: item.icon,
+          permission: null,
+          requireRole: undefined,
+          requireManagerial: undefined,
+          moduleKey: item.moduleKey,
+        })),
+      }))
+    }
+
     return SIDEBAR_SECTIONS.map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (item.moduleKey && hasResolvedModules) {
-          const moduleState = modulesByKey.get(item.moduleKey)
-          if (!moduleState?.available || !moduleState.is_enabled) {
+        if (item.moduleKey) {
+          const capability = moduleCapabilities[item.moduleKey]
+          const isModuleVisible =
+            capability?.is_visible ??
+            visibleModuleKeySet.has(item.moduleKey)
+
+          if (!isModuleVisible) {
             return false
           }
         }
-        if (item.requireManagerial && !isManagerial && !hasRole('admin')) {
+        if (item.requireManagerial && !canManageWorkspace) {
           return false
         }
-        if (item.requireRole) return hasRole(item.requireRole)
-        if (item.permission) return hasPermission(item.permission)
         return true
       }),
     })).filter((section) => section.items.length > 0)
-  }, [hasPermission, hasResolvedModules, hasRole, isManagerial, modulesByKey])
+  }, [canManageWorkspace, moduleCapabilities, visibleModuleKeySet, visibleModuleKeys])
 
   useEffect(() => {
     const activeSection = visibleSections.find((section) =>

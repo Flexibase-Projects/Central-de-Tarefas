@@ -1,5 +1,5 @@
 import React from 'react'
-import { Box, Card, CardContent, Typography, LinearProgress, Divider, useTheme } from '@mui/material'
+import { Box, Card, CardContent, Typography, LinearProgress, Divider, useTheme } from '@/compat/mui/material'
 import { useUserProgress } from '@/hooks/use-user-progress'
 import { TierBadge } from '@/components/gamification/TierBadge'
 import { TIERS, XP_THRESHOLDS, getTierForLevel } from '@/utils/tier'

@@ -1,4 +1,4 @@
-import { Box, Typography } from '@mui/material'
+import { Box, Typography } from '@/compat/mui/material'
 import type { UserProgress } from '@/types'
 import { getTierForLevel } from '@/utils/tier'
 import { TierBadge } from '@/components/gamification/TierBadge'

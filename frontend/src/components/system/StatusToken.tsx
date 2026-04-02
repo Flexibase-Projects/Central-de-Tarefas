@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Box, type BoxProps } from '@mui/material'
+import { Box, type BoxProps } from '@/compat/mui/material'
 
 type StatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 

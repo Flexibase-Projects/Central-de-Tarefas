@@ -1,4 +1,4 @@
-import { Box, Typography } from '@mui/material'
+import { Box, Typography } from '@/compat/mui/material'
 import { DemandCard } from '@/components/layout/AppSidebar'
 import type { UserProgress } from '@/types'
 import { buildWorkspacePath } from '@/lib/workspace-routing'

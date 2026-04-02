@@ -7,8 +7,8 @@ import {
   Divider,
   Stack,
   Typography,
-} from '@mui/material'
-import { alpha, useTheme } from '@mui/material/styles'
+} from '@/compat/mui/material'
+import { alpha, useTheme } from '@/compat/mui/styles'
 import { RefreshCw } from 'lucide-react'
 import { useHome } from '@/hooks/use-home'
 import { useIndicators, type MonthlyActivitySummary } from '@/hooks/use-indicators'

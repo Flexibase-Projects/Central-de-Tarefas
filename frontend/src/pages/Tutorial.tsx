@@ -8,7 +8,7 @@ import {
   LinearProgress,
   useTheme,
   Avatar,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { TierBadge } from '@/components/gamification/TierBadge'
 import { TIERS } from '@/utils/tier'
 import type { TierInfo } from '@/types'

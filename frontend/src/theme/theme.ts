@@ -1,4 +1,4 @@
-import { alpha, createTheme, type PaletteMode } from '@mui/material/styles'
+import { alpha, createTheme, type PaletteMode } from '@/compat/mui/styles'
 
 const FONT_STACK = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
 

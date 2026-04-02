@@ -17,7 +17,7 @@ import {
   TableRow,
   TextField,
   Typography,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { ArrowLeft, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
 import AppSurface from '@/components/system/AppSurface'
 import FormDialog from '@/components/system/FormDialog'

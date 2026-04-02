@@ -13,7 +13,7 @@ import {
   Box,
   Typography,
   InputAdornment,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { Activity } from '@/types'
 import { useAchievements } from '@/hooks/use-achievements'
 

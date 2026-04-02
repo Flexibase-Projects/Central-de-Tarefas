@@ -16,7 +16,7 @@ import {
   Typography,
   CircularProgress,
   Chip,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { Plus, Pencil, Trash2, Settings } from '@/components/ui/icons'
 import { RoleWithPermissions, useRoles } from '@/hooks/use-roles'
 import { RolePermissionsEditor } from './role-permissions-editor'

@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Avatar, Box, Typography } from '@mui/material'
+import { Avatar, Box, Typography } from '@/compat/mui/material'
 import { HANDLE_CLASS, flowHandleStyle } from '@/components/cost-management/CostFlowNodes'
 
 export type OrgPersonNodeData = {

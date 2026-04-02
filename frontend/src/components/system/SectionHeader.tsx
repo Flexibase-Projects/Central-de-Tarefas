@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Box, Stack, Typography, type BoxProps } from '@mui/material'
+import { Box, Stack, Typography, type BoxProps } from '@/compat/mui/material'
 
 interface SectionHeaderProps extends BoxProps {
   title: string

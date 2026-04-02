@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Box, Button, Typography, FormControlLabel, Checkbox, Paper, CircularProgress } from '@mui/material'
+import { Box, Button, Typography, FormControlLabel, Checkbox, Paper, CircularProgress } from '@/compat/mui/material'
 import { Permission, Role } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiUrl } from '@/lib/api'

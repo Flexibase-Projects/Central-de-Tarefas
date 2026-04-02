@@ -21,7 +21,8 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-} from '@mui/material'
+} from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { Plus, Trash2, Pencil, X } from 'lucide-react'
 import { OrgTreeFlow } from '@/components/org-chart/OrgTreeFlow'
 import { OrgSummaryPanel } from '@/components/org-chart/OrgSummaryPanel'
@@ -371,7 +372,7 @@ export default function Organograma() {
               borderLeft: 1,
               borderColor: 'divider',
               bgcolor: 'background.paper',
-              boxShadow: (t) => t.shadows[12],
+              boxShadow: (t: Theme) => t.shadows[12],
             },
           }}
         >

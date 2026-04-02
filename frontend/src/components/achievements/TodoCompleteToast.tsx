@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography } from '@/compat/mui/material'
 import { Trophy } from 'lucide-react'
 
 function playAchievementSound() {

@@ -15,7 +15,7 @@ import {
   Chip,
   Divider,
   TablePagination,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import {

@@ -86,6 +86,9 @@ export function useWorkspaceProfile(workspaceSlug?: string | null) {
     membership: data?.membership ?? null,
     modules: data?.modules ?? [],
     isManagerial: Boolean(data?.workspace_role_flags?.is_managerial),
+    canManageWorkspace: Boolean(
+      data?.workspace_role_flags?.can_manage_workspace ?? data?.workspace_role_flags?.is_managerial,
+    ),
     teamGamificationSummary: data?.team_gamification_summary ?? null,
     loading,
     saving,

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Box, Divider } from '@mui/material'
+import { Box, Divider } from '@/compat/mui/material'
 import AppSurface from './AppSurface'
 import SectionHeader from './SectionHeader'
 

@@ -9,7 +9,7 @@ import {
   Tooltip,
   Badge,
   Paper,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import { Bell, Check, CheckCheck } from '@/components/ui/icons'
 import { useNotifications } from '@/hooks/use-notifications'
 import { formatDistanceToNow } from 'date-fns'

@@ -17,7 +17,8 @@ import {
   FormControlLabel,
   Switch,
   Collapse,
-} from '@mui/material'
+} from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { Trash2, GripVertical, Plus, Pencil, Settings } from '@/components/ui/icons'
 import type { ProjectTodo, User } from '@/types'
 import { useTodos, type TodosScope, type SharedProjectTodosApi } from '@/hooks/use-todos'
@@ -513,7 +514,7 @@ const TodoItem = memo(function TodoItem({
             popper: {
               disablePortal: true,
               placement: 'bottom-start',
-              sx: { zIndex: (t) => t.zIndex.modal + 2 },
+              sx: { zIndex: (t: Theme) => t.zIndex.modal + 2 },
             },
           }}
           noOptionsText={usersLoading ? 'Carregando usuários…' : 'Nenhum usuário'}
@@ -847,7 +848,7 @@ export function TodoList(props: TodoListProps) {
                             ? 'Ocultar configurações do to-do'
                             : 'Mostrar configurações do to-do'
                         }
-                        sx={(theme) => ({
+                        sx={(theme: Theme) => ({
                           p: 0.5,
                           opacity: adminTodoSettingsOpen ? 1 : 0.22,
                           transition: theme.transitions.create('opacity', {
@@ -1009,7 +1010,7 @@ export function TodoList(props: TodoListProps) {
                 popper: {
                   disablePortal: true,
                   placement: 'bottom-start',
-                  sx: { zIndex: (t) => t.zIndex.modal + 2 },
+                  sx: { zIndex: (t: Theme) => t.zIndex.modal + 2 },
                 },
               }}
               noOptionsText={usersLoading ? 'Carregando usuários…' : 'Nenhum usuário'}

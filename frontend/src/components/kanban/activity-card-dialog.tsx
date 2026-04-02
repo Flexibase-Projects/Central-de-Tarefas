@@ -16,8 +16,8 @@ import {
   InputAdornment,
   Stack,
   Chip,
-} from '@mui/material'
-import { alpha, type Theme } from '@mui/material/styles'
+} from '@/compat/mui/material'
+import { alpha, type Theme } from '@/compat/mui/styles'
 import {
   Calendar,
   Trash2,
@@ -198,7 +198,7 @@ export function ActivityCardDialog({
             display: 'flex',
             flexDirection: 'column',
             bgcolor: 'background.paper',
-            boxShadow: (t) =>
+            boxShadow: (t: Theme) =>
               t.palette.mode === 'light'
                 ? '0 25px 50px -12px rgba(15, 23, 42, 0.2)'
                 : '0 24px 48px rgba(0,0,0,0.45)',
@@ -211,7 +211,7 @@ export function ActivityCardDialog({
             px: 3,
             py: 2.5,
             minHeight: 100,
-            background: (t) =>
+            background: (t: Theme) =>
               t.palette.mode === 'dark'
                 ? `linear-gradient(135deg, ${alpha(t.palette.primary.main, 0.38)} 0%, ${alpha(
                     t.palette.primary.dark,
@@ -246,7 +246,7 @@ export function ActivityCardDialog({
                 height: 26,
                 fontWeight: 700,
                 border: 'none',
-                bgcolor: (t) => alpha(t.palette.primary.main, t.palette.mode === 'dark' ? 0.35 : 0.18),
+                bgcolor: (t: Theme) => alpha(t.palette.primary.main, t.palette.mode === 'dark' ? 0.35 : 0.18),
               }}
             />
             <Chip
@@ -311,7 +311,7 @@ export function ActivityCardDialog({
                     >
                       <CheckSquare size={18} /> TO-DO
                     </Typography>
-                    <Paper variant="outlined" sx={(t) => ({ ...sectionPaperSx(t) })}>
+                    <Paper variant="outlined" sx={(t: Theme) => ({ ...sectionPaperSx(t) })}>
                       <TodoList
                         activityId={activity.id}
                         sharedTodos={activityTodosApi}
@@ -328,7 +328,7 @@ export function ActivityCardDialog({
                     >
                       <MessageCircleIcon size={18} /> Comentários
                     </Typography>
-                    <Paper variant="outlined" sx={(t) => ({ ...sectionPaperSx(t) })}>
+                    <Paper variant="outlined" sx={(t: Theme) => ({ ...sectionPaperSx(t) })}>
                       <CommentsSection activityId={activity.id} />
                     </Paper>
                   </Box>
@@ -346,7 +346,7 @@ export function ActivityCardDialog({
                     >
                       <Sparkles size={18} /> Resumo e gamificação
                     </Typography>
-                    <Paper variant="outlined" sx={(t) => ({ ...sectionPaperSx(t) })}>
+                    <Paper variant="outlined" sx={(t: Theme) => ({ ...sectionPaperSx(t) })}>
                       <Stack spacing={1.25}>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
                           <Chip size="small" label={statusLabel} variant="outlined" />
@@ -473,7 +473,7 @@ export function ActivityCardDialog({
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.25 }}>
                       Nome, descrição, prazo, XP e conquista vinculada
                     </Typography>
-                    <Paper variant="outlined" sx={(t) => ({ ...sectionPaperSx(t) })}>
+                    <Paper variant="outlined" sx={(t: Theme) => ({ ...sectionPaperSx(t) })}>
                       <form onSubmit={handleSaveSettings}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                           <TextField

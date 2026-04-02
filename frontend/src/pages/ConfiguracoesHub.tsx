@@ -10,91 +10,28 @@ import {
   CircularProgress,
   Stack,
   Typography,
-} from '@mui/material'
-import { usePermissions } from '@/hooks/use-permissions'
+} from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import { useWorkspaceMembers } from '@/hooks/use-workspace-members'
 import { buildWorkspacePath } from '@/lib/workspace-routing'
 import { Settings, Security } from '@/components/ui/icons'
-
-type WorkspaceElementCard = {
-  key: string
-  title: string
-  description: string
-  path?: string
-  managerialOnly?: boolean
-  maintenance?: boolean
-}
-
-const MODULE_CARDS: Record<string, WorkspaceElementCard> = {
-  dashboard: {
-    key: 'dashboard',
-    title: 'Central de Tarefas',
-    description: 'Painel principal da workspace.',
-    path: '/',
-  },
-  projects: {
-    key: 'projects',
-    title: 'Projetos e prioridades',
-    description: 'Mapa, priorizacao e desenvolvimentos desta workspace.',
-    path: '/desenvolvimentos',
-  },
-  activities: {
-    key: 'activities',
-    title: 'Atividades',
-    description: 'Execucao das atividades e atribuicoes locais.',
-    path: '/atividades',
-  },
-  indicators: {
-    key: 'indicators',
-    title: 'Indicadores',
-    description: 'Leituras e comparativos do workspace.',
-    path: '/indicadores',
-  },
-  ranking: {
-    key: 'ranking',
-    title: 'Ranking',
-    description: 'Painel competitivo e acompanhamento de desempenho.',
-    path: '/ranking',
-  },
-  gamification: {
-    key: 'gamification',
-    title: 'Gamificacao',
-    description: 'Conquistas e progressao do workspace.',
-    path: '/conquistas',
-  },
-  teams: {
-    key: 'teams',
-    title: 'Canva em Equipe',
-    description: 'Ferramenta visual compartilhada desta workspace.',
-    path: '/canva-equipe',
-    maintenance: true,
-  },
-  org_chart: {
-    key: 'org_chart',
-    title: 'Organograma',
-    description: 'Estrutura de pessoas e responsabilidades da workspace.',
-    path: '/organograma',
-    managerialOnly: true,
-  },
-  costs: {
-    key: 'costs',
-    title: 'Custos',
-    description: 'Mapa de departamentos, custos fixos e pessoas da workspace.',
-    path: '/custos-departamento',
-    managerialOnly: true,
-  },
-}
+import { listWorkspaceVisibleModuleEntries } from '@/features/workspace/module-manifest'
 
 export default function ConfiguracoesHub() {
   const navigate = useNavigate()
-  const { hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
   const workspaceSlug = currentWorkspace?.slug ?? null
-  const { workspace, membership, modules, loading, isManagerial } = useWorkspaceContext(workspaceSlug)
+  const {
+    workspace,
+    membership,
+    modules,
+    visibleModuleKeys,
+    loading,
+    canManageWorkspace,
+  } = useWorkspaceContext(workspaceSlug)
   const { members, loading: membersLoading } = useWorkspaceMembers(workspaceSlug, { includeInactive: true })
-  const isGlobalAdmin = hasRole('admin')
 
   const activeMembersCount = useMemo(
     () => members.filter((member) => member.is_active).length,
@@ -106,12 +43,8 @@ export default function ConfiguracoesHub() {
     [modules],
   )
   const visibleModuleCards = useMemo(() => {
-    return activeModules
-      .map((module) => MODULE_CARDS[module.key])
-      .filter((card): card is WorkspaceElementCard => Boolean(card))
-  }, [activeModules])
-
-  const canManageWorkspace = isManagerial || isGlobalAdmin
+    return listWorkspaceVisibleModuleEntries(visibleModuleKeys)
+  }, [visibleModuleKeys])
 
   if (loading && !workspace) {
     return (
@@ -132,7 +65,7 @@ export default function ConfiguracoesHub() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(96,165,250,0.12)' : 'rgba(37,99,235,0.08)'),
+            bgcolor: (theme: Theme) => (theme.palette.mode === 'dark' ? 'rgba(96,165,250,0.12)' : 'rgba(37,99,235,0.08)'),
             color: 'primary.main',
           }}
         >
@@ -234,7 +167,7 @@ export default function ConfiguracoesHub() {
                 </CardContent>
               )
 
-              const canOpen = Boolean(card.path) && (!card.managerialOnly || canManageWorkspace)
+              const canOpen = Boolean(card.entryPath) && (!card.managerialOnly || canManageWorkspace)
 
               return (
                 <Card
@@ -246,7 +179,7 @@ export default function ConfiguracoesHub() {
                     '&:hover': canOpen
                       ? {
                           borderColor: 'primary.main',
-                          boxShadow: (theme) =>
+                          boxShadow: (theme: Theme) =>
                             theme.palette.mode === 'light' ? '0 8px 24px rgba(15,23,42,0.08)' : 8,
                         }
                       : undefined,
@@ -254,7 +187,7 @@ export default function ConfiguracoesHub() {
                 >
                   {canOpen ? (
                     <CardActionArea
-                      onClick={() => navigate(buildWorkspacePath(workspaceSlug, card.path ?? '/'))}
+                      onClick={() => navigate(buildWorkspacePath(workspaceSlug, card.entryPath ?? '/'))}
                       sx={{ alignItems: 'stretch' }}
                     >
                       {content}

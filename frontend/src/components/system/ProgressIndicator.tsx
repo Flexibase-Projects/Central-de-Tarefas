@@ -1,4 +1,4 @@
-import { Box, Typography, type BoxProps } from '@mui/material'
+import { Box, Typography, type BoxProps } from '@/compat/mui/material'
 
 interface ProgressIndicatorProps extends BoxProps {
   value: number

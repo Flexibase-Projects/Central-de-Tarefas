@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { Box, Typography, type BoxProps } from '@mui/material'
-import { alpha } from '@mui/material/styles'
+import { Box, Typography, type BoxProps } from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
+import { alpha } from '@/compat/mui/styles'
 
 interface CanvasNodeCardProps extends BoxProps {
   title: string
@@ -21,7 +22,7 @@ export function CanvasNodeCard({
     <Box
       {...props}
       sx={[
-        (theme) => ({
+        (theme: Theme) => ({
           minWidth: 220,
           border: '1px solid',
           borderColor: accent ? alpha(accent, 0.36) : theme.palette.divider,
@@ -34,7 +35,7 @@ export function CanvasNodeCard({
       ]}
     >
       <Box
-        sx={(theme) => ({
+        sx={(theme: Theme) => ({
           px: 1.5,
           py: 1.25,
           borderBottom: '1px solid',

@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, Typography, Chip, useTheme } from '@mui/material'
+import { Box, Card, CardContent, Typography, Chip, useTheme } from '@/compat/mui/material'
 
 export interface DashboardMetricCardProps {
   label: string

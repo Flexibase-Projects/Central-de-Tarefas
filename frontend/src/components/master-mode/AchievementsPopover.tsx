@@ -9,7 +9,7 @@ import {
   ListItemIcon,
   ListItemText,
   useTheme,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import {
   EmojiEvents,
   CheckCircle,

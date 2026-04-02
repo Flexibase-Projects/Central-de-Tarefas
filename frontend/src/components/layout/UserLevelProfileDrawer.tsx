@@ -1,5 +1,5 @@
 import React from 'react'
-import { Avatar, Box, Button, CircularProgress, Divider, Typography } from '@mui/material'
+import { Avatar, Box, Button, CircularProgress, Divider, Typography } from '@/compat/mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserProgress } from '@/hooks/use-user-progress'
 import { useIndicators } from '@/hooks/use-indicators'

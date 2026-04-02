@@ -1,4 +1,4 @@
-import { Avatar, ButtonBase, Typography } from '@mui/material'
+import { Avatar, ButtonBase, Typography } from '@/compat/mui/material'
 
 interface HeaderProfileButtonProps {
   name: string

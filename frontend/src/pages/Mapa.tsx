@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Box, Typography } from '@mui/material'
+import { Box, Typography } from '@/compat/mui/material'
+import type { Theme } from '@/compat/mui/styles'
 import { ProjectCardDialog } from '@/components/kanban/project-card-dialog'
 import { EisenhowerCanvas } from '@/components/mapa/eisenhower-canvas'
 import { PageSyncScreen, WorkspaceSyncBanner } from '@/components/system/WorkspaceSyncFeedback'
@@ -103,7 +104,7 @@ export default function Mapa() {
               border: '1px solid',
               borderColor: 'divider',
               bgcolor: 'background.paper',
-              boxShadow: (theme) => theme.palette.mode === 'light'
+              boxShadow: (theme: Theme) => theme.palette.mode === 'light'
                 ? '0 4px 12px rgba(15,23,42,0.06)'
                 : '0 4px 12px rgba(0,0,0,0.2)',
             }}

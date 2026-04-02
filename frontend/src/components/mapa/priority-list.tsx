@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Box, Typography, Button } from '@mui/material'
+import { Box, Typography, Button } from '@/compat/mui/material'
 import { Project } from '@/types'
 import type { EisenhowerQuadrant } from '@/types'
 import { getProjectMapPosition } from '@/lib/map-position'

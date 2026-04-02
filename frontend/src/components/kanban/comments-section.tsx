@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Box, TextField, Button, Typography, Avatar, IconButton, CircularProgress, LinearProgress } from '@mui/material'
+import { Box, TextField, Button, Typography, Avatar, IconButton, CircularProgress, LinearProgress } from '@/compat/mui/material'
 import { Send, Trash2 } from '@/components/ui/icons'
 import { Comment } from '@/types'
 import { useProjectComments, type CommentsScope } from '@/hooks/use-project-comments'

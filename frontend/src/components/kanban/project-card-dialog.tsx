@@ -14,7 +14,7 @@ import {
   Select,
   MenuItem,
   IconButton,
-} from '@mui/material'
+} from '@/compat/mui/material'
 import {
   ExternalLink,
   Code,

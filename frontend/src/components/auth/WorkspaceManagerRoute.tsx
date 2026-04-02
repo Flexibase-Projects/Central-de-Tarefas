@@ -14,11 +14,11 @@ export function WorkspaceManagerRoute({
   children,
   fallback,
 }: WorkspaceManagerRouteProps) {
-  const { currentWorkspace, hasRole } = useAuth()
+  const { currentWorkspace } = useAuth()
   const location = useLocation()
   const workspaceSlug = currentWorkspace?.slug ?? getWorkspaceSlugFromPath(location.pathname)
   const workspaceRoot = buildWorkspacePath(workspaceSlug)
-  const { loading, isManagerial } = useWorkspaceContext(workspaceSlug)
+  const { loading, canManageWorkspace } = useWorkspaceContext(workspaceSlug)
 
   if (!workspaceSlug) {
     return <>{children}</>
@@ -34,7 +34,7 @@ export function WorkspaceManagerRoute({
     )
   }
 
-  if (!isManagerial && !hasRole('admin')) {
+  if (!canManageWorkspace) {
     return fallback ? <>{fallback}</> : <Navigate to={workspaceRoot} replace />
   }
 

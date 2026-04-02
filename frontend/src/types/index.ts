@@ -325,9 +325,33 @@ export interface WorkspaceModuleState {
   id?: string | null
   key: string
   display_name: string
+  description?: string | null
+  category?: string | null
+  definition_id?: string | null
+  instance_id?: string | null
+  slug?: string | null
+  title_override?: string | null
   is_enabled: boolean
   available: boolean
+  dependency_keys?: string[]
   reason?: string | null
+}
+
+export interface WorkspaceModuleCapability {
+  module_key: string
+  can_access: boolean
+  is_visible: boolean
+  is_managerial_only: boolean
+  reason?: string | null
+}
+
+export interface WorkspaceCapabilitySet {
+  is_global_admin: boolean
+  is_workspace_manager: boolean
+  can_manage_workspace: boolean
+  accessible_module_keys: string[]
+  visible_module_keys: string[]
+  module_capabilities: Record<string, WorkspaceModuleCapability>
 }
 
 export interface WorkspaceMembershipContext {
@@ -349,6 +373,7 @@ export interface WorkspaceContextData {
   workspace: WorkspaceContextSummary
   membership: WorkspaceMembershipContext
   modules: WorkspaceModuleState[]
+  capabilities: WorkspaceCapabilitySet
 }
 
 export interface WorkspaceMemberRole {
@@ -411,7 +436,10 @@ export interface WorkspaceProfileResponse {
   modules?: WorkspaceModuleState[]
   workspace_role_flags?: {
     is_managerial: boolean
+    is_global_admin?: boolean
+    can_manage_workspace?: boolean
   }
+  capabilities?: WorkspaceCapabilitySet
   team_gamification_summary?: WorkspaceTeamGamificationSummaryState | null
 }
 
