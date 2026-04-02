@@ -17,6 +17,7 @@ import {
 } from '@mui/material'
 import { Visibility, VisibilityOff, Search, Close } from '@mui/icons-material'
 import { useAuth } from '@/contexts/AuthContext'
+import { isGlobalAdminRoleName } from '@/lib/global-admin'
 import { useUsers } from '@/hooks/use-users'
 import { UserWithRole } from '@/types'
 import AppSurface from '@/components/system/AppSurface'
@@ -30,7 +31,7 @@ export function ViewAsUserButton() {
   const [starting, setStarting] = useState(false)
   const anchorRef = useRef<HTMLButtonElement>(null)
 
-  if (realUserRole?.name !== 'admin') return null
+  if (!isGlobalAdminRoleName(realUserRole?.name)) return null
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase()

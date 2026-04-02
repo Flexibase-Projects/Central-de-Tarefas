@@ -4,6 +4,7 @@ import { Project } from '../types/index.js';
 import { getRecentCommits, parseGitHubUrl } from '../services/github.js';
 import { getRequesterId } from '../middleware/auth.js';
 import { getWorkspaceContext } from '../middleware/workspace.js';
+import { resolveAuthBackedUserId } from '../services/assignment-users.js';
 import { getTrimmedString, isValidationError, optionalNumber, optionalString, requireOneOf, requireString } from '../utils/validation.js';
 
 const router = express.Router();
@@ -43,7 +44,7 @@ function getWorkspaceIdOrFail(req: express.Request, res: express.Response): stri
 async function fetchOrderedProjects(workspaceId: string) {
   const baseQuery = supabase
     .from('cdt_projects')
-    .select('id, name, status, priority_order, created_at')
+    .select('id, name, description, status, github_url, github_owner, github_repo, project_url, map_quadrant, map_x, map_y, priority_order, responsible_user_id, created_at, updated_at, created_by')
     .eq('workspace_id', workspaceId);
   const orderedQuery = await baseQuery
     .order('priority_order', { ascending: true, nullsFirst: false })
@@ -52,15 +53,15 @@ async function fetchOrderedProjects(workspaceId: string) {
   if (orderedQuery.error && /priority_order|does not exist|column.*not exist/i.test(String(orderedQuery.error.message || ''))) {
     const fallback = await supabase
       .from('cdt_projects')
-      .select('id, name, status, created_at')
+      .select('id, name, description, status, github_url, github_owner, github_repo, project_url, map_quadrant, map_x, map_y, responsible_user_id, created_at, updated_at, created_by')
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false });
     if (fallback.error) throw fallback.error;
-    return (fallback.data ?? []) as Array<{ id: string; name: string; status: string; created_at: string }>;
+    return (fallback.data ?? []) as Array<Project>;
   }
 
   if (orderedQuery.error) throw orderedQuery.error;
-  return (orderedQuery.data ?? []) as Array<{ id: string; name: string; status: string; created_at: string }>;
+  return (orderedQuery.data ?? []) as Array<Project>;
 }
 
 // Get all projects (ordem: priority_order quando a coluna existir, senão created_at)
@@ -396,7 +397,11 @@ router.post('/', async (req, res) => {
     const githubRepo = optionalString(projectBody.github_repo, 'github_repo', { maxLength: 255 });
     const projectUrl = optionalString(projectBody.project_url, 'project_url', { maxLength: 2048 });
     const createdBy = optionalString(projectBody.created_by, 'created_by', { maxLength: 64 });
-    const mapQuadrant = optionalString(projectBody.map_quadrant, 'map_quadrant', { maxLength: 64 });
+    const responsibleUserId = await resolveAuthBackedUserId(
+      optionalString(projectBody.responsible_user_id, 'responsible_user_id', { maxLength: 64 }),
+      'responsible_user_id',
+    );
+    const mapQuadrant = optionalNumber(projectBody.map_quadrant, 'map_quadrant');
     const mapX = optionalNumber(projectBody.map_x, 'map_x');
     const mapY = optionalNumber(projectBody.map_y, 'map_y');
     const { data, error } = await supabase
@@ -413,6 +418,7 @@ router.post('/', async (req, res) => {
         map_quadrant: mapQuadrant,
         map_x: mapX ?? null,
         map_y: mapY ?? null,
+        responsible_user_id: responsibleUserId,
         created_by: createdBy,
       }])
       .select()
@@ -466,10 +472,16 @@ router.put('/:id', async (req, res) => {
     if (updates.github_owner !== undefined) updateData.github_owner = optionalString(updates.github_owner, 'github_owner', { maxLength: 255 });
     if (updates.github_repo !== undefined) updateData.github_repo = optionalString(updates.github_repo, 'github_repo', { maxLength: 255 });
     if (updates.project_url !== undefined) updateData.project_url = optionalString(updates.project_url, 'project_url', { maxLength: 2048 });
-    if (updates.map_quadrant !== undefined) updateData.map_quadrant = optionalString(updates.map_quadrant, 'map_quadrant', { maxLength: 64 });
+    if (updates.map_quadrant !== undefined) updateData.map_quadrant = optionalNumber(updates.map_quadrant, 'map_quadrant');
     if (updates.map_x !== undefined) updateData.map_x = optionalNumber(updates.map_x, 'map_x');
     if (updates.map_y !== undefined) updateData.map_y = optionalNumber(updates.map_y, 'map_y');
     if (updates.priority_order !== undefined) updateData.priority_order = optionalNumber(updates.priority_order, 'priority_order');
+    if (updates.responsible_user_id !== undefined) {
+      updateData.responsible_user_id = await resolveAuthBackedUserId(
+        optionalString(updates.responsible_user_id, 'responsible_user_id', { maxLength: 64 }),
+        'responsible_user_id',
+      );
+    }
 
     const { data, error } = await supabase
       .from('cdt_projects')

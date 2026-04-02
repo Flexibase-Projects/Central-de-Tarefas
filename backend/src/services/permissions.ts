@@ -1,13 +1,17 @@
 import { supabase } from '../config/supabase.js';
-import { Role, Permission } from '../types/index.js';
-import { getNativeAdminEmails, isNativeAdminUserId } from './native-admin.js';
+import { Permission, Role } from '../types/index.js';
+import { isGlobalAdminRoleName, isGlobalAdminUserId } from './global-admin.js';
+import { getNativeAdminEmails } from './native-admin.js';
 
 /**
- * Verifica se um usuário tem uma permissão específica
+ * Verifica se um usuario tem uma permissao especifica
  */
 export async function hasPermission(userId: string, permissionName: string): Promise<boolean> {
   try {
-    // Buscar o cargo do usuário
+    if (await isGlobalAdminUserId(userId)) {
+      return true;
+    }
+
     const { data: userRole, error: userRoleError } = await supabase
       .from('cdt_user_roles')
       .select('role_id')
@@ -18,7 +22,6 @@ export async function hasPermission(userId: string, permissionName: string): Pro
       return false;
     }
 
-    // Buscar a permissão
     const { data: permission, error: permissionError } = await supabase
       .from('cdt_permissions')
       .select('id')
@@ -29,7 +32,6 @@ export async function hasPermission(userId: string, permissionName: string): Pro
       return false;
     }
 
-    // Verificar se o cargo tem a permissão
     const { data: rolePermission, error: rolePermissionError } = await supabase
       .from('cdt_role_permissions')
       .select('id')
@@ -45,7 +47,7 @@ export async function hasPermission(userId: string, permissionName: string): Pro
 }
 
 /**
- * Obtém todos os cargos de um usuário
+ * Obtem todos os cargos de um usuario
  */
 export async function getUserRoles(userId: string): Promise<Role[]> {
   try {
@@ -77,11 +79,25 @@ export async function getUserRoles(userId: string): Promise<Role[]> {
 }
 
 /**
- * Obtém todas as permissões de um usuário (através dos seus cargos)
+ * Obtem todas as permissoes de um usuario (atraves dos seus cargos)
  */
 export async function getUserPermissions(userId: string): Promise<Permission[]> {
   try {
-    // Buscar o cargo do usuário
+    if (await isGlobalAdminUserId(userId)) {
+      const { data, error } = await supabase
+        .from('cdt_permissions')
+        .select('id, name, display_name, description, category, created_at')
+        .order('category', { ascending: true })
+        .order('display_name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching global admin permissions:', error);
+        return [];
+      }
+
+      return (data ?? []) as Permission[];
+    }
+
     const { data: userRole, error: userRoleError } = await supabase
       .from('cdt_user_roles')
       .select('role_id')
@@ -92,7 +108,6 @@ export async function getUserPermissions(userId: string): Promise<Permission[]> 
       return [];
     }
 
-    // Buscar todas as permissões do cargo
     const { data, error } = await supabase
       .from('cdt_role_permissions')
       .select(`
@@ -121,13 +136,12 @@ export async function getUserPermissions(userId: string): Promise<Permission[]> 
 }
 
 /**
- * Verifica se um usuário tem um cargo específico
+ * Verifica se um usuario tem um cargo especifico
  */
 export async function hasRole(userId: string, roleName: string): Promise<boolean> {
   try {
     if (roleName === 'admin') {
-      const nativeAdmin = await isNativeAdminUserId(userId);
-      if (nativeAdmin) return true;
+      return await isGlobalAdminUserId(userId);
     }
 
     const { data, error } = await supabase
@@ -150,7 +164,7 @@ export async function hasRole(userId: string, roleName: string): Promise<boolean
 }
 
 /**
- * Lista todos os IDs de usuários que devem receber eventos administrativos.
+ * Lista todos os IDs de usuarios que devem receber eventos administrativos.
  */
 export async function getAdminUserIds(): Promise<string[]> {
   try {
@@ -161,8 +175,7 @@ export async function getAdminUserIds(): Promise<string[]> {
         cdt_roles!inner (
           name
         )
-      `)
-      .eq('cdt_roles.name', 'admin');
+      `);
 
     const nativeEmails = getNativeAdminEmails();
     const nativeAdminsPromise = nativeEmails.length > 0
@@ -177,8 +190,13 @@ export async function getAdminUserIds(): Promise<string[]> {
     const adminIds = new Set<string>();
 
     if (!roleAdminsRes.error && roleAdminsRes.data) {
-      for (const row of roleAdminsRes.data as Array<{ user_id?: string | null }>) {
-        if (row.user_id) adminIds.add(row.user_id);
+      for (const row of roleAdminsRes.data as Array<{
+        user_id?: string | null;
+        cdt_roles?: { name?: string | null } | null;
+      }>) {
+        if (row.user_id && isGlobalAdminRoleName(row.cdt_roles?.name ?? null)) {
+          adminIds.add(row.user_id);
+        }
       }
     }
 

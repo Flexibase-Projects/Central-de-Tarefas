@@ -1,81 +1,33 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useMemo } from 'react'
 import type { User } from '@/types'
-import { useAuth } from '@/contexts/AuthContext'
-import { apiUrl } from '@/lib/api'
-
-const TTL_MS = 5 * 60 * 1000
-
-let cacheUserId: string | null = null
-let cacheUsers: User[] = []
-let cacheAt = 0
-let inFlight: Promise<User[]> | null = null
+import { useWorkspaceMembers } from '@/hooks/use-workspace-members'
 
 /**
- * Lista usuários para atribuição em to-dos.
- * Cache em memória (por usuário logado + TTL) evita várias requisições ao abrir cards/diálogos.
+ * Lista usuarios ativos do workspace atual para atribuicao em atividades, to-dos e custos.
+ * Mantem cache por workspace para evitar requisicoes repetidas entre dialogs e telas.
  */
 export function useUsersList() {
-  const { currentUser, getAuthHeaders } = useAuth()
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { members, loading, error, refresh } = useWorkspaceMembers()
 
-  const fetchUsers = useCallback(async () => {
-    if (!currentUser?.id) {
-      setUsers([])
-      setLoading(false)
-      setError(null)
-      return
-    }
-
-    const uid = currentUser.id
-
-    if (cacheUserId === uid && Date.now() - cacheAt < TTL_MS) {
-      setUsers(cacheUsers)
-      setLoading(false)
-      setError(null)
-      return
-    }
-
-    const url = apiUrl('/api/users', { for_assignment: true })
-
-    if (!inFlight) {
-      inFlight = (async () => {
-        const response = await fetch(url, { headers: getAuthHeaders() })
-        if (!response.ok) {
-          throw new Error('Falha ao buscar usuários')
-        }
-        const data = (await response.json()) as User[]
-        cacheUsers = data
-        cacheUserId = uid
-        cacheAt = Date.now()
-        return data
-      })().finally(() => {
-        inFlight = null
-      })
-    }
-
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await inFlight
-      setUsers(data)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar usuários')
-      console.error('Error fetching users:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [currentUser?.id, getAuthHeaders])
-
-  useEffect(() => {
-    void fetchUsers()
-  }, [fetchUsers])
+  const users = useMemo<User[]>(() => {
+    return members
+      .map((member) => ({
+        id: member.id,
+        central_user_id: member.central_user_id,
+        email: member.email ?? '',
+        name: member.name,
+        avatar_url: member.avatar_url,
+        is_active: member.is_active,
+        created_at: '',
+        updated_at: '',
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
+  }, [members])
 
   return {
     users,
     loading,
     error,
-    refreshUsers: fetchUsers,
+    refreshUsers: refresh,
   }
 }

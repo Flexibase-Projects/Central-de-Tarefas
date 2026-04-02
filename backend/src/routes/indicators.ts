@@ -1,9 +1,11 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
-import { hasRole } from '../services/permissions.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 import { getEffectiveUserId } from '../middleware/auth.js';
 import { getWorkspaceContext } from '../middleware/workspace.js';
+import { listActiveWorkspaceUserIds } from '../services/workspace-memberships.js';
+import { isManagerialWorkspaceRole } from '../services/workspace-roles.js';
+import { listWorkspaceResolvedUserProfiles } from '../services/workspace-user-profiles.js';
 
 const router = express.Router();
 
@@ -53,6 +55,13 @@ interface PersonalSummary {
   todosAssignedOpen: number;
   commentsCount: number;
   activitiesAssigned: number;
+}
+
+interface MonthlyActivitySummary {
+  completed: number;
+  pending: number;
+  overdue: number;
+  total: number;
 }
 
 interface RecentAssignedTodo {
@@ -146,17 +155,42 @@ function dateValue(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-async function fetchUsers(workspaceId: string) {
-  const membershipRes = await supabase
-    .from('cdt_workspace_memberships')
-    .select('user_id')
-    .eq('workspace_id', workspaceId)
-    .eq('membership_status', 'active');
+function dateKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const directMatch = /^(\d{4}-\d{2}-\d{2})/.exec(value);
+  if (directMatch) return directMatch[1];
 
-  if (membershipRes.error) throw membershipRes.error;
-  const userIds = Array.from(
-    new Set((membershipRes.data ?? []).map((row: { user_id: string }) => row.user_id)),
-  );
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  const parts = formatter.formatToParts(parsed);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
+function currentMonthKey(): string {
+  return (dateKey(new Date().toISOString()) ?? '').slice(0, 7);
+}
+
+function todayKey(): string {
+  return dateKey(new Date().toISOString()) ?? '';
+}
+
+function isMonthMatch(value: string | null | undefined, month: string): boolean {
+  return (dateKey(value) ?? '').slice(0, 7) === month;
+}
+
+async function fetchUsers(workspaceId: string) {
+  const userIds = await listActiveWorkspaceUserIds(workspaceId);
   if (userIds.length === 0) return [];
 
   const usersRes = await supabase
@@ -429,6 +463,68 @@ function buildPersonalSummary(params: {
   };
 }
 
+function buildMonthlyActivitySummary(params: {
+  todos: TodoRow[];
+  activities: ActivityRow[];
+  scope: ScopeMode;
+  currentUserId: string;
+}): MonthlyActivitySummary {
+  const { todos, activities, scope, currentUserId } = params;
+  const scopedTodos = scope === 'me'
+    ? todos.filter((todo) => todo.assigned_to === currentUserId)
+    : todos;
+  const scopedActivities = scope === 'me'
+    ? activities.filter((activity) => activity.assigned_to === currentUserId)
+    : activities;
+
+  const month = currentMonthKey();
+  const today = todayKey();
+  let completed = 0;
+  let pending = 0;
+  let overdue = 0;
+
+  scopedTodos.forEach((todo) => {
+    if (!isMonthMatch(todo.created_at, month)) return;
+
+    if (todo.completed === true) {
+      completed += 1;
+      return;
+    }
+
+    const deadline = dateKey(todo.deadline);
+    if (deadline && deadline < today) {
+      overdue += 1;
+      return;
+    }
+
+    pending += 1;
+  });
+
+  scopedActivities.forEach((activity) => {
+    if (!isMonthMatch(activity.created_at, month)) return;
+
+    if (activity.status === 'done') {
+      completed += 1;
+      return;
+    }
+
+    const dueDate = dateKey(activity.due_date);
+    if (dueDate && dueDate < today) {
+      overdue += 1;
+      return;
+    }
+
+    pending += 1;
+  });
+
+  return {
+    completed,
+    pending,
+    overdue,
+    total: completed + pending + overdue,
+  };
+}
+
 function buildUserIndicators(params: {
   users: Array<{ id: string; name: string; email: string; avatar_url: string | null }>;
   comments: CommentRow[];
@@ -504,31 +600,18 @@ function buildTeamTotals(params: {
 router.get('/', async (req, res) => {
   const userId = getEffectiveUserId(req);
   const workspaceId = getWorkspaceIdOrFail(req, res);
-  console.log('[DBG d3f9fe H2] indicators request', {
-    userId,
-    scopeQuery: typeof req.query.scope === 'string' ? req.query.scope : null,
-  });
-  // #region agent log
-  fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H2',location:'backend/src/routes/indicators.ts:425',message:'indicators request received',data:{userId,scopeQuery:typeof req.query.scope==='string'?req.query.scope:null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!userId) {
     return res.status(401).json({ error: 'Nao autenticado' });
   }
   if (!workspaceId) return;
 
   try {
-    const isAdmin = await hasRole(userId, 'admin');
+    const workspaceContext = getWorkspaceContext(req);
+    const membershipRoleKey =
+      workspaceContext?.membership.role_key ?? workspaceContext?.membership.role_name ?? null;
+    const isManagerial = isManagerialWorkspaceRole(membershipRoleKey);
     const requestedScope = parseScope(req.query.scope);
-    const scope: ScopeMode = !isAdmin ? 'me' : requestedScope ?? 'team';
-    console.log('[DBG d3f9fe H2] indicators scope', {
-      userId,
-      isAdmin,
-      requestedScope,
-      scope,
-    });
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H2',location:'backend/src/routes/indicators.ts:434',message:'indicators scope resolved',data:{userId,isAdmin,requestedScope,scope},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    const scope: ScopeMode = !isManagerial ? 'me' : requestedScope ?? 'team';
 
     const [users, commentsRes, todosRes, projects, activitiesList] = await Promise.all([
       fetchUsers(workspaceId),
@@ -543,9 +626,21 @@ router.get('/', async (req, res) => {
     const comments = (commentsRes.data ?? []) as CommentRow[];
     const todos = (todosRes ?? []) as TodoRow[];
     const activities = (activitiesList ?? []) as ActivityRow[];
+    const presentations = await listWorkspaceResolvedUserProfiles(
+      workspaceId,
+      users.map((user: { id: string }) => user.id),
+    );
+    const displayUsers = users.map((user: { id: string; name: string; email: string; avatar_url: string | null }) => {
+      const presentation = presentations.get(user.id) ?? null;
+      return {
+        ...user,
+        name: presentation?.effective_name ?? user.name,
+        avatar_url: presentation?.effective_avatar_url ?? user.avatar_url,
+      };
+    });
 
     const byUser = buildUserIndicators({
-      users,
+      users: displayUsers,
       comments,
       todos,
       activities,
@@ -571,12 +666,18 @@ router.get('/', async (req, res) => {
       activities,
       currentUserId: userId,
     });
+    const monthlyActivitySummary = buildMonthlyActivitySummary({
+      todos,
+      activities,
+      scope,
+      currentUserId: userId,
+    });
 
     const recentAssignedTodos = buildRecentAssignedTodos({
       todos,
       projects,
       activities,
-      users,
+      users: displayUsers,
       scope,
       currentUserId: userId,
     });
@@ -584,42 +685,18 @@ router.get('/', async (req, res) => {
       todos,
       projects,
       activities,
-      users,
+      users: displayUsers,
       scope,
       currentUserId: userId,
     });
-    const allAssignedTodos = todos.filter((todo) => todo.assigned_to === userId);
-    const allAssignedPendingCount = allAssignedTodos.filter((todo) => todo.completed !== true).length;
-    const recentAssignedPendingCount = recentAssignedTodos.filter((todo) => todo.completed !== true).length;
-    console.log('[DBG d3f9fe H6] recent todo composition', {
-      allAssignedCount: allAssignedTodos.length,
-      allAssignedPendingCount,
-      recentAssignedCount: recentAssignedTodos.length,
-      recentAssignedPendingCount,
-    });
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H6',location:'backend/src/routes/indicators.ts:486',message:'recent todo composition',data:{allAssignedCount:allAssignedTodos.length,allAssignedPendingCount,recentAssignedCount:recentAssignedTodos.length,recentAssignedPendingCount},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const recentActivities = buildRecentActivities({
       activities,
       currentUserId: userId,
     });
-    console.log('[DBG d3f9fe H3] indicators payload', {
-      scope,
-      personal,
-      byUserCount: byUser.length,
-      byProjectCount: byProject.length,
-      byActivityCount: byActivity.length,
-      recentAssignedTodosCount: recentAssignedTodos.length,
-      recentActivitiesCount: recentActivities.length,
-    });
-    // #region agent log
-    fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H3',location:'backend/src/routes/indicators.ts:488',message:'indicators payload sizes',data:{scope,personal,byUserCount:byUser.length,byProjectCount:byProject.length,byActivityCount:byActivity.length,recentAssignedTodosCount:recentAssignedTodos.length,recentActivitiesCount:recentActivities.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const team = buildTeamTotals({
-      users,
+      users: displayUsers,
       projects,
       activities,
       comments,
@@ -640,6 +717,7 @@ router.get('/', async (req, res) => {
     return res.json({
       scope,
       personal,
+      monthlyActivitySummary,
       recentAssignedTodos,
       pendingAssignedTodos,
       recentActivities,

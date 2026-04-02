@@ -4,7 +4,7 @@ import type { UserProgress } from '@/types'
 import { apiUrl } from '@/lib/api'
 const POLL_INTERVAL_MS = 60_000 // 60 seconds
 
-export function useUserProgress() {
+export function useUserProgress(targetUserId?: string | null, enabled = true) {
   const { getAuthHeaders } = useAuth()
   const [data, setData] = useState<UserProgress | null>(null)
   const [loading, setLoading] = useState(true)
@@ -13,11 +13,21 @@ export function useUserProgress() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchProgress = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false)
+      setError(null)
+      setData(null)
+      return
+    }
     try {
       setLoading(true)
       setError(null)
       const url = apiUrl('/api/me/progress')
-      const response = await fetch(url, { headers: getAuthHeaders() })
+      const headers = getAuthHeaders()
+      if (targetUserId) {
+        headers['x-user-id'] = targetUserId
+      }
+      const response = await fetch(url, { headers })
       if (!response.ok) {
         if (response.status === 401) {
           setData(null)
@@ -34,10 +44,20 @@ export function useUserProgress() {
     } finally {
       setLoading(false)
     }
-  }, [getAuthHeaders])
+  }, [enabled, getAuthHeaders, targetUserId])
 
   // Initial fetch + 60-second polling
   useEffect(() => {
+    if (!enabled) {
+      setData(null)
+      setLoading(false)
+      setError(null)
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      return
+    }
     fetchProgress()
 
     intervalRef.current = setInterval(() => {
@@ -50,7 +70,7 @@ export function useUserProgress() {
         intervalRef.current = null
       }
     }
-  }, [fetchProgress])
+  }, [enabled, fetchProgress])
 
   useEffect(() => {
     const handler = () => {
@@ -64,7 +84,7 @@ export function useUserProgress() {
       window.removeEventListener('cdt-todo-completed', handler)
       window.removeEventListener('cdt-activities-invalidated', handler)
     }
-  }, [fetchProgress])
+  }, [enabled, fetchProgress])
 
   const notifyXpAwarded = useCallback((xpAwarded: number) => {
     setPendingXp(xpAwarded)

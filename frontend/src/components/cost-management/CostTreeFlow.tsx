@@ -313,6 +313,7 @@ type Props = {
   graph: CostManagementGraph | null
   loading: boolean
   error: string | null
+  workspaceSlug?: string | null
   /** Nó selecionado: destaque no mapa + tipicamente drawer na página pai */
   canvasFocus: CostCanvasFocus | null
   onCanvasFocusChange: (focus: CostCanvasFocus | null) => void
@@ -353,6 +354,7 @@ function CostCanvasCore({
   onConsumedPendingNodePlacement,
   orgEntries = [],
   fillHeight = false,
+  workspaceSlug,
 }: Omit<Props, 'graph' | 'loading' | 'error'> & { graph: CostManagementGraph }) {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
@@ -364,7 +366,11 @@ function CostCanvasCore({
   const [toast, setToast] = useState<{ message: string; severity: 'success' | 'error' } | null>(null)
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
 
-  const [manualPositions, setManualPositions] = useState<Record<string, XYPosition>>(() => loadCostCanvasPositions())
+  const [manualPositions, setManualPositions] = useState<Record<string, XYPosition>>(() => loadCostCanvasPositions(workspaceSlug))
+
+  useEffect(() => {
+    setManualPositions(loadCostCanvasPositions(workspaceSlug))
+  }, [workspaceSlug])
 
   const keys = graphContentKeys(graph)
 
@@ -449,15 +455,15 @@ function CostCanvasCore({
     const { nodeId, x, y } = pendingNodePlacement
     setManualPositions((prev) => {
       const next = { ...prev, [nodeId]: { x, y } }
-      saveCostCanvasPositions({ ...layoutPositionsRef.current, ...next })
+      saveCostCanvasPositions({ ...layoutPositionsRef.current, ...next }, workspaceSlug)
       return next
     })
     onConsumedPendingNodePlacement?.()
-  }, [pendingNodePlacement, onConsumedPendingNodePlacement])
+  }, [onConsumedPendingNodePlacement, pendingNodePlacement, workspaceSlug])
 
   const persistMerged = useCallback((override: Record<string, XYPosition>) => {
-    saveCostCanvasPositions({ ...layoutPositionsRef.current, ...override })
-  }, [])
+    saveCostCanvasPositions({ ...layoutPositionsRef.current, ...override }, workspaceSlug)
+  }, [workspaceSlug])
 
   const onNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
@@ -798,6 +804,7 @@ export function CostTreeFlow({
   graph,
   loading,
   error,
+  workspaceSlug,
   canvasFocus,
   onCanvasFocusChange,
   onLinkCostToDepartment,
@@ -876,9 +883,10 @@ export function CostTreeFlow({
         }
       >
         <ReactFlowProvider>
-          <CostCanvasCore
-            graph={graph}
-            canvasFocus={canvasFocus}
+        <CostCanvasCore
+          graph={graph}
+          workspaceSlug={workspaceSlug}
+          canvasFocus={canvasFocus}
             onCanvasFocusChange={onCanvasFocusChange}
             onLinkCostToDepartment={onLinkCostToDepartment}
             onUnlinkCostFromDepartment={onUnlinkCostFromDepartment}

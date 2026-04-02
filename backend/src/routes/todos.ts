@@ -4,6 +4,7 @@ import { hasRole } from '../services/permissions.js';
 import { getRealUserId, getRequesterId as getResolvedRequesterId } from '../middleware/auth.js';
 import { getWorkspaceContext } from '../middleware/workspace.js';
 import { gamificationMigration503Payload } from '../constants/gamificationMigrationSql.js';
+import { getWorkspaceModuleState } from '../services/workspace-modules.js';
 import {
   awardTodoCompletionXp,
   calculateItemCompletionXp,
@@ -65,6 +66,11 @@ function getWorkspaceIdOrFail(req: express.Request, res: express.Response): stri
     return null;
   }
   return workspace.workspace.id;
+}
+
+async function isGamificationEnabledForWorkspace(workspaceId: string): Promise<boolean> {
+  const moduleState = await getWorkspaceModuleState(workspaceId, 'gamification');
+  return moduleState?.available === true;
 }
 
 function parseDecimal(value: unknown, fallback: number): number {
@@ -431,7 +437,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    if (!isAdmin) {
+    if (!isAdmin && (await isGamificationEnabledForWorkspace(workspaceId))) {
       await notifyAdminsTodoXpPending({
         workspaceId,
         todoId: data.id,
@@ -533,26 +539,33 @@ router.put('/:id', async (req, res) => {
     let xpDelta = 0;
     let xpAction: 'none' | 'awarded' | 'reverted' | 'retro_awarded' = 'none';
     let gamificationWarning: ReturnType<typeof gamificationMigration503Payload> | null = null;
+    const gamificationEnabled = await isGamificationEnabledForWorkspace(workspaceId);
 
     try {
-      if (transitionedToCompleted && updatedTodo.assigned_to) {
+      if (gamificationEnabled && transitionedToCompleted && updatedTodo.assigned_to) {
         const xpAmount = await calculateTodoAwardXp(updatedTodo);
         const awarded = await awardTodoCompletionXp({
           userId: updatedTodo.assigned_to,
           todoId: updatedTodo.id,
           xpAmount,
+          workspaceId,
         });
 
         if (awarded.awarded) {
           xpDelta = awarded.xpDelta;
           xpAction = 'awarded';
-          await unlockLinkedAchievementIfNeeded(updatedTodo.assigned_to, updatedTodo.achievement_id ?? null);
-          await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to);
+          await unlockLinkedAchievementIfNeeded(
+            updatedTodo.assigned_to,
+            updatedTodo.achievement_id ?? null,
+            workspaceId,
+          );
+          await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to, workspaceId);
         }
       } else if (transitionedToOpen && existingTodo.assigned_to) {
         const reverted = await revertTodoCompletionXp({
           userId: existingTodo.assigned_to,
           todoId: existingTodo.id,
+          workspaceId,
         });
 
         if (reverted.reverted) {
@@ -560,6 +573,7 @@ router.put('/:id', async (req, res) => {
           xpAction = 'reverted';
         }
       } else if (
+        gamificationEnabled &&
         isAdmin &&
         updatedTodo.completed === true &&
         !hadXpConfigured &&
@@ -571,13 +585,18 @@ router.put('/:id', async (req, res) => {
           userId: updatedTodo.assigned_to,
           todoId: updatedTodo.id,
           xpAmount,
+          workspaceId,
         });
 
         if (retroAwarded.awarded) {
           xpDelta = retroAwarded.xpDelta;
           xpAction = 'retro_awarded';
-          await unlockLinkedAchievementIfNeeded(updatedTodo.assigned_to, updatedTodo.achievement_id ?? null);
-          await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to);
+          await unlockLinkedAchievementIfNeeded(
+            updatedTodo.assigned_to,
+            updatedTodo.achievement_id ?? null,
+            workspaceId,
+          );
+          await evaluateAndAwardGlobalAchievements(updatedTodo.assigned_to, workspaceId);
         }
       }
     } catch (gamificationError: any) {
@@ -651,11 +670,12 @@ router.delete('/:id', async (req, res) => {
     let xpDelta = 0;
     let xpAction: 'none' | 'reverted' = 'none';
 
-    if (existingTodo.completed === true && existingTodo.assigned_to) {
+    if ((await isGamificationEnabledForWorkspace(workspaceId)) && existingTodo.completed === true && existingTodo.assigned_to) {
       try {
         const reverted = await revertTodoCompletionXp({
           userId: existingTodo.assigned_to,
           todoId: existingTodo.id,
+          workspaceId,
         });
 
         if (reverted.reverted) {

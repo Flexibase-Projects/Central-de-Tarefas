@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
+  Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -9,10 +11,10 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
-  IconButton,
   InputLabel,
   MenuItem,
   Select,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -23,184 +25,119 @@ import {
   Typography,
 } from '@mui/material'
 import { ToggleOn, ToggleOff } from '@mui/icons-material'
-import { Plus, Pencil, UserPlus } from '@/components/ui/icons'
-import { UserWithRole } from '@/types'
-import { useUsers } from '@/hooks/use-users'
+import { Plus } from '@/components/ui/icons'
+import { useAssignableUsersCatalog } from '@/hooks/use-assignable-users-catalog'
 import { useRoles } from '@/hooks/use-roles'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-
-/** Desative quando criação/vínculo via painel estiver estável de novo (evita 503 no Admin API). */
-const ADMIN_NEW_USER_FLOW_ENABLED = false
-
-type AuthListUser = {
-  id: string
-  email: string
-  name: string
-  created_at: string
-  in_cdt: boolean
-}
+import { useWorkspaceMembers } from '@/hooks/use-workspace-members'
 
 function getPreferredRoleId(roles: Array<{ id: string; name: string }>): string {
   if (roles.length === 0) return ''
 
   const memberLike = roles.find((role) =>
-    ['member', 'usuario', 'user', 'colaborador', 'employee'].includes(role.name.toLowerCase()),
+    ['member', 'usuario', 'user', 'developer', 'colaborador', 'employee'].includes(
+      role.name.toLowerCase(),
+    ),
   )
   if (memberLike) return memberLike.id
 
   const firstNonAdmin = roles.find((role) => role.name.toLowerCase() !== 'admin')
-  if (firstNonAdmin) return firstNonAdmin.id
-
-  return roles[0]?.id ?? ''
+  return firstNonAdmin?.id ?? roles[0]?.id ?? ''
 }
 
 export function UsersTable() {
   const {
-    users,
+    members,
     loading,
-    createUserWithAuth,
-    updateUser,
-    setUserActive,
-    assignRole,
-    authList,
-    authListLoading,
-    fetchAuthList,
-    giveAccessFromAuth,
-  } = useUsers()
+    refreshing,
+    error,
+    addMember,
+    updateMember,
+  } = useWorkspaceMembers(undefined, { includeInactive: true })
+  const {
+    users: assignableUsers,
+    loading: assignableLoading,
+    error: assignableError,
+  } = useAssignableUsersCatalog()
+  const { roles, loading: rolesLoading } = useRoles()
 
-  const { roles } = useRoles()
-
-  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null)
-  const [formData, setFormData] = useState({ email: '', name: '', avatar_url: '' })
-  const [newUserRoleId, setNewUserRoleId] = useState('')
-  const [savingUser, setSavingUser] = useState(false)
-
-  const [isAccessDialogOpen, setIsAccessDialogOpen] = useState(false)
-  const [selectedAuthUser, setSelectedAuthUser] = useState<AuthListUser | null>(null)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState('')
-  const [givingAccessId, setGivingAccessId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  const [isNewUserDialogOpen, setIsNewUserDialogOpen] = useState(false)
-  const [authSearch, setAuthSearch] = useState('')
-
-  const roleItems = useMemo(
-    () => roles.map((role) => ({ id: role.id, name: role.name, display_name: role.display_name })),
-    [roles],
+  const activeMembersCount = useMemo(
+    () => members.filter((member) => member.is_active).length,
+    [members],
   )
 
-  const filteredAuthList = useMemo(() => {
-    if (!authSearch.trim()) return authList
-    const q = authSearch.trim().toLowerCase()
-    return authList.filter(
-      (u) =>
-        u.email.toLowerCase().includes(q) ||
-        (u.name && u.name.toLowerCase().includes(q)),
-    )
-  }, [authList, authSearch])
+  const membershipByUserId = useMemo(
+    () => new Map(members.map((member) => [member.id, member] as const)),
+    [members],
+  )
 
-  const handleOpenNewUser = () => {
-    if (!ADMIN_NEW_USER_FLOW_ENABLED) return
-    setAuthSearch('')
-    setIsNewUserDialogOpen(true)
-    fetchAuthList()
-  }
-
-  const handleCreate = () => {
-    if (!ADMIN_NEW_USER_FLOW_ENABLED) return
-    setEditingUser(null)
-    setFormData({ email: '', name: '', avatar_url: '' })
-    setNewUserRoleId(getPreferredRoleId(roleItems))
-    setIsUserDialogOpen(true)
-  }
-
-  const handleEdit = (user: UserWithRole) => {
-    setEditingUser(user)
-    setFormData({
-      email: user.email,
-      name: user.name,
-      avatar_url: user.avatar_url || '',
+  const addableUsers = useMemo(() => {
+    return assignableUsers.filter((user) => {
+      const existing = membershipByUserId.get(user.id)
+      return !existing || !existing.is_active
     })
-    setIsUserDialogOpen(true)
+  }, [assignableUsers, membershipByUserId])
+
+  useEffect(() => {
+    if (!isAddDialogOpen) return
+    setSelectedRoleId((current) => current || getPreferredRoleId(roles))
+  }, [isAddDialogOpen, roles])
+
+  const handleOpenAddDialog = () => {
+    setSelectedUserId(null)
+    setSelectedRoleId(getPreferredRoleId(roles))
+    setIsAddDialogOpen(true)
   }
 
-  const handleSubmitUser = async () => {
-    if (!editingUser && !ADMIN_NEW_USER_FLOW_ENABLED) {
-      alert('Criação de usuário pelo painel está temporariamente indisponível.')
+  const handleConfirmAdd = async () => {
+    if (!selectedUserId) {
+      alert('Selecione um usuario para vincular.')
       return
     }
-    setSavingUser(true)
-    try {
-      if (editingUser) {
-        await updateUser(editingUser.id, formData)
-      } else {
-        await createUserWithAuth({
-          email: formData.email,
-          name: formData.name,
-          avatar_url: formData.avatar_url || undefined,
-          role_id: newUserRoleId || undefined,
-        })
-      }
-      setIsUserDialogOpen(false)
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Erro ao salvar usuario')
-    } finally {
-      setSavingUser(false)
-    }
-  }
 
-  const handleToggleActive = async (user: UserWithRole) => {
-    const next = !user.is_active
-    const msg = next
-      ? 'Reativar acesso deste usuario?'
-      : 'Desativar acesso deste usuario? Ele nao podera usar o sistema ate ser reativado.'
-    if (!confirm(msg)) return
+    setSaving(true)
     try {
-      await setUserActive(user.id, next)
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Erro ao alterar status')
+      await addMember({
+        userId: selectedUserId,
+        roleId: selectedRoleId || null,
+      })
+      setIsAddDialogOpen(false)
+      setSelectedUserId(null)
+      setSelectedRoleId('')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao adicionar usuario ao workspace')
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleRoleChange = async (userId: string, roleId: string) => {
-    await assignRole(userId, roleId)
-  }
-
-  const handleOpenGiveAccess = (authUser: AuthListUser) => {
-    setSelectedAuthUser(authUser)
-    setSelectedRoleId(getPreferredRoleId(roleItems))
-    setIsAccessDialogOpen(true)
-  }
-
-  const handleConfirmGiveAccess = async () => {
-    if (!selectedAuthUser) return
-    if (!selectedRoleId) {
-      alert('Selecione um cargo para liberar acesso.')
-      return
-    }
-
-    setGivingAccessId(selectedAuthUser.id)
     try {
-      await giveAccessFromAuth(
-        {
-          id: selectedAuthUser.id,
-          email: selectedAuthUser.email,
-          name: selectedAuthUser.name,
-        },
-        selectedRoleId,
-      )
-      setIsAccessDialogOpen(false)
-      setSelectedAuthUser(null)
-      setSelectedRoleId('')
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Erro ao dar acesso')
-    } finally {
-      setGivingAccessId(null)
+      await updateMember(userId, { roleId })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao atualizar cargo')
     }
   }
 
-  if (loading) {
+  const handleToggleActive = async (userId: string, nextValue: boolean) => {
+    const message = nextValue
+      ? 'Reativar este usuario no workspace?'
+      : 'Desativar este usuario neste workspace?'
+
+    if (!confirm(message)) return
+
+    try {
+      await updateMember(userId, { isActive: nextValue })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Erro ao atualizar status')
+    }
+  }
+
+  if (loading && members.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
         <CircularProgress />
@@ -209,31 +146,35 @@ export function UsersTable() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6" fontWeight={600}>
-          Usuarios com acesso
-        </Typography>
-        <Tooltip
-          title={
-            ADMIN_NEW_USER_FLOW_ENABLED
-              ? 'Abrir cadastro de novos usuários'
-              : 'Criação de novos usuários pelo painel está temporariamente indisponível (serviço indisponível ou instável).'
-          }
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={1.5}>
+        <Box>
+          <Typography variant="h6" fontWeight={700}>
+            Usuarios deste workspace
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Somente membros vinculados a esta workspace podem aparecer como responsaveis e atuar nos elementos locais.
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<Plus size={18} />}
+          onClick={handleOpenAddDialog}
+          disabled={rolesLoading}
         >
-          <span>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={handleOpenNewUser}
-              startIcon={<Plus size={20} />}
-              disabled={!ADMIN_NEW_USER_FLOW_ENABLED}
-            >
-              Novo Usuario
-            </Button>
-          </span>
-        </Tooltip>
-      </Box>
+          Adicionar usuario
+        </Button>
+      </Stack>
+
+      {error ? <Alert severity="error">{error}</Alert> : null}
+      {assignableError ? <Alert severity="warning">{assignableError}</Alert> : null}
+      {activeMembersCount === 0 ? (
+        <Alert severity="error">
+          Esta workspace precisa manter ao menos um usuario ativo para continuar operando.
+        </Alert>
+      ) : null}
+      {refreshing ? <Alert severity="info">Sincronizando membros desta workspace em segundo plano.</Alert> : null}
 
       <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
         <Table size="small">
@@ -249,29 +190,41 @@ export function UsersTable() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.length === 0 ? (
+            {members.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                  <Typography color="text.secondary">Nenhum usuario encontrado</Typography>
+                  <Typography color="text.secondary">
+                    Nenhum usuario vinculado a esta workspace ainda.
+                  </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => (
-                <TableRow key={user.id} hover>
-                  <TableCell sx={{ fontWeight: 500 }}>{user.name}</TableCell>
+              members.map((member) => (
+                <TableRow key={member.id} hover>
+                  <TableCell sx={{ fontWeight: 500 }}>
+                    <Stack direction="row" alignItems="center" gap={1}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {member.name}
+                      </Typography>
+                      {member.is_default ? (
+                        <Chip label="Principal" size="small" variant="outlined" sx={{ height: 20 }} />
+                      ) : null}
+                    </Stack>
+                  </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
-                      {user.email}
+                      {member.email || '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    <FormControl size="small" sx={{ minWidth: 170 }}>
+                    <FormControl size="small" sx={{ minWidth: 180 }}>
+                      <InputLabel id={`workspace-role-${member.id}`}>Cargo</InputLabel>
                       <Select
-                        value={user.role?.id || ''}
-                        onChange={(e) => handleRoleChange(user.id, String(e.target.value))}
-                        displayEmpty
+                        labelId={`workspace-role-${member.id}`}
+                        value={member.role?.id ?? ''}
+                        label="Cargo"
+                        onChange={(event) => handleRoleChange(member.id, String(event.target.value))}
                       >
-                        <MenuItem value="">Sem cargo</MenuItem>
                         {roles.map((role) => (
                           <MenuItem key={role.id} value={role.id}>
                             {role.display_name}
@@ -280,37 +233,24 @@ export function UsersTable() {
                       </Select>
                     </FormControl>
                   </TableCell>
-                  <TableCell sx={{ verticalAlign: 'middle' }}>
+                  <TableCell>
                     <Chip
-                      label={user.is_active ? 'Ativo' : 'Inativo'}
+                      label={member.is_active ? 'Ativo' : 'Inativo'}
                       size="small"
-                      color={user.is_active ? 'success' : 'error'}
+                      color={member.is_active ? 'success' : 'default'}
                       variant="outlined"
-                      sx={{
-                        minWidth: 76,
-                        justifyContent: 'center',
-                        '& .MuiChip-label': {
-                          px: 1,
-                          width: '100%',
-                          textAlign: 'center',
-                          fontVariantNumeric: 'tabular-nums',
-                        },
-                      }}
                     />
                   </TableCell>
-                  <TableCell align="right" sx={{ verticalAlign: 'middle' }}>
-                    <IconButton size="small" onClick={() => handleEdit(user)} aria-label="Editar usuario">
-                      <Pencil size={20} />
-                    </IconButton>
-                    <Tooltip title={user.is_active ? 'Desativar acesso' : 'Reativar acesso'}>
-                      <IconButton
+                  <TableCell align="right">
+                    <Tooltip title={member.is_active ? 'Desativar neste workspace' : 'Reativar neste workspace'}>
+                      <Button
                         size="small"
-                        color={user.is_active ? 'success' : 'error'}
-                        onClick={() => handleToggleActive(user)}
-                        aria-label={user.is_active ? 'Desativar usuario' : 'Reativar usuario'}
+                        color={member.is_active ? 'success' : 'inherit'}
+                        onClick={() => handleToggleActive(member.id, !member.is_active)}
+                        startIcon={member.is_active ? <ToggleOn fontSize="small" /> : <ToggleOff fontSize="small" />}
                       >
-                        {user.is_active ? <ToggleOn fontSize="small" /> : <ToggleOff fontSize="small" />}
-                      </IconButton>
+                        {member.is_active ? 'Ativo' : 'Reativar'}
+                      </Button>
                     </Tooltip>
                   </TableCell>
                 </TableRow>
@@ -320,211 +260,54 @@ export function UsersTable() {
         </Table>
       </Box>
 
-      <Dialog
-        open={isNewUserDialogOpen}
-        onClose={() => setIsNewUserDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { minHeight: '60vh' } }}
-      >
-        <DialogTitle>Novo usuario — buscar no Supabase Auth</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Usuarios que ja possuem conta de login. Pesquise por email ou nome e libere acesso ou defina acao.
-          </Typography>
-          <TextField
-            size="small"
-            placeholder="Pesquisar por email ou nome..."
-            value={authSearch}
-            onChange={(e) => setAuthSearch(e.target.value)}
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          {authListLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'action.hover' }}>
-                    <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Cadastro</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      Acao
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredAuthList.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
-                        <Typography color="text.secondary">
-                          {authList.length === 0
-                            ? 'Nenhum usuario encontrado no Auth.'
-                            : 'Nenhum resultado para a pesquisa.'}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredAuthList.map((authUser) => (
-                      <TableRow key={authUser.id} hover>
-                        <TableCell>{authUser.email}</TableCell>
-                        <TableCell>{authUser.name || '-'}</TableCell>
-                        <TableCell>
-                          <Typography variant="caption" color="text.secondary">
-                            {authUser.created_at
-                              ? formatDistanceToNow(new Date(authUser.created_at), {
-                                  addSuffix: true,
-                                  locale: ptBR,
-                                })
-                              : '-'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={authUser.in_cdt ? 'Com acesso' : 'Sem acesso'}
-                            size="small"
-                            color={authUser.in_cdt ? 'success' : 'default'}
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          {authUser.in_cdt ? (
-                            <Typography variant="caption" color="text.secondary">
-                              Ja no sistema
-                            </Typography>
-                          ) : (
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              startIcon={<UserPlus size={18} />}
-                              disabled={Boolean(givingAccessId)}
-                              onClick={() => handleOpenGiveAccess(authUser)}
-                            >
-                              Liberar acesso
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Tooltip
-            title={
-              ADMIN_NEW_USER_FLOW_ENABLED
-                ? 'Criar conta no Auth e no sistema com senha inicial'
-                : 'Temporariamente indisponível.'
-            }
-          >
-            <span>
-              <Button
-                onClick={() => {
-                  setIsNewUserDialogOpen(false)
-                  handleCreate()
-                }}
-                disabled={!ADMIN_NEW_USER_FLOW_ENABLED}
-              >
-                Criar usuario manualmente
-              </Button>
-            </span>
-          </Tooltip>
-          <Box sx={{ flex: 1 }} />
-          <Button onClick={() => setIsNewUserDialogOpen(false)}>Fechar</Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={isUserDialogOpen} onClose={() => setIsUserDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingUser ? 'Editar Usuario' : 'Criar usuario manualmente'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              fullWidth
-              disabled={Boolean(editingUser)}
-            />
-            <TextField
-              label="Nome"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              label="Avatar URL (opcional)"
-              value={formData.avatar_url}
-              onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-              fullWidth
-            />
-            {!editingUser && (
-              <FormControl fullWidth size="small">
-                <InputLabel>Cargo inicial</InputLabel>
-                <Select
-                  label="Cargo inicial"
-                  value={newUserRoleId}
-                  onChange={(e) => setNewUserRoleId(String(e.target.value))}
-                  displayEmpty
-                >
-                  <MenuItem value="">
-                    <em>Sem cargo (atribuir depois)</em>
-                  </MenuItem>
-                  {roles.map((role) => (
-                    <MenuItem key={role.id} value={role.id}>
-                      {role.display_name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            )}
-            {!editingUser && (
-              <Typography variant="caption" color="text.secondary">
-                Sera criada conta no Supabase Auth com senha inicial configurada no servidor; no primeiro acesso o
-                usuario define senha forte na tela de login.
-              </Typography>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setIsUserDialogOpen(false)} disabled={savingUser}>
-            Cancelar
-          </Button>
-          <Button variant="contained" onClick={handleSubmitUser} disabled={savingUser}>
-            {savingUser ? <CircularProgress size={22} /> : 'Salvar'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={isAccessDialogOpen}
-        onClose={() => setIsAccessDialogOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>Liberar acesso</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+      <Dialog open={isAddDialogOpen} onClose={() => setIsAddDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Adicionar usuario ao workspace</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              {selectedAuthUser
-                ? `Usuario: ${selectedAuthUser.name || '-'} (${selectedAuthUser.email})`
-                : 'Selecione um usuario'}
+              Selecione um usuario ja existente no sistema para vincular a esta workspace.
             </Typography>
 
-            <FormControl fullWidth size="small">
-              <InputLabel>Cargo inicial</InputLabel>
+            <Autocomplete
+              options={addableUsers}
+              loading={assignableLoading}
+              getOptionLabel={(option) => option.name || option.email || option.id}
+              isOptionEqualToValue={(left, right) => left.id === right.id}
+              value={addableUsers.find((user) => user.id === selectedUserId) ?? null}
+              onChange={(_, value) => setSelectedUserId(value?.id ?? null)}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Usuario"
+                  placeholder="Busque por nome ou email"
+                />
+              )}
+              renderOption={(props, option) => {
+                const existing = membershipByUserId.get(option.id)
+                return (
+                  <Box component="li" {...props}>
+                    <Stack spacing={0.25}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {option.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {option.email}
+                        {existing && !existing.is_active ? ' • ja vinculado, mas inativo' : ''}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                )
+              }}
+              noOptionsText="Nenhum usuario disponivel para vincular"
+            />
+
+            <FormControl fullWidth>
+              <InputLabel id="workspace-add-role-label">Cargo</InputLabel>
               <Select
-                label="Cargo inicial"
+                labelId="workspace-add-role-label"
                 value={selectedRoleId}
-                onChange={(e) => setSelectedRoleId(String(e.target.value))}
+                label="Cargo"
+                onChange={(event) => setSelectedRoleId(String(event.target.value))}
               >
                 {roles.map((role) => (
                   <MenuItem key={role.id} value={role.id}>
@@ -533,19 +316,18 @@ export function UsersTable() {
                 ))}
               </Select>
             </FormControl>
-          </Box>
+          </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setIsAccessDialogOpen(false)} disabled={Boolean(givingAccessId)}>
+          <Button onClick={() => setIsAddDialogOpen(false)} disabled={saving}>
             Cancelar
           </Button>
           <Button
             variant="contained"
-            onClick={handleConfirmGiveAccess}
-            disabled={!selectedAuthUser || !selectedRoleId || Boolean(givingAccessId)}
-            startIcon={givingAccessId ? <CircularProgress size={14} /> : <UserPlus size={16} />}
+            onClick={handleConfirmAdd}
+            disabled={saving || !selectedUserId || !selectedRoleId}
           >
-            Confirmar
+            {saving ? 'Salvando...' : 'Adicionar'}
           </Button>
         </DialogActions>
       </Dialog>

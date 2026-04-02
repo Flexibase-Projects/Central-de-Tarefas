@@ -1,0 +1,235 @@
+<style>
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .card {
+    border: 1px solid #d6dde6;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .card[data-selected="true"] {
+    border-color: #0f766e;
+    box-shadow: 0 0 0 1px #0f766e;
+  }
+
+  .card-body {
+    padding: 14px 14px 16px;
+  }
+
+  .card-body h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  .card-body p {
+    margin: 0;
+    color: #4b5563;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .mock-sidebar {
+    background: #f7f8fa;
+    padding: 18px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .mock-card {
+    border: 1px solid #d8dee6;
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mock-card.compact {
+    gap: 10px;
+  }
+
+  .topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+    font-weight: 700;
+  }
+
+  .subtle {
+    color: #4b5563;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .countline {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .count {
+    font-size: 30px;
+    line-height: 1;
+    font-weight: 700;
+    color: #111827;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meta {
+    font-size: 12px;
+    color: #6b7280;
+    font-weight: 600;
+  }
+
+  .token {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #d8dee6;
+    color: #374151;
+    background: #f8fafc;
+  }
+
+  .token.warning {
+    color: #92400e;
+    border-color: #f3d19d;
+    background: #fff7ed;
+  }
+
+  .token.success {
+    color: #166534;
+    border-color: #b7dfc4;
+    background: #f0fdf4;
+  }
+
+  .rail {
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    overflow: hidden;
+  }
+
+  .rail > span {
+    display: block;
+    height: 100%;
+    width: 62%;
+    background: #111827;
+  }
+
+  .splitline {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #b45309;
+  }
+
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .micro {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: 600;
+  }
+</style>
+
+<h2>Redesign do card "Minhas demandas"</h2>
+<p class="subtitle">Três caminhos compactos e executivos para a sidebar. Minha recomendação inicial é a opção A, porque ela fica mais limpa, mais rápida de ler e escala melhor quando a workspace muda.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="mock-sidebar">
+      <div class="mock-card compact">
+        <div class="topline">
+          <span class="label">Minhas demandas</span>
+          <span class="token warning">Em aberto</span>
+        </div>
+        <div class="countline">
+          <span class="count">08</span>
+          <span class="meta">visão atual</span>
+        </div>
+        <div class="rail"><span></span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Opção A. Compacta com hierarquia forte</h3>
+      <p>Número dominante, status limpo e um único apoio visual. É a mais estável e a que melhor conversa com a sidebar atual.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="mock-sidebar">
+      <div class="mock-card compact">
+        <div class="topline">
+          <span class="label">Minhas demandas</span>
+          <span class="micro">Hoje</span>
+        </div>
+        <div class="splitline">
+          <span class="dot"></span>
+          <div class="stack">
+            <span class="count" style="font-size: 28px;">08</span>
+            <span class="subtle">Itens priorizados agora</span>
+          </div>
+          <span class="token warning">Abertas</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Opção B. Sinal lateral</h3>
+      <p>Tem mais personalidade, mas começa a ficar um pouco mais decorativa do que executiva para esse espaço.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="mock-sidebar">
+      <div class="mock-card compact">
+        <div class="topline">
+          <span class="label">Minhas demandas</span>
+          <span class="token warning">08</span>
+        </div>
+        <div class="countline" style="align-items: center;">
+          <div class="stack">
+            <span style="font-size: 15px; font-weight: 700; color: #111827;">Em aberto</span>
+            <span class="subtle">Acompanhar execução</span>
+          </div>
+          <span class="token success">Ir para lista</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Opção C. Mais ação, menos número</h3>
+      <p>Fica útil como atalho, mas perde impacto visual do contador, que é justamente a informação principal do card.</p>
+    </div>
+  </div>
+</div>

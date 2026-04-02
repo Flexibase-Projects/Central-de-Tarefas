@@ -1,9 +1,10 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
+import { requireWorkspaceManager } from '../middleware/require-workspace-manager.js';
 
 const router = express.Router();
-router.use(requireAdmin);
+router.use(requireWorkspaceManager);
 
 type OrgRow = {
   id: string;
@@ -48,120 +49,166 @@ function isOrgSchemaMismatch(err: unknown): boolean {
   );
 }
 
+function getRequiredWorkspaceId(req: express.Request, res: express.Response): string | null {
+  const workspaceId = getWorkspaceContext(req)?.workspace.id ?? null;
+  if (!workspaceId) {
+    res.status(400).json({ error: 'Workspace is required' });
+    return null;
+  }
+  return workspaceId;
+}
+
 function buildChildrenMap(rows: OrgRow[]): Map<string, OrgRow[]> {
   const byParent = new Map<string, OrgRow[]>();
-  for (const r of rows) {
-    const key = r.reports_to_id ?? '__root__';
+  for (const row of rows) {
+    const key = row.reports_to_id ?? '__root__';
     if (!byParent.has(key)) byParent.set(key, []);
-    byParent.get(key)!.push(r);
+    byParent.get(key)?.push(row);
   }
   for (const list of byParent.values()) {
-    list.sort((a, b) => {
-      if (a.display_order !== b.display_order) return a.display_order - b.display_order;
-      return a.person_name.localeCompare(b.person_name, 'pt-BR');
+    list.sort((left, right) => {
+      if (left.display_order !== right.display_order) return left.display_order - right.display_order;
+      return left.person_name.localeCompare(right.person_name, 'pt-BR');
     });
   }
   return byParent;
 }
 
-function rowToTreeNode(r: OrgRow, byParent: Map<string, OrgRow[]>): OrgTreeNode {
-  const kids = byParent.get(r.id) ?? [];
+function rowToTreeNode(row: OrgRow, byParent: Map<string, OrgRow[]>): OrgTreeNode {
+  const children = byParent.get(row.id) ?? [];
   return {
-    orgEntryId: r.id,
-    personName: r.person_name,
-    jobTitle: r.job_title,
-    displayOrder: r.display_order,
-    departmentId: r.department_id,
-    monthlySalary: nMoney(r.monthly_salary),
-    monthlyCost: nMoney(r.monthly_cost),
-    children: kids.map((k) => rowToTreeNode(k, byParent)),
+    orgEntryId: row.id,
+    personName: row.person_name,
+    jobTitle: row.job_title,
+    displayOrder: row.display_order,
+    departmentId: row.department_id,
+    monthlySalary: nMoney(row.monthly_salary),
+    monthlyCost: nMoney(row.monthly_cost),
+    children: children.map((child) => rowToTreeNode(child, byParent)),
   };
 }
 
 function collectDescendantEntryIds(entryId: string, byParent: Map<string, OrgRow[]>): string[] {
   const out: string[] = [entryId];
-  const kids = byParent.get(entryId) ?? [];
-  for (const k of kids) {
-    out.push(...collectDescendantEntryIds(k.id, byParent));
+  for (const child of byParent.get(entryId) ?? []) {
+    out.push(...collectDescendantEntryIds(child.id, byParent));
   }
   return out;
 }
 
 function rowByIdMap(rows: OrgRow[]): Map<string, OrgRow> {
-  return new Map(rows.map((r) => [r.id, r]));
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
-/** Ordem em profundidade (pai antes dos filhos), a partir do nó raiz da seleção */
-function flattenSubtreeDfs(rootId: string, byParent: Map<string, OrgRow[]>, rmap: Map<string, OrgRow>): OrgRow[] {
+function flattenSubtreeDfs(
+  rootId: string,
+  byParent: Map<string, OrgRow[]>,
+  rowMap: Map<string, OrgRow>,
+): OrgRow[] {
   const out: OrgRow[] = [];
+
   function walk(id: string) {
-    const r = rmap.get(id);
-    if (!r) return;
-    out.push(r);
-    for (const c of byParent.get(id) ?? []) walk(c.id);
+    const row = rowMap.get(id);
+    if (!row) return;
+    out.push(row);
+    for (const child of byParent.get(id) ?? []) {
+      walk(child.id);
+    }
   }
+
   walk(rootId);
   return out;
 }
 
-function parseMoneyBody(v: unknown): number | null | undefined {
-  if (v === undefined) return undefined;
-  if (v === null || v === '') return null;
-  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
+function parseMoneyBody(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
   if (!Number.isFinite(n)) return undefined;
   return Math.round(n * 100) / 100;
 }
 
-async function fetchOrgRows(): Promise<{ rows: OrgRow[]; error: unknown }> {
+async function fetchOrgRows(workspaceId: string): Promise<{ rows: OrgRow[]; error: unknown }> {
   const { data, error } = await supabase
     .from('cdt_user_org')
     .select(
-      'id, person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost'
+      'id, person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost',
     )
+    .eq('workspace_id', workspaceId)
     .order('display_order', { ascending: true });
+
   if (error) return { rows: [], error };
   return { rows: (data ?? []) as OrgRow[], error: null };
 }
 
+async function loadDepartmentNames(
+  workspaceId: string,
+  departmentIds: string[],
+): Promise<Map<string, string>> {
+  if (departmentIds.length === 0) return new Map<string, string>();
+
+  const { data, error } = await supabase
+    .from('cdt_departments')
+    .select('id, name')
+    .eq('workspace_id', workspaceId)
+    .in('id', departmentIds);
+
+  if (error) throw error;
+
+  return new Map(
+    ((data ?? []) as Array<{ id: string; name: string }>).map((department) => [
+      department.id,
+      department.name,
+    ]),
+  );
+}
+
 /** GET /api/org/tree */
-router.get('/tree', async (_req, res) => {
+router.get('/tree', async (req, res) => {
   try {
-    const { rows, error } = await fetchOrgRows();
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
+    const { rows, error } = await fetchOrgRows(workspaceId);
     if (error) {
       if (isMissingTable(error)) {
         return res.status(503).json({
-          error: 'Tabela cdt_user_org não existe. Execute backend/migrations/003_cost_management.sql no Supabase.',
+          error: 'Tabela cdt_user_org nÃ£o existe. Execute backend/migrations/003_cost_management.sql no Supabase.',
           code: 'MIGRATION_REQUIRED',
         });
       }
       if (isOrgSchemaMismatch(error)) {
         return res.status(503).json({
           error:
-            'Organograma desatualizado: execute migrações 004 e 005 em backend/migrations no Supabase (SQL Editor).',
+            'Organograma desatualizado: execute migraÃ§Ãµes 004 e 005 em backend/migrations no Supabase (SQL Editor).',
           code: 'MIGRATION_REQUIRED',
         });
       }
       throw error;
     }
+
     const byParent = buildChildrenMap(rows);
     const roots = byParent.get('__root__') ?? [];
-    const tree = roots.map((r) => rowToTreeNode(r, byParent));
-    res.json({ tree });
-  } catch (e: unknown) {
-    const err = e as Error;
+    res.json({ tree: roots.map((row) => rowToTreeNode(row, byParent)) });
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org/tree:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch org tree' });
   }
 });
 
-/** GET /api/org/entries — lista plana (CRUD) */
-router.get('/entries', async (_req, res) => {
+/** GET /api/org/entries â€” lista plana (CRUD) */
+router.get('/entries', async (req, res) => {
   try {
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
     const { data, error } = await supabase
       .from('cdt_user_org')
       .select(
-        'id, person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost, created_at, updated_at'
+        'id, person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost, created_at, updated_at',
       )
+      .eq('workspace_id', workspaceId)
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -179,9 +226,10 @@ router.get('/entries', async (_req, res) => {
       }
       throw error;
     }
+
     res.json(data ?? []);
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org/entries:', err);
     res.status(500).json({ error: err.message || 'Failed to list org entries' });
   }
@@ -190,40 +238,63 @@ router.get('/entries', async (_req, res) => {
 /** POST /api/org/entries */
 router.post('/entries', async (req, res) => {
   try {
-    const { person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost } =
-      req.body ?? {};
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
+    const {
+      person_name,
+      reports_to_id,
+      job_title,
+      display_order,
+      department_id,
+      monthly_salary,
+      monthly_cost,
+    } = req.body ?? {};
+
     const name = typeof person_name === 'string' ? person_name.trim() : '';
     if (!name) {
       return res.status(400).json({ error: 'person_name is required' });
     }
 
-    let parentId: string | null =
-      reports_to_id && typeof reports_to_id === 'string' && reports_to_id.trim() ? reports_to_id.trim() : null;
+    const parentId =
+      reports_to_id && typeof reports_to_id === 'string' && reports_to_id.trim()
+        ? reports_to_id.trim()
+        : null;
     if (parentId) {
-      const { data: parentRow } = await supabase.from('cdt_user_org').select('id').eq('id', parentId).maybeSingle();
-      if (!parentRow) return res.status(400).json({ error: 'reports_to_id: entrada pai não encontrada' });
+      const { data: parentRow } = await supabase
+        .from('cdt_user_org')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('id', parentId)
+        .maybeSingle();
+
+      if (!parentRow) {
+        return res.status(400).json({ error: 'reports_to_id: entrada pai nÃ£o encontrada' });
+      }
     }
 
-    const ms = monthly_salary !== undefined ? parseMoneyBody(monthly_salary) : null;
-    const mc = monthly_cost !== undefined ? parseMoneyBody(monthly_cost) : null;
-    if (ms === undefined) return res.status(400).json({ error: 'monthly_salary inválido' });
-    if (mc === undefined) return res.status(400).json({ error: 'monthly_cost inválido' });
+    const salary = monthly_salary !== undefined ? parseMoneyBody(monthly_salary) : null;
+    const cost = monthly_cost !== undefined ? parseMoneyBody(monthly_cost) : null;
+    if (salary === undefined) return res.status(400).json({ error: 'monthly_salary invÃ¡lido' });
+    if (cost === undefined) return res.status(400).json({ error: 'monthly_cost invÃ¡lido' });
 
     const payload = {
+      workspace_id: workspaceId,
       person_name: name,
       reports_to_id: parentId,
       job_title: typeof job_title === 'string' && job_title.trim() ? job_title.trim() : null,
       display_order: typeof display_order === 'number' ? display_order : 0,
       department_id: department_id && typeof department_id === 'string' ? department_id : null,
-      monthly_salary: ms,
-      monthly_cost: mc,
+      monthly_salary: salary,
+      monthly_cost: cost,
     };
 
     const { data, error } = await supabase.from('cdt_user_org').insert(payload).select('*').single();
     if (error) throw error;
+
     res.status(201).json(data);
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org POST entries:', err);
     res.status(500).json({ error: err.message || 'Failed to create org entry' });
   }
@@ -232,6 +303,9 @@ router.post('/entries', async (req, res) => {
 /** PATCH /api/org/entries/:id */
 router.patch('/entries/:id', async (req, res) => {
   try {
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
     const { id } = req.params;
     const {
       reports_to_id,
@@ -242,45 +316,68 @@ router.patch('/entries/:id', async (req, res) => {
       monthly_salary,
       monthly_cost,
     } = req.body ?? {};
+
     const updates: Record<string, unknown> = {};
+
     if (reports_to_id !== undefined) {
-      const v = reports_to_id === null || reports_to_id === '' ? null : String(reports_to_id);
-      if (v && v === id) {
+      const value = reports_to_id === null || reports_to_id === '' ? null : String(reports_to_id);
+      if (value && value === id) {
         return res.status(400).json({ error: 'reports_to_id cannot equal own id' });
       }
-      if (v) {
-        const { data: parentRow } = await supabase.from('cdt_user_org').select('id').eq('id', v).maybeSingle();
-        if (!parentRow) return res.status(400).json({ error: 'reports_to_id: entrada pai não encontrada' });
+      if (value) {
+        const { data: parentRow } = await supabase
+          .from('cdt_user_org')
+          .select('id')
+          .eq('workspace_id', workspaceId)
+          .eq('id', value)
+          .maybeSingle();
+
+        if (!parentRow) {
+          return res.status(400).json({ error: 'reports_to_id: entrada pai nÃ£o encontrada' });
+        }
       }
-      updates.reports_to_id = v;
+      updates.reports_to_id = value;
     }
-    if (job_title !== undefined) updates.job_title = job_title === null || job_title === '' ? null : String(job_title);
-    if (display_order !== undefined) updates.display_order = Number(display_order);
+
+    if (job_title !== undefined) {
+      updates.job_title = job_title === null || job_title === '' ? null : String(job_title);
+    }
+    if (display_order !== undefined) {
+      updates.display_order = Number(display_order);
+    }
     if (department_id !== undefined) {
       updates.department_id = department_id === null || department_id === '' ? null : department_id;
     }
     if (person_name !== undefined) {
-      const n = typeof person_name === 'string' ? person_name.trim() : '';
-      if (!n) return res.status(400).json({ error: 'person_name cannot be empty' });
-      updates.person_name = n;
+      const name = typeof person_name === 'string' ? person_name.trim() : '';
+      if (!name) return res.status(400).json({ error: 'person_name cannot be empty' });
+      updates.person_name = name;
     }
     if (monthly_salary !== undefined) {
-      const m = parseMoneyBody(monthly_salary);
-      if (m === undefined) return res.status(400).json({ error: 'monthly_salary inválido' });
-      updates.monthly_salary = m;
+      const salary = parseMoneyBody(monthly_salary);
+      if (salary === undefined) return res.status(400).json({ error: 'monthly_salary invÃ¡lido' });
+      updates.monthly_salary = salary;
     }
     if (monthly_cost !== undefined) {
-      const m = parseMoneyBody(monthly_cost);
-      if (m === undefined) return res.status(400).json({ error: 'monthly_cost inválido' });
-      updates.monthly_cost = m;
+      const cost = parseMoneyBody(monthly_cost);
+      if (cost === undefined) return res.status(400).json({ error: 'monthly_cost invÃ¡lido' });
+      updates.monthly_cost = cost;
     }
 
-    const { data, error } = await supabase.from('cdt_user_org').update(updates).eq('id', id).select('*').single();
+    const { data, error } = await supabase
+      .from('cdt_user_org')
+      .update(updates)
+      .eq('workspace_id', workspaceId)
+      .eq('id', id)
+      .select('*')
+      .single();
+
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Not found' });
+
     res.json(data);
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org PATCH entries:', err);
     res.status(500).json({ error: err.message || 'Failed to update org entry' });
   }
@@ -289,11 +386,19 @@ router.patch('/entries/:id', async (req, res) => {
 /** DELETE /api/org/entries/:id */
 router.delete('/entries/:id', async (req, res) => {
   try {
-    const { error } = await supabase.from('cdt_user_org').delete().eq('id', req.params.id);
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
+    const { error } = await supabase
+      .from('cdt_user_org')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .eq('id', req.params.id);
+
     if (error) throw error;
     res.status(204).send();
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org DELETE entries:', err);
     res.status(500).json({ error: err.message || 'Failed to delete org entry' });
   }
@@ -302,30 +407,38 @@ router.delete('/entries/:id', async (req, res) => {
 /** GET /api/org/entry/:entryId/subtree */
 router.get('/entry/:entryId/subtree', async (req, res) => {
   try {
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
     const { entryId } = req.params;
-    const { data, error } = await supabase.from('cdt_user_org').select('id, reports_to_id, display_order');
+    const { data, error } = await supabase
+      .from('cdt_user_org')
+      .select('id, reports_to_id, display_order')
+      .eq('workspace_id', workspaceId);
+
     if (error) {
       if (isMissingTable(error)) {
         return res.status(503).json({ error: 'Migration required', code: 'MIGRATION_REQUIRED' });
       }
       throw error;
     }
-    const rows = (data ?? []) as { id: string; reports_to_id: string | null; display_order: number }[];
-    const asOrg: OrgRow[] = rows.map((r) => ({
-      id: r.id,
+
+    const rows = (data ?? []) as Array<{ id: string; reports_to_id: string | null; display_order: number }>;
+    const normalizedRows: OrgRow[] = rows.map((row) => ({
+      id: row.id,
       person_name: '',
-      reports_to_id: r.reports_to_id,
+      reports_to_id: row.reports_to_id,
       job_title: null,
-      display_order: r.display_order,
+      display_order: row.display_order,
       department_id: null,
       monthly_salary: null,
       monthly_cost: null,
     }));
-    const byParent = buildChildrenMap(asOrg);
-    const ids = collectDescendantEntryIds(entryId, byParent);
+
+    const ids = collectDescendantEntryIds(entryId, buildChildrenMap(normalizedRows));
     res.json({ entryIds: ids });
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org subtree:', err);
     res.status(500).json({ error: err.message || 'Failed subtree' });
   }
@@ -334,10 +447,17 @@ router.get('/entry/:entryId/subtree', async (req, res) => {
 /** DELETE /api/org/entry/:entryId/subtree */
 router.delete('/entry/:entryId/subtree', async (req, res) => {
   try {
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
     const { entryId } = req.params;
     const { data, error } = await supabase
       .from('cdt_user_org')
-      .select('id, person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost');
+      .select(
+        'id, person_name, reports_to_id, job_title, display_order, department_id, monthly_salary, monthly_cost',
+      )
+      .eq('workspace_id', workspaceId);
+
     if (error) {
       if (isMissingTable(error)) {
         return res.status(503).json({ error: 'Migration required', code: 'MIGRATION_REQUIRED' });
@@ -348,16 +468,20 @@ router.delete('/entry/:entryId/subtree', async (req, res) => {
     const rows = (data ?? []) as OrgRow[];
     const rowMap = rowByIdMap(rows);
     if (!rowMap.has(entryId)) {
-      return res.status(404).json({ error: 'Entrada não encontrada' });
+      return res.status(404).json({ error: 'Entrada nÃ£o encontrada' });
     }
 
-    const byParent = buildChildrenMap(rows);
-    const deleteIds = collectDescendantEntryIds(entryId, byParent);
+    const deleteIds = collectDescendantEntryIds(entryId, buildChildrenMap(rows));
     if (deleteIds.length === 0) {
       return res.status(404).json({ error: 'Nada para excluir' });
     }
 
-    const { error: deleteError } = await supabase.from('cdt_user_org').delete().in('id', deleteIds);
+    const { error: deleteError } = await supabase
+      .from('cdt_user_org')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .in('id', deleteIds);
+
     if (deleteError) throw deleteError;
 
     return res.json({
@@ -365,8 +489,8 @@ router.delete('/entry/:entryId/subtree', async (req, res) => {
       deletedRootId: entryId,
       deletedIds: deleteIds,
     });
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org DELETE subtree:', err);
     res.status(500).json({ error: err.message || 'Failed to delete subtree' });
   }
@@ -375,41 +499,42 @@ router.delete('/entry/:entryId/subtree', async (req, res) => {
 /** GET /api/org/entry/:entryId/summary */
 router.get('/entry/:entryId/summary', async (req, res) => {
   try {
+    const workspaceId = getRequiredWorkspaceId(req, res);
+    if (!workspaceId) return;
+
     const { entryId } = req.params;
-    const { rows, error: orgError } = await fetchOrgRows();
+    const { rows, error: orgError } = await fetchOrgRows(workspaceId);
     if (orgError) {
       if (isMissingTable(orgError)) {
         return res.status(503).json({ error: 'Migration required', code: 'MIGRATION_REQUIRED' });
       }
       throw orgError;
     }
+
     const byParent = buildChildrenMap(rows);
-    const rmap = rowByIdMap(rows);
-    const teamRows = flattenSubtreeDfs(entryId, byParent, rmap);
-    const deptIds = [...new Set(teamRows.map((r) => r.department_id).filter(Boolean))] as string[];
-    let deptNameById = new Map<string, string>();
-    if (deptIds.length > 0) {
-      const { data: depts } = await supabase.from('cdt_departments').select('id, name').in('id', deptIds);
-      deptNameById = new Map((depts ?? []).map((d: { id: string; name: string }) => [d.id, d.name]));
-    }
+    const rowMap = rowByIdMap(rows);
+    const teamRows = flattenSubtreeDfs(entryId, byParent, rowMap);
+    const departmentIds = [...new Set(teamRows.map((row) => row.department_id).filter(Boolean))] as string[];
+    const departmentNameById = await loadDepartmentNames(workspaceId, departmentIds);
 
     let totalMonthlySalary = 0;
     let totalMonthlyCost = 0;
-    const team = teamRows.map((r) => {
-      const sal = nMoney(r.monthly_salary);
-      const cost = nMoney(r.monthly_cost);
-      if (sal != null) totalMonthlySalary += sal;
+    const team = teamRows.map((row) => {
+      const salary = nMoney(row.monthly_salary);
+      const cost = nMoney(row.monthly_cost);
+      if (salary != null) totalMonthlySalary += salary;
       if (cost != null) totalMonthlyCost += cost;
+
       return {
-        orgEntryId: r.id,
-        personName: r.person_name,
-        jobTitle: r.job_title,
-        displayOrder: r.display_order,
-        departmentId: r.department_id,
-        departmentName: r.department_id ? deptNameById.get(r.department_id) ?? null : null,
-        monthlySalary: sal,
+        orgEntryId: row.id,
+        personName: row.person_name,
+        jobTitle: row.job_title,
+        displayOrder: row.display_order,
+        departmentId: row.department_id,
+        departmentName: row.department_id ? departmentNameById.get(row.department_id) ?? null : null,
+        monthlySalary: salary,
         monthlyCost: cost,
-        isSelectedRoot: r.id === entryId,
+        isSelectedRoot: row.id === entryId,
       };
     });
 
@@ -419,8 +544,8 @@ router.get('/entry/:entryId/summary', async (req, res) => {
       totalMonthlyCost: Math.round(totalMonthlyCost * 100) / 100,
       team,
     });
-  } catch (e: unknown) {
-    const err = e as Error;
+  } catch (error: unknown) {
+    const err = error as Error;
     console.error('org summary:', err);
     res.status(500).json({ error: err.message || 'Failed summary' });
   }

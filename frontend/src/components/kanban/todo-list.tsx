@@ -6,9 +6,6 @@ import {
   TextField,
   IconButton,
   Checkbox,
-  FormControl,
-  InputLabel,
-  Select,
   MenuItem,
   LinearProgress,
   Typography,
@@ -105,6 +102,41 @@ function isXpPending(todo: TodoEntity): boolean {
 }
 
 const TODO_ADMIN_SETTINGS_STORAGE_KEY = 'central-tarefas:todo-admin-settings-open'
+
+const adminTodoFieldSx = {
+  width: '100%',
+  minWidth: 0,
+  '& .MuiInputBase-root': {
+    height: 40,
+    fontSize: '0.8125rem',
+  },
+  '& .MuiInputBase-input': {
+    boxSizing: 'border-box',
+    height: 40,
+    padding: '0 12px',
+  },
+  '& .MuiSelect-select': {
+    boxSizing: 'border-box',
+    minHeight: '40px !important',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0 12px',
+  },
+} as const
+
+const flatIconButtonSx = {
+  border: 'none',
+  boxShadow: 'none',
+  outline: 'none',
+  '&:hover': {
+    border: 'none',
+    boxShadow: 'none',
+  },
+  '&:focus-visible': {
+    outline: 'none',
+    boxShadow: 'none',
+  },
+} as const
 
 function readTodoAdminSettingsOpen(): boolean {
   if (typeof window === 'undefined') return true
@@ -556,7 +588,9 @@ export function TodoList(props: TodoListProps) {
     })
   }, [])
 
-  const linkedAchievements = achievements.filter((a) => (a.mode ?? 'global_auto') === 'linked_item')
+  const linkedAchievements = achievements.filter((a) =>
+    ['linked_item', 'manual'].includes(a.mode ?? 'global_auto'),
+  )
 
   useEffect(() => {
     const sampleWithDeadline = visibleTodos.find((todo) => Boolean(todo.deadline))
@@ -616,11 +650,7 @@ export function TodoList(props: TodoListProps) {
     }
   }
 
-  const canSubmitAdmin =
-    Boolean(newTodoTitle.trim()) &&
-    Boolean(newTodoDeadline) &&
-    newTodoXp >= 0.01 &&
-    newTodoAssignee != null
+  const canSubmitAdmin = Boolean(newTodoTitle.trim())
 
   const canSubmitUser =
     Boolean(newTodoTitle.trim()) &&
@@ -632,7 +662,7 @@ export function TodoList(props: TodoListProps) {
     if (!canSubmitNewTodo) return
 
     const assigneeId = isAdmin ? newTodoAssignee?.id ?? null : currentUser?.id ?? null
-    if (!assigneeId) return
+    if (!isAdmin && !assigneeId) return
 
     const deadlineIso = newTodoDeadline
       ? new Date(`${newTodoDeadline}T12:00:00`).toISOString()
@@ -834,9 +864,14 @@ export function TodoList(props: TodoListProps) {
                 ),
                 endAdornment: (
                   <InputAdornment position="end">
-                    <Tooltip title={canSubmitNewTodo ? 'Adicionar (Enter)' : 'Preencha prazo, XP e responsável'} arrow>
+                    <Tooltip title={canSubmitNewTodo ? 'Adicionar (Enter)' : 'Informe um título para adicionar'} arrow>
                       <span>
-                        <IconButton size="small" onClick={() => void handleCreateTodo()} disabled={!canSubmitNewTodo}>
+                        <IconButton
+                          size="small"
+                          onClick={() => void handleCreateTodo()}
+                          disabled={!canSubmitNewTodo}
+                          sx={flatIconButtonSx}
+                        >
                           <Plus size={24} />
                         </IconButton>
                       </span>
@@ -876,18 +911,28 @@ export function TodoList(props: TodoListProps) {
               variant="caption"
               color="text.secondary"
               fontWeight={700}
-              sx={{ letterSpacing: 0.2, lineHeight: 1.2, fontSize: 11 }}
+              sx={{ letterSpacing: 0.2, lineHeight: 1.2, fontSize: 11, display: 'none' }}
             >
               Configurações do to-do (obrigatórias para lançar)
             </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              fontWeight={700}
+              sx={{ letterSpacing: 0.2, lineHeight: 1.2, fontSize: 11 }}
+            >
+              Configurações adicionais do to-do (opcionais)
+            </Typography>
             <Box
               sx={{
-                display: 'flex',
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                alignItems: 'flex-start',
-                gap: 1.25,
-                rowGap: 1,
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  lg: 'repeat(4, minmax(0, 1fr))',
+                },
+                alignItems: 'start',
+                gap: 1,
                 width: '100%',
                 minWidth: 0,
                 // Não usar overflow-x:auto aqui: no CSS isso força overflow-y a não ser visible e corta os rótulos outlined
@@ -899,35 +944,21 @@ export function TodoList(props: TodoListProps) {
                 type="number"
                 size="small"
                 margin="none"
-                required
                 value={newTodoXp}
                 onChange={(e) => setNewTodoXp(Math.max(0.01, Math.min(500, Number(e.target.value))))}
                 inputProps={{ min: 0.01, max: 500, step: 0.01 }}
                 InputLabelProps={{ shrink: true }}
-                sx={{
-                  flex: '0 0 auto',
-                  width: 88,
-                  minWidth: 88,
-                  '& .MuiInputBase-root': { fontSize: '0.8125rem' },
-                  '& .MuiInputBase-input': { py: 0.65, px: 0.75 },
-                }}
+                sx={adminTodoFieldSx}
               />
               <TextField
                 label="Prazo"
                 type="date"
                 size="small"
                 margin="none"
-                required
                 value={newTodoDeadline}
                 onChange={(e) => setNewTodoDeadline(e.target.value)}
                 InputLabelProps={{ shrink: true }}
-                sx={{
-                  flex: '0 0 auto',
-                  width: 148,
-                  minWidth: 148,
-                  '& .MuiInputBase-root': { fontSize: '0.8125rem' },
-                  '& .MuiInputBase-input': { py: 0.65, px: 0.75 },
-                }}
+                sx={adminTodoFieldSx}
               />
               <TextField
                 label="% bônus"
@@ -939,41 +970,32 @@ export function TodoList(props: TodoListProps) {
                 onChange={(e) => setNewTodoDeadlineBonusPercent(Math.max(0, Math.min(500, Number(e.target.value))))}
                 inputProps={{ min: 0, max: 500, step: 0.01 }}
                 InputLabelProps={{ shrink: true }}
-                sx={{
-                  flex: '0 0 auto',
-                  width: 88,
-                  minWidth: 88,
-                  '& .MuiInputBase-root': { fontSize: '0.8125rem' },
-                  '& .MuiInputBase-input': { py: 0.65, px: 0.5, textAlign: 'center' },
-                }}
+                sx={adminTodoFieldSx}
               />
-              <FormControl
+              <TextField
+                select
+                label="Conquista (opc.)"
                 size="small"
                 margin="none"
-                sx={{
-                  flex: '1 1 118px',
-                  minWidth: 96,
-                  maxWidth: '100%',
-                  '& .MuiInputBase-root': { fontSize: '0.8125rem' },
-                }}
+                value={newTodoAchievementId ?? ''}
+                onChange={(e) => setNewTodoAchievementId(e.target.value || null)}
+                InputLabelProps={{ shrink: true }}
+                sx={adminTodoFieldSx}
               >
-                <InputLabel id="new-todo-achievement-label">Conquista (opc.)</InputLabel>
-                <Select
-                  labelId="new-todo-achievement-label"
-                  label="Conquista (opc.)"
-                  value={newTodoAchievementId ?? ''}
-                  onChange={(e) => setNewTodoAchievementId(e.target.value || null)}
-                >
-                  <MenuItem value="">Nenhuma</MenuItem>
-                  {linkedAchievements.map((a) => (
-                    <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                <MenuItem value="">Nenhuma</MenuItem>
+                {linkedAchievements.map((a) => (
+                  <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
+                ))}
+              </TextField>
             </Box>
             <Autocomplete
               size="small"
               fullWidth
+              sx={{
+                '& .MuiFormLabel-asterisk': { display: 'none' },
+                '& .MuiAutocomplete-popupIndicator': flatIconButtonSx,
+                '& .MuiAutocomplete-clearIndicator': flatIconButtonSx,
+              }}
               options={users}
               loading={usersLoading}
               value={newTodoAssignee}
@@ -994,7 +1016,10 @@ export function TodoList(props: TodoListProps) {
             />
             </Box>
           </Collapse>
-          {!canSubmitNewTodo && newTodoTitle.trim() && (
+          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.25 }}>
+            Prazo, responsavel, XP e conquista podem ser definidos agora ou depois, sem bloquear o lancamento.
+          </Typography>
+          {false && !canSubmitNewTodo && newTodoTitle.trim() && (
             <Typography variant="caption" color="warning.main" sx={{ lineHeight: 1.25 }}>
               {adminTodoSettingsOpen
                 ? 'Informe prazo, XP válido e um responsável para adicionar o to-do.'
@@ -1024,7 +1049,12 @@ export function TodoList(props: TodoListProps) {
                   <InputAdornment position="end">
                     <Tooltip title={canSubmitNewTodo ? 'Adicionar (Enter)' : 'Informe um título e prazo'} arrow>
                       <span>
-                        <IconButton size="small" onClick={() => void handleCreateTodo()} disabled={!canSubmitNewTodo}>
+                        <IconButton
+                          size="small"
+                          onClick={() => void handleCreateTodo()}
+                          disabled={!canSubmitNewTodo}
+                          sx={flatIconButtonSx}
+                        >
                           <Plus size={24} />
                         </IconButton>
                       </span>

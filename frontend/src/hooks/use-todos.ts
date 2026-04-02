@@ -177,6 +177,11 @@ export function useTodos(scope: TodosScope | null) {
   const hasScope = Boolean(projectId || activityId)
   const userKey = currentUser?.id ?? null
   const scopeKey = scope ? getScopeKey(scope, userKey) : null
+  const normalizedScope = useMemo<TodosScope | null>(() => {
+    if (projectId) return { projectId }
+    if (activityId) return { activityId }
+    return null
+  }, [projectId, activityId])
 
   const [todos, setTodos] = useState<TodoEntity[]>(() => (scopeKey ? (todosCache.get(scopeKey) ?? []) : []))
   const [loading, setLoading] = useState(() => (scopeKey && todosCache.has(scopeKey) ? false : hasScope))
@@ -191,7 +196,7 @@ export function useTodos(scope: TodosScope | null) {
 
   const fetchTodos = useCallback(
     async (options?: { silent?: boolean; force?: boolean }) => {
-      if (!scope) {
+      if (!normalizedScope) {
         fetchGenerationRef.current += 1
         setTodos([])
         setLoading(false)
@@ -204,7 +209,7 @@ export function useTodos(scope: TodosScope | null) {
       try {
         if (!silent) setLoading(true)
         setError(null)
-        const data = await fetchTodosForScope(scope, getAuthHeaders, userKey, { force: options?.force })
+        const data = await fetchTodosForScope(normalizedScope, getAuthHeaders, userKey, { force: options?.force })
         if (generation !== fetchGenerationRef.current) return
         setTodos(data)
       } catch (err) {
@@ -218,7 +223,7 @@ export function useTodos(scope: TodosScope | null) {
         }
       }
     },
-    [scope, getAuthHeaders, userKey],
+    [normalizedScope, getAuthHeaders, userKey],
   )
 
   useEffect(() => {

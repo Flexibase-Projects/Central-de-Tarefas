@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
-  CircularProgress,
   Fab,
   FormControlLabel,
   InputAdornment,
@@ -36,6 +35,7 @@ import { useSearchParams } from 'react-router-dom'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'
 import StatusToken from '@/components/system/StatusToken'
+import { PageSyncScreen, WorkspaceSyncBanner } from '@/components/system/WorkspaceSyncFeedback'
 import { apiUrl } from '@/lib/api'
 import { formatDatePtBr, isOverdueDate } from '@/lib/date-only'
 import { getPriorityLabel, getStatusLabel } from '@/lib/status-labels'
@@ -81,7 +81,7 @@ function matchesDeadlineFilter(
 }
 
 export default function Atividades() {
-  const { activities, loading, createActivity, updateActivity, moveActivity, deleteActivity } = useActivities()
+  const { activities, loading, error, createActivity, updateActivity, moveActivity, deleteActivity } = useActivities()
   const { rows: summaryRows, error: summaryError } = useTodoCardSummary()
   const { users } = useUsersList()
   const { hasRole } = usePermissions()
@@ -295,16 +295,7 @@ export default function Atividades() {
     })
   }
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        <Stack spacing={2} alignItems="center">
-          <CircularProgress />
-          <Typography color="text.secondary">Carregando atividades...</Typography>
-        </Stack>
-      </Box>
-    )
-  }
+  const showInitialSync = loading && activities.length === 0
 
   return (
     <ProtectedRoute permission="access_atividades">
@@ -408,10 +399,23 @@ export default function Atividades() {
           </Stack>
         </AppSurface>
 
+        <WorkspaceSyncBanner
+          active={loading && activities.length > 0}
+          title="Atualizando atividades"
+          description="A lista atual permanece visivel enquanto sincronizamos prazos, responsaveis e estado do fluxo."
+        />
+
+        {error ? <Alert severity="warning">{error}</Alert> : null}
         {summaryError ? <Alert severity="warning">{summaryError}</Alert> : null}
 
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          {activeView === 'kanban' ? (
+          {showInitialSync ? (
+            <PageSyncScreen
+              title="Sincronizando atividades"
+              description="Estamos montando a fila operacional com responsaveis, prazos e atalhos para voce seguir sem perder contexto."
+              minHeight="100%"
+            />
+          ) : activeView === 'kanban' ? (
             <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <KanbanBoard
                 projects={filteredProjectsAsActivities}

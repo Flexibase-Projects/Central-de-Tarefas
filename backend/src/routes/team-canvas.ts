@@ -1,5 +1,6 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 
 const router = express.Router();
 const DEFAULT_CANVAS_NAME = 'default';
@@ -7,6 +8,12 @@ const DEFAULT_CANVAS_NAME = 'default';
 /** GET /api/team-canvas — retorna o canva da equipe (registro default) */
 router.get('/', async (req, res) => {
   try {
+    const workspaceContext = getWorkspaceContext(req);
+    const workspaceId = workspaceContext?.workspace.id ?? null;
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'Workspace is required' });
+    }
+
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
       return res.status(503).json({
         error: 'Supabase not configured',
@@ -17,6 +24,7 @@ router.get('/', async (req, res) => {
     const { data, error } = await supabase
       .from('cdt_team_canvas')
       .select('id, name, content, updated_at')
+      .eq('workspace_id', workspaceId)
       .eq('name', DEFAULT_CANVAS_NAME)
       .maybeSingle();
 
@@ -52,6 +60,12 @@ function sanitizeContent(content: unknown): Record<string, unknown> {
 /** PUT /api/team-canvas — atualiza o conteúdo do canva default (upsert) */
 router.put('/', async (req, res) => {
   try {
+    const workspaceContext = getWorkspaceContext(req);
+    const workspaceId = workspaceContext?.workspace.id ?? null;
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'Workspace is required' });
+    }
+
     if (!process.env.SUPABASE_URL || (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY)) {
       return res.status(503).json({
         error: 'Supabase not configured',
@@ -69,6 +83,7 @@ router.put('/', async (req, res) => {
 
     const content = sanitizeContent(raw);
     const payload = {
+      workspace_id: workspaceId,
       name: DEFAULT_CANVAS_NAME,
       content,
       updated_at: new Date().toISOString(),
@@ -76,7 +91,7 @@ router.put('/', async (req, res) => {
 
     const { data, error } = await supabase
       .from('cdt_team_canvas')
-      .upsert(payload, { onConflict: 'name' })
+      .upsert(payload, { onConflict: 'workspace_id,name' })
       .select('id, name, content, updated_at')
       .single();
 
@@ -85,7 +100,7 @@ router.put('/', async (req, res) => {
         return res.status(503).json({
           error: 'Tabela do canva não existe. Execute a migração no Supabase (SQL Editor):',
           code: 'MIGRATION_REQUIRED',
-          sql: 'CREATE TABLE IF NOT EXISTS cdt_team_canvas (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100) NOT NULL DEFAULT \'default\', content JSONB NOT NULL DEFAULT \'{}\', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), created_by UUID REFERENCES auth.users(id)); CREATE UNIQUE INDEX IF NOT EXISTS idx_cdt_team_canvas_name ON cdt_team_canvas(name);',
+          sql: 'CREATE TABLE IF NOT EXISTS cdt_team_canvas (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES cdt_workspaces(id) ON DELETE CASCADE, name VARCHAR(100) NOT NULL DEFAULT \'default\', content JSONB NOT NULL DEFAULT \'{}\', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), created_by UUID REFERENCES auth.users(id)); CREATE UNIQUE INDEX IF NOT EXISTS ux_cdt_team_canvas_workspace_name ON cdt_team_canvas(workspace_id, name);',
         });
       }
       throw error;

@@ -2,8 +2,11 @@
 import { supabase } from '../config/supabase.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from '../utils/supabase-errors.js';
 import { PRESET_ACHIEVEMENTS } from '../utils/achievement-engine.js';
+import { getWorkspaceContext } from '../middleware/workspace.js';
 import { hasRole } from '../services/permissions.js';
 import { getRequesterId as getAuthRequesterId } from '../middleware/auth.js';
+import { getWorkspaceModuleState } from '../services/workspace-modules.js';
+import { listWorkspaceAchievements } from '../services/workspace-gamification.js';
 import { getTrimmedString, isValidationError, requireString } from '../utils/validation.js';
 
 const router = express.Router();
@@ -78,14 +81,38 @@ function mapDbAchievement(a: {
 
 router.get('/', async (req, res) => {
   const userId = getAuthRequesterId(req);
+  const workspaceId = getWorkspaceContext(req)?.workspace.id ?? null;
 
   try {
+    if (!workspaceId) {
+      return res.status(400).json({
+        error: 'Workspace context unavailable.',
+        code: 'WORKSPACE_REQUIRED',
+      });
+    }
+
     const includeInactiveRaw = String(req.query.includeInactive ?? req.query.include_inactive ?? '')
       .trim()
       .toLowerCase();
     const canIncludeInactive =
       includeInactiveRaw === '1' || includeInactiveRaw === 'true' || includeInactiveRaw === 'yes';
     const isAdmin = userId ? await hasRole(userId, 'admin') : false;
+    const gamificationModule = await getWorkspaceModuleState(workspaceId, 'gamification');
+
+    if (!gamificationModule?.available) {
+      const disabledAchievements = await listWorkspaceAchievements(
+        workspaceId,
+        null,
+        isAdmin && canIncludeInactive,
+      );
+      return res.json(
+        disabledAchievements.map((achievement) => ({
+          ...achievement,
+          unlocked: false,
+          unlockedAt: null,
+        })),
+      );
+    }
 
     let query = supabase
       .from('cdt_achievements')
@@ -139,6 +166,7 @@ router.get('/', async (req, res) => {
       const { data: userAch, error: userAchError } = await supabase
         .from('cdt_user_achievements')
         .select('achievement_id, unlocked_at')
+        .eq('workspace_id', workspaceId)
         .eq('user_id', userId);
 
       if (!userAchError && userAch) {

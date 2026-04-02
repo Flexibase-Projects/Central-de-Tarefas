@@ -1,34 +1,35 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Box, Typography, Paper, Chip, CircularProgress } from '@mui/material'
-import { GripVertical } from '@/components/ui/icons'
-import { useGitHub } from '@/hooks/use-github'
+import { useCallback, useEffect, useState } from 'react'
+import { Box, Chip, Paper, Typography } from '@mui/material'
 import {
   DndContext,
-  closestCenter,
   KeyboardSensor,
   PointerSensor,
+  closestCenter,
   useSensor,
   useSensors,
-  DragEndEvent,
+  type DragEndEvent,
 } from '@dnd-kit/core'
 import {
-  arrayMove,
   SortableContext,
+  arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useProjects } from '@/hooks/use-projects'
+import { GripVertical } from '@/components/ui/icons'
+import { PageSyncScreen, WorkspaceSyncBanner } from '@/components/system/WorkspaceSyncFeedback'
 import { useAuth } from '@/contexts/AuthContext'
+import { useGitHub } from '@/hooks/use-github'
+import { useProjects } from '@/hooks/use-projects'
 import type { Project } from '@/types'
 
 const STATUS_LABELS: Record<Project['status'], string> = {
   backlog: 'Backlog',
   todo: 'A fazer',
   in_progress: 'Em progresso',
-  review: 'Revisão',
-  done: 'Concluído',
+  review: 'Revisao',
+  done: 'Concluido',
 }
 
 function GitHubIconSmall() {
@@ -88,7 +89,7 @@ function SortableProjectCard({ project, index, canDrag }: { project: Project; in
         willChange: isDragging ? 'transform' : undefined,
       }}
     >
-      {canDrag && (
+      {canDrag ? (
         <Box
           {...attributes}
           {...listeners}
@@ -96,11 +97,11 @@ function SortableProjectCard({ project, index, canDrag }: { project: Project; in
         >
           <GripVertical size={20} />
         </Box>
-      )}
+      ) : null}
       <Typography variant="body2" color="text.secondary" sx={{ minWidth: 24 }}>
         {index + 1}.
       </Typography>
-      {project.github_url && (
+      {project.github_url ? (
         <Box
           sx={{
             flexShrink: 0,
@@ -123,7 +124,7 @@ function SortableProjectCard({ project, index, canDrag }: { project: Project; in
             {String(displayCommits).padStart(2, '0')}
           </Typography>
         </Box>
-      )}
+      ) : null}
       <Typography variant="body1" fontWeight={500} sx={{ flex: 1, minWidth: 0 }} noWrap>
         {project.name}
       </Typography>
@@ -144,18 +145,18 @@ export default function Prioridades() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       const { active, over } = event
       if (!over || active.id === over.id) return
-      const oldIndex = projects.findIndex((p) => p.id === active.id)
-      const newIndex = projects.findIndex((p) => p.id === over.id)
+      const oldIndex = projects.findIndex((project) => project.id === active.id)
+      const newIndex = projects.findIndex((project) => project.id === over.id)
       if (oldIndex === -1 || newIndex === -1) return
       const reordered = arrayMove(projects, oldIndex, newIndex)
-      const orderedIds = reordered.map((p) => p.id)
+      const orderedIds = reordered.map((project) => project.id)
       setSavingOrder(true)
       try {
         await updatePriorityOrder(orderedIds)
@@ -163,18 +164,10 @@ export default function Prioridades() {
         setSavingOrder(false)
       }
     },
-    [projects, updatePriorityOrder]
+    [projects, updatePriorityOrder],
   )
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <CircularProgress size={40} />
-      </Box>
-    )
-  }
-
-  if (error) {
+  if (error && projects.length === 0) {
     return (
       <Box sx={{ p: 2 }}>
         <Typography color="error">{error}</Typography>
@@ -190,17 +183,35 @@ export default function Prioridades() {
         </Typography>
         <Typography color="text.secondary" variant="body2">
           {isAdmin
-            ? 'Arraste os cards para ordenar: o item no topo é o mais importante. A ordem é salva automaticamente.'
+            ? 'Arraste os cards para ordenar: o item no topo e o mais importante. A ordem e salva automaticamente.'
             : 'Prioridades dos projetos definidas pelo administrador.'}
         </Typography>
-        {savingOrder && (
+        {savingOrder ? (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
             Salvando ordem...
           </Typography>
-        )}
+        ) : null}
+        {error ? (
+          <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+            {error}
+          </Typography>
+        ) : null}
       </Box>
-      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', px: 2, pb: 2 }}>
-        {projects.length === 0 ? (
+
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', px: 2, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <WorkspaceSyncBanner
+          active={loading && projects.length > 0}
+          title="Atualizando prioridades"
+          description="A ordem atual continua visivel enquanto sincronizamos a fila e os dados operacionais do workspace."
+        />
+
+        {loading && projects.length === 0 ? (
+          <PageSyncScreen
+            title="Sincronizando prioridades"
+            description="Estamos montando a fila de projetos para voce retomar a priorizacao sem encarar uma tela vazia."
+            minHeight="100%"
+          />
+        ) : projects.length === 0 ? (
           <Paper
             variant="outlined"
             sx={{
@@ -211,13 +222,13 @@ export default function Prioridades() {
             }}
           >
             <Typography color="text.secondary">
-              Nenhum desenvolvimento cadastrado. Crie projetos em Desenvolvimentos para listá-los aqui.
+              Nenhum desenvolvimento cadastrado. Crie projetos em Desenvolvimentos para lista-los aqui.
             </Typography>
           </Paper>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext
-              items={projects.map((p) => p.id)}
+              items={projects.map((project) => project.id)}
               strategy={verticalListSortingStrategy}
             >
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

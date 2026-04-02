@@ -4,6 +4,11 @@ import {
   insertCdtUserCompat,
   updateCdtUserByIdCompat,
 } from './cdt-users.js';
+import {
+  insertWorkspaceMembershipCompat,
+  loadWorkspaceMembershipByWorkspaceAndUser,
+  updateWorkspaceMembershipCompat,
+} from './workspace-memberships.js';
 
 function normalizeEmail(email: string | null | undefined): string {
   return (email ?? '').trim().toLowerCase();
@@ -14,52 +19,6 @@ type WorkspaceMembershipCompatRow = {
   workspace_id: string;
   user_id: string;
 };
-
-const OPTIONAL_MEMBERSHIP_COLUMNS = [
-  'role_key',
-  'membership_status',
-  'is_default',
-  'joined_at',
-  'status',
-  'role_name',
-  'role_display_name',
-  'source',
-  'approved_at',
-  'revoked_at',
-  'created_at',
-  'updated_at',
-] as const;
-
-type OptionalMembershipColumn = (typeof OPTIONAL_MEMBERSHIP_COLUMNS)[number];
-
-function getMissingOptionalMembershipColumn(error: unknown): OptionalMembershipColumn | null {
-  const msg = String((error as { message?: string } | null)?.message || '');
-
-  const quoted = msg.match(/'([^']+)' column/i)?.[1];
-  if (quoted && OPTIONAL_MEMBERSHIP_COLUMNS.includes(quoted as OptionalMembershipColumn)) {
-    return quoted as OptionalMembershipColumn;
-  }
-
-  for (const column of OPTIONAL_MEMBERSHIP_COLUMNS) {
-    if (
-      msg.includes(column) &&
-      (/does not exist/i.test(msg) || /Could not find/i.test(msg) || /schema cache/i.test(msg))
-    ) {
-      return column;
-    }
-  }
-
-  return null;
-}
-
-function omitOptionalMembershipColumn<T extends Record<string, unknown>>(
-  payload: T,
-  column: OptionalMembershipColumn,
-): T {
-  const next = { ...payload };
-  delete next[column];
-  return next;
-}
 
 function getTemporaryNativeAdminConfig() {
   const email = normalizeEmail(process.env.TEMP_NATIVE_ADMIN_EMAIL);
@@ -273,79 +232,14 @@ async function getExistingMembershipRow(params: {
   workspaceId: string;
   userId: string;
 }): Promise<WorkspaceMembershipCompatRow | null> {
-  const withCreatedAt = await supabase
-    .from('cdt_workspace_memberships')
-    .select('id, workspace_id, user_id, created_at')
-    .eq('workspace_id', params.workspaceId)
-    .eq('user_id', params.userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const row = await loadWorkspaceMembershipByWorkspaceAndUser(params.workspaceId, params.userId);
+  if (!row) return null;
 
-  if (!withCreatedAt.error) {
-    return withCreatedAt.data as WorkspaceMembershipCompatRow | null;
-  }
-
-  const fallback = await supabase
-    .from('cdt_workspace_memberships')
-    .select('id, workspace_id, user_id')
-    .eq('workspace_id', params.workspaceId)
-    .eq('user_id', params.userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (fallback.error) throw fallback.error;
-  return fallback.data as WorkspaceMembershipCompatRow | null;
-}
-
-async function insertWorkspaceMembershipCompat(insertData: Record<string, unknown>) {
-  let payload = { ...insertData };
-  const removed = new Set<string>();
-
-  while (true) {
-    const result = await supabase
-      .from('cdt_workspace_memberships')
-      .insert(payload)
-      .select('id, workspace_id, user_id')
-      .maybeSingle();
-
-    if (!result.error) return result;
-
-    const missingColumn = getMissingOptionalMembershipColumn(result.error);
-    if (!missingColumn || removed.has(missingColumn) || !(missingColumn in payload)) {
-      return result;
-    }
-
-    removed.add(missingColumn);
-    payload = omitOptionalMembershipColumn(payload, missingColumn);
-  }
-}
-
-async function updateWorkspaceMembershipCompat(
-  membershipId: string,
-  updateData: Record<string, unknown>,
-) {
-  let payload = { ...updateData };
-  const removed = new Set<string>();
-
-  while (true) {
-    const result = await supabase
-      .from('cdt_workspace_memberships')
-      .update(payload)
-      .eq('id', membershipId)
-      .select('id, workspace_id, user_id')
-      .maybeSingle();
-
-    if (!result.error) return result;
-
-    const missingColumn = getMissingOptionalMembershipColumn(result.error);
-    if (!missingColumn || removed.has(missingColumn) || !(missingColumn in payload)) {
-      return result;
-    }
-
-    removed.add(missingColumn);
-    payload = omitOptionalMembershipColumn(payload, missingColumn);
-  }
+  return {
+    id: row.id,
+    workspace_id: row.workspace_id,
+    user_id: row.user_id,
+  };
 }
 
 async function ensureNativeAdminWorkspaceMemberships(userId: string): Promise<void> {

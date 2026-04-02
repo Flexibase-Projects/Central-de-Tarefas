@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import { apiUrl } from '@/lib/api'
+
+const indicatorsCache = new Map<string, IndicatorsViewData | null>()
+const indicatorsInFlight = new Map<string, Promise<IndicatorsViewData | null>>()
 
 export interface IndicatorsTeamTotals {
   total_users: number
@@ -56,6 +60,13 @@ export interface IndicatorsPersonalSummary {
   activitiesAssigned: number
 }
 
+export interface MonthlyActivitySummary {
+  completed: number
+  pending: number
+  overdue: number
+  total: number
+}
+
 export interface RecentAssignedTodo {
   id: string
   title: string
@@ -74,6 +85,7 @@ export interface IndicatorsViewData {
   scope: 'team' | 'me'
   team: IndicatorsTeamTotals
   personal: IndicatorsPersonalSummary
+  monthlyActivitySummary: MonthlyActivitySummary
   recentAssignedTodos: RecentAssignedTodo[]
   pendingAssignedTodos: RecentAssignedTodo[]
   recentActivities: RecentActivity[]
@@ -94,6 +106,7 @@ type RawPersonalSummary = {
   activitiesAssigned?: number
 }
 
+type RawMonthlyActivitySummary = Partial<MonthlyActivitySummary>
 type RawRecentTodo = Partial<RecentAssignedTodo>
 type RawRecentActivity = Partial<RecentActivity>
 
@@ -197,28 +210,39 @@ function normalizeRecentActivities(raw: unknown): RecentActivity[] {
     .filter((item): item is RecentActivity => item !== null)
 }
 
+function normalizeMonthlyActivitySummary(raw: RawMonthlyActivitySummary | undefined): MonthlyActivitySummary {
+  const completed = toNumber(raw?.completed, 0)
+  const pending = toNumber(raw?.pending, 0)
+  const overdue = toNumber(raw?.overdue, 0)
+
+  return {
+    completed,
+    pending,
+    overdue,
+    total: toNumber(raw?.total, completed + pending + overdue),
+  }
+}
+
 function normalizeIndicatorsResponse(
   raw: unknown,
-  isAdmin: boolean,
+  isTeamScope: boolean,
   currentUserId: string | null,
 ): IndicatorsViewData | null {
   if (!raw || typeof raw !== 'object') return null
   const data = raw as IndicatorsResponse
   const byUser = Array.isArray(data.by_user) ? data.by_user : []
   const fallbackUserRow =
-    currentUserId && byUser.length > 0
-      ? byUser.find((row) => row.user_id === currentUserId) ?? null
-      : null
+    currentUserId && byUser.length > 0 ? byUser.find((row) => row.user_id === currentUserId) ?? null : null
 
-  const personal = normalizePersonalSummary(
-    data.personal as RawPersonalSummary | undefined,
-    fallbackUserRow,
-  )
+  const personal = normalizePersonalSummary(data.personal as RawPersonalSummary | undefined, fallbackUserRow)
 
   return {
-    scope: data.scope ?? (isAdmin ? 'team' : 'me'),
+    scope: data.scope ?? (isTeamScope ? 'team' : 'me'),
     team: normalizeTeamTotals(data.team),
     personal,
+    monthlyActivitySummary: normalizeMonthlyActivitySummary(
+      (data as Record<string, unknown>).monthlyActivitySummary as RawMonthlyActivitySummary | undefined,
+    ),
     recentAssignedTodos: normalizeRecentAssignedTodos(data.recentAssignedTodos),
     pendingAssignedTodos: normalizeRecentAssignedTodos((data as Record<string, unknown>).pendingAssignedTodos),
     recentActivities: normalizeRecentActivities((data as Record<string, unknown>).recentActivities),
@@ -228,42 +252,140 @@ function normalizeIndicatorsResponse(
   }
 }
 
-export function useIndicators() {
-  const { getAuthHeaders, hasRole, currentUser } = useAuth()
-  const [data, setData] = useState<IndicatorsViewData | null>(null)
-  const [loading, setLoading] = useState(true)
+async function fetchIndicatorsForCacheKey(params: {
+  cacheKey: string
+  scope: 'team' | 'me'
+  resolvedUserId: string | null
+  getAuthHeaders: () => Record<string, string>
+  targetUserId?: string | null
+  force?: boolean
+}): Promise<IndicatorsViewData | null> {
+  const { cacheKey, scope, resolvedUserId, getAuthHeaders, targetUserId, force } = params
+
+  if (!force && indicatorsCache.has(cacheKey)) {
+    return indicatorsCache.get(cacheKey) ?? null
+  }
+
+  const existingRequest = indicatorsInFlight.get(cacheKey)
+  if (existingRequest) {
+    return existingRequest
+  }
+
+  const request = (async () => {
+    const url = apiUrl('/api/indicators', { scope })
+    const headers = getAuthHeaders()
+    if (targetUserId) {
+      headers['x-user-id'] = targetUserId
+    }
+    const response = await fetch(url, { headers })
+    if (!response.ok) {
+      if (response.status === 401) {
+        indicatorsCache.delete(cacheKey)
+        return null
+      }
+      throw new Error('Falha ao carregar indicadores')
+    }
+    const json = await response.json()
+    const normalized = normalizeIndicatorsResponse(json, scope === 'team', resolvedUserId)
+    if (normalized) {
+      indicatorsCache.set(cacheKey, normalized)
+    } else {
+      indicatorsCache.delete(cacheKey)
+    }
+    return normalized
+  })()
+
+  indicatorsInFlight.set(cacheKey, request)
+
+  try {
+    return await request
+  } finally {
+    if (indicatorsInFlight.get(cacheKey) === request) {
+      indicatorsInFlight.delete(cacheKey)
+    }
+  }
+}
+
+export async function prefetchIndicators(params: {
+  cacheKey: string
+  scope: 'team' | 'me'
+  resolvedUserId: string | null
+  getAuthHeaders: () => Record<string, string>
+  targetUserId?: string | null
+  force?: boolean
+}) {
+  return fetchIndicatorsForCacheKey(params)
+}
+
+export function useIndicators(
+  targetUserId?: string | null,
+  forcedScope?: 'team' | 'me',
+  enabled = true,
+) {
+  const { currentUser, currentWorkspace, getAuthHeaders } = useAuth()
+  const { isManagerial } = useWorkspaceContext(currentWorkspace?.slug ?? null)
+  const resolvedUserId = targetUserId ?? currentUser?.id ?? null
+  const scope = forcedScope ?? (isManagerial ? 'team' : 'me')
+  const cacheKey = useMemo(
+    () => `${currentWorkspace?.slug ?? 'workspace'}:${resolvedUserId ?? 'anonymous'}:${scope}`,
+    [currentWorkspace?.slug, resolvedUserId, scope],
+  )
+  const cachedIndicators = indicatorsCache.get(cacheKey) ?? null
+  const [data, setData] = useState<IndicatorsViewData | null>(cachedIndicators)
+  const [loading, setLoading] = useState(enabled && !cachedIndicators)
   const [error, setError] = useState<string | null>(null)
 
-  const isAdmin = hasRole('admin')
+  const commitIndicators = useCallback(
+    (nextData: IndicatorsViewData | null) => {
+      if (nextData) {
+        indicatorsCache.set(cacheKey, nextData)
+      } else {
+        indicatorsCache.delete(cacheKey)
+      }
+      setData(nextData)
+    },
+    [cacheKey],
+  )
 
   const fetchIndicators = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false)
+      setError(null)
+      return indicatorsCache.get(cacheKey) ?? null
+    }
+
     try {
       setLoading(true)
       setError(null)
-      const url = apiUrl('/api/indicators', { scope: isAdmin ? 'team' : 'me' })
-      const response = await fetch(url, { headers: getAuthHeaders() })
-      if (!response.ok) {
-        if (response.status === 401) {
-          setData(null)
-          return
-        }
-        throw new Error('Falha ao carregar indicadores')
-      }
-      const json = await response.json()
-      const normalized = normalizeIndicatorsResponse(json, isAdmin, currentUser?.id ?? null)
-      setData(normalized)
+      const nextData = await fetchIndicatorsForCacheKey({
+        cacheKey,
+        scope,
+        resolvedUserId,
+        getAuthHeaders,
+        targetUserId,
+        force: true,
+      })
+      commitIndicators(nextData)
+      return nextData
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar indicadores'
       setError(message)
-      setData(null)
+      return null
     } finally {
       setLoading(false)
     }
-  }, [getAuthHeaders, isAdmin, currentUser?.id])
+  }, [cacheKey, commitIndicators, enabled, getAuthHeaders, resolvedUserId, scope, targetUserId])
 
   useEffect(() => {
+    setData(cachedIndicators)
+    setLoading(enabled && !cachedIndicators)
+    setError(null)
+  }, [cacheKey, cachedIndicators, enabled])
+
+  useEffect(() => {
+    if (!enabled) return
     void fetchIndicators()
-  }, [fetchIndicators])
+  }, [enabled, fetchIndicators])
 
   return { data, loading, error, refresh: fetchIndicators }
 }

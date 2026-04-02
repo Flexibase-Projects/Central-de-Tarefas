@@ -11,7 +11,6 @@ import {
   TableRow,
   Card,
   CardContent,
-  CircularProgress,
   Alert,
   Chip,
   Divider,
@@ -30,6 +29,7 @@ import {
 import { useIndicators, type RecentAssignedTodo } from '@/hooks/use-indicators'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDatePtBr } from '@/lib/date-only'
+import { PageSyncScreen, WorkspaceSyncBanner } from '@/components/system/WorkspaceSyncFeedback'
 
 const STATUS_LABELS: Record<string, string> = {
   backlog: 'Backlog',
@@ -228,22 +228,52 @@ function TodoTitleCell({
 }
 
 export default function Indicadores() {
-  const { data, loading, error } = useIndicators()
+  const { data, loading, error, refresh } = useIndicators()
   const { hasRole } = useAuth()
   const navigate = useNavigate()
   const isAdmin = hasRole('admin')
   const [pendingTodosPage, setPendingTodosPage] = useState(0)
   const [expandedTodoRows, setExpandedTodoRows] = useState<Set<string>>(new Set())
   const pendingTodosRowsPerPage = 10
+  const indicatorsData = data ?? {
+    scope: (isAdmin ? 'team' : 'me') as 'team' | 'me',
+    team: {
+      total_users: 0,
+      total_projects: 0,
+      total_activities: 0,
+      total_comments: 0,
+      total_todos_created: 0,
+      total_todos_completed: 0,
+    },
+    personal: {
+      commentsCount: 0,
+      todosAssignedTotal: 0,
+      todosAssignedCompleted: 0,
+      todosAssignedOpen: 0,
+      activitiesAssigned: 0,
+    },
+    monthlyActivitySummary: {
+      completed: 0,
+      pending: 0,
+      overdue: 0,
+      total: 0,
+    },
+    recentAssignedTodos: [],
+    pendingAssignedTodos: [],
+    recentActivities: [],
+    by_user: [],
+    by_project: [],
+    by_activity: [],
+  }
 
-  const personal = data?.personal
-  const team = data?.team
-  const byUser = data?.by_user ?? []
-  const byProject = data?.by_project ?? []
-  const byActivity = data?.by_activity ?? []
-  const recentTodos = data?.recentAssignedTodos ?? []
-  const pendingTodos = data?.pendingAssignedTodos ?? []
-  const recentActivities = data?.recentActivities ?? []
+  const personal = indicatorsData.personal
+  const team = indicatorsData.team
+  const byUser = indicatorsData.by_user
+  const byProject = indicatorsData.by_project
+  const byActivity = indicatorsData.by_activity
+  const recentTodos = indicatorsData.recentAssignedTodos
+  const pendingTodos = indicatorsData.pendingAssignedTodos
+  const recentActivities = indicatorsData.recentActivities
 
   const userNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -307,28 +337,28 @@ export default function Indicadores() {
     })
   }
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 320 }}>
-        <CircularProgress size={40} />
-      </Box>
-    )
-  }
-
-  if (error) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-      </Box>
-    )
-  }
-
-  if (!data) {
-    return null
-  }
-
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', p: 2.5, pb: 4, boxSizing: 'border-box' }}>
+      <WorkspaceSyncBanner
+        active={loading}
+        title="Atualizando os indicadores"
+        description="Os dados atuais continuam visiveis enquanto sincronizamos os totais, rankings e tabelas desta leitura."
+      />
+
+      {!data && loading ? (
+        <PageSyncScreen
+          title="Sincronizando indicadores"
+          description="Estamos consolidando os numeros do workspace para voce analisar time, projetos e atividades com contexto atualizado."
+          minHeight={220}
+        />
+      ) : null}
+
+      {error ? (
+        <Alert severity="warning" onClose={() => void refresh()} sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      ) : null}
+
       <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
         {isAdmin ? 'Indicadores do time' : 'Meus indicadores'}
       </Typography>

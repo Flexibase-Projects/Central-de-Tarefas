@@ -4,6 +4,8 @@ import { Activity } from '../types/index.js';
 import { hasRole } from '../services/permissions.js';
 import { getRequesterId } from '../middleware/auth.js';
 import { getWorkspaceContext } from '../middleware/workspace.js';
+import { resolveAuthBackedUserId } from '../services/assignment-users.js';
+import { getWorkspaceModuleState } from '../services/workspace-modules.js';
 import {
   awardActivityCompletionXp,
   calculateItemCompletionXp,
@@ -35,6 +37,11 @@ function getWorkspaceIdOrFail(req: express.Request, res: express.Response): stri
     return null;
   }
   return workspace.workspace.id;
+}
+
+async function isGamificationEnabledForWorkspace(workspaceId: string): Promise<boolean> {
+  const moduleState = await getWorkspaceModuleState(workspaceId, 'gamification');
+  return moduleState?.available === true;
 }
 
 async function ensureAdmin(req: express.Request, res: express.Response): Promise<string | null> {
@@ -139,7 +146,7 @@ router.post('/', async (req, res) => {
           status: activity.status || 'backlog',
           due_date: activity.due_date || null,
           priority: activity.priority || 'medium',
-          assigned_to: activity.assigned_to || null,
+          assigned_to: await resolveAuthBackedUserId(activity.assigned_to, 'assigned_to'),
           cover_image_url: activity.cover_image_url ?? null,
           created_by: activity.created_by || requesterId,
           xp_reward: parseDecimal(activity.xp_reward, 1),
@@ -153,7 +160,7 @@ router.post('/', async (req, res) => {
 
     if (error) throw error;
 
-    if (isDone) {
+    if (isDone && (await isGamificationEnabledForWorkspace(workspaceId))) {
       const earnerId = data.assigned_to || data.created_by;
       if (earnerId) {
         const linkedReward = await getLinkedAchievementReward(data.achievement_id ?? null);
@@ -172,10 +179,11 @@ router.post('/', async (req, res) => {
           userId: earnerId,
           activityId: data.id,
           xpAmount,
+          workspaceId,
         });
-        await unlockLinkedAchievementIfNeeded(earnerId, data.achievement_id ?? null);
+        await unlockLinkedAchievementIfNeeded(earnerId, data.achievement_id ?? null, workspaceId);
         if (awarded) {
-          await evaluateAndAwardGlobalAchievements(earnerId);
+          await evaluateAndAwardGlobalAchievements(earnerId, workspaceId);
         }
       }
     }
@@ -294,7 +302,9 @@ router.put('/:id', async (req, res) => {
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.due_date !== undefined) updateData.due_date = updates.due_date;
     if (updates.priority !== undefined) updateData.priority = updates.priority;
-    if (updates.assigned_to !== undefined) updateData.assigned_to = updates.assigned_to;
+    if (updates.assigned_to !== undefined) {
+      updateData.assigned_to = await resolveAuthBackedUserId(updates.assigned_to, 'assigned_to');
+    }
     if (updates.cover_image_url !== undefined) updateData.cover_image_url = updates.cover_image_url;
 
     if (isAdmin) {
@@ -345,7 +355,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Activity not found' });
     }
 
-    if (transitionedToDone) {
+    if (transitionedToDone && (await isGamificationEnabledForWorkspace(workspaceId))) {
       const earnerId = data.assigned_to || data.created_by;
       if (earnerId) {
         const linkedReward = await getLinkedAchievementReward(data.achievement_id ?? null);
@@ -365,10 +375,11 @@ router.put('/:id', async (req, res) => {
           userId: earnerId,
           activityId: data.id,
           xpAmount,
+          workspaceId,
         });
-        await unlockLinkedAchievementIfNeeded(earnerId, data.achievement_id ?? null);
+        await unlockLinkedAchievementIfNeeded(earnerId, data.achievement_id ?? null, workspaceId);
         if (awarded) {
-          await evaluateAndAwardGlobalAchievements(earnerId);
+          await evaluateAndAwardGlobalAchievements(earnerId, workspaceId);
         }
       }
     }

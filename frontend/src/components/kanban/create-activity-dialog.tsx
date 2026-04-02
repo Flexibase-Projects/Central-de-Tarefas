@@ -40,7 +40,7 @@ const priorityOptions: { value: Activity['priority']; label: string }[] = [
 export function CreateActivityDialog({ open, onOpenChange, onCreate }: CreateActivityDialogProps) {
   const { achievements } = useAchievements()
   const linkedAchievements = achievements.filter(
-    (achievement) => (achievement.mode ?? 'global_auto') === 'linked_item'
+    (achievement) => ['linked_item', 'manual'].includes(achievement.mode ?? 'global_auto')
   )
   const [formData, setFormData] = useState({
     name: '',

@@ -23,6 +23,7 @@ export interface Project {
   map_y?: number | null
   /** Ordem na tela Prioridades: menor = mais importante, null = fim. */
   priority_order?: number | null
+  responsible_user_id?: string | null
   /** URL da imagem de capa (usado no kanban de atividades). */
   cover_image_url?: string | null
   created_at: string
@@ -320,6 +321,100 @@ export interface WorkspaceQuickEntry {
   badge?: string | null
 }
 
+export interface WorkspaceModuleState {
+  id?: string | null
+  key: string
+  display_name: string
+  is_enabled: boolean
+  available: boolean
+  reason?: string | null
+}
+
+export interface WorkspaceMembershipContext {
+  role_id: string | null
+  role_key: string | null
+  role_display_name: string | null
+  membership_status?: string | null
+  is_managerial: boolean
+}
+
+export interface WorkspaceContextSummary {
+  id: string
+  slug: string
+  name: string
+  description?: string | null
+}
+
+export interface WorkspaceContextData {
+  workspace: WorkspaceContextSummary
+  membership: WorkspaceMembershipContext
+  modules: WorkspaceModuleState[]
+}
+
+export interface WorkspaceMemberRole {
+  id: string
+  name: string
+  display_name: string
+}
+
+export interface WorkspaceManagedMember {
+  id: string
+  name: string
+  email: string | null
+  avatar_url: string | null
+  central_user_id: string | null
+  role: WorkspaceMemberRole | null
+  role_key: string | null
+  role_display_name: string | null
+  membership_status: string
+  is_active: boolean
+  is_default: boolean
+  joined_at: string
+}
+
+export interface WorkspaceProfileData {
+  display_name: string
+  avatar_url: string | null
+  fallback_name: string
+  fallback_avatar_url: string | null
+  is_overridden: boolean
+}
+
+export interface WorkspaceTeamGamificationMember {
+  user_id: string
+  name: string
+  avatar_url: string | null
+  level: number
+  total_xp: number
+  unlocked_achievements: number
+}
+
+export interface WorkspaceTeamGamificationSummaryData {
+  total_members: number
+  active_with_xp: number
+  average_level: number
+  average_xp: number
+  total_unlocked_achievements: number
+  top_members: WorkspaceTeamGamificationMember[]
+}
+
+export interface WorkspaceTeamGamificationSummaryState {
+  enabled: boolean
+  reason?: string | null
+  summary: WorkspaceTeamGamificationSummaryData | null
+}
+
+export interface WorkspaceProfileResponse {
+  workspace: WorkspaceContextSummary
+  membership: WorkspaceMembershipContext
+  profile: WorkspaceProfileData
+  modules?: WorkspaceModuleState[]
+  workspace_role_flags?: {
+    is_managerial: boolean
+  }
+  team_gamification_summary?: WorkspaceTeamGamificationSummaryState | null
+}
+
 export type ExecutionViewMode = 'list' | 'kanban'
 
 export interface HomeTodoItem {
@@ -331,23 +426,26 @@ export interface HomeTodoItem {
   activityId: string | null
   activityName: string | null
   assigneeName?: string | null
+  sourceType?: 'todo' | 'activity'
 }
 
 export interface HomeReviewItem {
   id: string
-  kind: 'project' | 'activity'
+  kind: 'project' | 'activity' | 'todo'
   title: string
   status: string
   dueDate: string | null
   ownerName?: string | null
+  waitingReason?: 'review' | 'xp'
 }
 
 export interface HomeSummary {
   myOpen: number
+  myPending?: number
   overdue: number
   waiting: number
-  delegated: number
-  teamOpen?: number
+  teamOpenActivities?: number
+  teamOpenItems?: number
   xpPending?: number
 }
 
@@ -356,9 +454,11 @@ export interface HomeViewData {
   summary: HomeSummary
   buckets: {
     now: HomeTodoItem[]
+    pending?: HomeTodoItem[]
     overdue: HomeTodoItem[]
     waiting: HomeReviewItem[]
-    delegated: HomeTodoItem[]
+    teamOpenActivities: HomeTodoItem[]
+    teamOpenItems?: HomeTodoItem[]
   }
   quickTargets: {
     projectsOpen: string

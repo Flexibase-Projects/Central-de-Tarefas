@@ -15,6 +15,7 @@ export interface Project {
   map_y?: number | null;
   /** Ordem na tela Prioridades: menor = mais importante, null = fim. */
   priority_order?: number | null;
+  responsible_user_id?: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;

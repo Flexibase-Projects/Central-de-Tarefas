@@ -47,6 +47,7 @@ import permissionsRoutes from './routes/permissions.js';
 import rolesRoutes from './routes/roles.js';
 import usersRoutes from './routes/users.js';
 import authHintRoutes from './routes/auth-hint.js';
+import adminWorkspacesRoutes from './routes/admin-workspaces.js';
 import workspacesRoutes from './routes/workspaces.js';
 import ssoRoutes from './routes/sso.js';
 import notificationsRoutes from './routes/notifications.js';
@@ -231,6 +232,7 @@ app.use(authMiddleware);
 
 // Routes
 app.use('/api/workspaces', workspacesRoutes);
+app.use('/api/admin/workspaces', adminWorkspacesRoutes);
 app.use('/api/projects', requireWorkspaceAccess, projectsRoutes);
 app.use('/api/tasks', requireWorkspaceAccess, tasksRoutes);
 app.use('/api/activities', requireWorkspaceAccess, activitiesRoutes);
@@ -246,8 +248,8 @@ app.use('/api/notifications', requireWorkspaceAccess, notificationsRoutes);
 app.use('/api/home', requireWorkspaceAccess, homeRoutes);
 app.use('/api/indicators', requireWorkspaceAccess, indicatorsRoutes);
 app.use('/api/team-canvas', requireWorkspaceAccess, teamCanvasRoutes);
-app.use('/api/me/progress', progressRoutes);
-app.use('/api/achievements', achievementsRoutes);
+app.use('/api/me/progress', requireWorkspaceAccess, progressRoutes);
+app.use('/api/achievements', requireWorkspaceAccess, achievementsRoutes);
 app.use('/api/org', requireWorkspaceAccess, orgRoutes);
 app.use('/api/departments', requireWorkspaceAccess, departmentsRoutes);
 app.use('/api/cost-items', requireWorkspaceAccess, costItemsRoutes);

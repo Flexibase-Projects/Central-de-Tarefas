@@ -1,19 +1,21 @@
 import React from 'react'
-import {
-  Avatar,
-  Box,
-  Button,
-  CircularProgress,
-  Divider,
-  Typography,
-} from '@mui/material'
+import { Avatar, Box, Button, CircularProgress, Divider, Typography } from '@mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserProgress } from '@/hooks/use-user-progress'
 import { useIndicators } from '@/hooks/use-indicators'
+import { useWorkspaceContext } from '@/hooks/use-workspace-context'
+import { useWorkspaceProfile } from '@/hooks/use-workspace-profile'
 import { useProfileDrawerActions } from '@/hooks/use-profile-drawer-actions'
 import { TierBadge } from '@/components/gamification/TierBadge'
 import { LevelXpBar } from '@/components/master-mode/LevelXpBar'
-import { Person, BarChart2, ExternalLink, MessageCircleIcon, List, CheckCircle, ClipboardList } from '@/components/ui/icons'
+import {
+  BarChart2,
+  ExternalLink,
+  MessageCircleIcon,
+  List,
+  CheckCircle,
+  ClipboardList,
+} from '@/components/ui/icons'
 import SidePanel from '@/components/system/SidePanel'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'
@@ -56,45 +58,77 @@ function StatTile({
   )
 }
 
+function formatInitials(name: string | null | undefined): string {
+  const value = (name ?? '').trim()
+  if (!value) return '?'
+  const parts = value.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? '?'
+  return `${parts[0][0]?.toUpperCase() ?? ''}${parts[1][0]?.toUpperCase() ?? ''}` || '?'
+}
+
 export interface UserLevelProfileDrawerProps {
   open: boolean
   onClose: () => void
+  userOverride?: {
+    id: string
+    name: string
+    email?: string | null
+    avatar_url?: string | null
+  } | null
 }
 
-export function UserLevelProfileDrawer({ open, onClose }: UserLevelProfileDrawerProps) {
-  const { currentUser } = useAuth()
+export function UserLevelProfileDrawer({ open, onClose, userOverride = null }: UserLevelProfileDrawerProps) {
+  const { currentUser, currentWorkspace } = useAuth()
+  const workspaceSlug = currentWorkspace?.slug ?? null
+  const { gamificationEnabled } = useWorkspaceContext(workspaceSlug)
+  const { profile } = useWorkspaceProfile(workspaceSlug)
   const { goPerfil, goIndicadores, goWorkspaces, handleLogout } = useProfileDrawerActions({ onClose })
-  const { data: progress, loading: progressLoading } = useUserProgress()
-  const { data: indicators, loading: indicatorsLoading, error: indicatorsError } = useIndicators()
+
+  const profileUser = userOverride ?? currentUser
+  const isOwnProfile = !userOverride || userOverride.id === currentUser?.id
+  const displayName = isOwnProfile ? profile?.display_name ?? currentUser?.name ?? '' : profileUser?.name ?? ''
+  const avatarUrl = isOwnProfile ? profile?.avatar_url ?? currentUser?.avatar_url ?? null : profileUser?.avatar_url ?? null
+  const { data: progress, loading: progressLoading } = useUserProgress(profileUser?.id, gamificationEnabled)
+  const { data: indicators, loading: indicatorsLoading, error: indicatorsError } = useIndicators(
+    profileUser?.id,
+    'me',
+    gamificationEnabled,
+  )
 
   const personal = indicators?.personal ?? null
 
-  if (!currentUser) return null
+  if (!profileUser) return null
 
   return (
     <SidePanel
       open={open}
       onClose={onClose}
-      title="Perfil rapido"
-      description="Resumo do seu progresso e dos seus indicadores no workspace atual."
+      title={isOwnProfile ? 'Perfil rapido' : `Perfil de ${profileUser.name}`}
+      description={
+        isOwnProfile
+          ? 'Resumo do seu perfil da workspace atual.'
+          : 'Visao rapida do progresso e dos indicadores desta pessoa no workspace atual.'
+      }
       footer={
-        <>
-          <Button variant="text" onClick={goWorkspaces}>
-            Workspaces
-          </Button>
-          <Button variant="outlined" onClick={goIndicadores} startIcon={<ExternalLink size={16} />}>
-            Indicadores
-          </Button>
-          <Button variant="contained" onClick={goPerfil}>
-            Perfil completo
-          </Button>
-        </>
+        isOwnProfile ? (
+          <>
+            <Button variant="text" onClick={goWorkspaces}>
+              Workspaces
+            </Button>
+            <Button variant="outlined" onClick={goIndicadores} startIcon={<ExternalLink size={16} />}>
+              Indicadores
+            </Button>
+            <Button variant="contained" onClick={goPerfil}>
+              Perfil completo
+            </Button>
+          </>
+        ) : undefined
       }
     >
       <AppSurface sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Avatar
-            src={currentUser.avatar_url ?? undefined}
+            src={avatarUrl ?? undefined}
             sx={{
               width: 68,
               height: 68,
@@ -103,49 +137,64 @@ export function UserLevelProfileDrawer({ open, onClose }: UserLevelProfileDrawer
               bgcolor: 'action.hover',
             }}
           >
-            {currentUser.name?.[0]?.toUpperCase() ?? <Person size={30} />}
+            {formatInitials(displayName || profileUser.name)}
           </Avatar>
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="h4" sx={{ mb: 0.3 }} noWrap>
-              {currentUser.name}
+              {displayName || profileUser.name}
             </Typography>
             <Typography variant="body2" color="text.secondary" noWrap sx={{ mb: 0.9 }}>
-              {currentUser.email}
+              {profileUser.email ?? 'Membro do workspace'}
             </Typography>
-            <TierBadge level={progress?.level ?? 1} size="sm" showTierName />
+            {gamificationEnabled ? <TierBadge level={progress?.level ?? 1} size="sm" showTierName /> : null}
           </Box>
         </Box>
       </AppSurface>
 
-      <AppSurface sx={{ mb: 2 }}>
-        <SectionHeader
-          title="Progressao"
-          description="Nivel, XP e entregas concluidas."
-          sx={{ pb: 1 }}
-        />
+      {isOwnProfile ? (
+        <AppSurface sx={{ mb: 2 }}>
+          <SectionHeader
+            title="Perfil do workspace"
+            description="Nome e avatar ajustados para este contexto."
+            sx={{ pb: 1 }}
+          />
+          <Typography variant="body2" color="text.secondary">
+            {profile?.is_overridden
+              ? 'Seu perfil está customizado para esta workspace.'
+              : 'Este workspace ainda usa os dados padrão do usuário.'}
+          </Typography>
+        </AppSurface>
+      ) : null}
 
-        <LevelXpBar progress={progress} loading={progressLoading} />
+      {gamificationEnabled ? (
+        <AppSurface sx={{ mb: 2 }}>
+          <SectionHeader title="Progressao" description="Nivel, XP e entregas concluidas." sx={{ pb: 1 }} />
 
-        {progress ? (
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              <strong style={{ color: 'var(--text-primary)' }}>{progress.totalXp}</strong> XP total
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              <strong style={{ color: 'var(--text-primary)' }}>{progress.completedTodos}</strong> to-dos
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              <strong style={{ color: 'var(--text-primary)' }}>{progress.completedActivities}</strong> atividades
-            </Typography>
-            {progress.streakDays != null && progress.streakDays > 0 ? (
-              <Typography variant="caption" color="text.secondary">
-                <strong style={{ color: 'var(--text-primary)' }}>{progress.streakDays}</strong> dias de streak
-              </Typography>
+          <>
+            <LevelXpBar progress={progress} loading={progressLoading} />
+
+            {progress ? (
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  <strong style={{ color: 'var(--text-primary)' }}>{progress.totalXp}</strong> XP total
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  <strong style={{ color: 'var(--text-primary)' }}>{progress.completedTodos}</strong> to-dos
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  <strong style={{ color: 'var(--text-primary)' }}>{progress.completedActivities}</strong> atividades
+                </Typography>
+                {progress.streakDays != null && progress.streakDays > 0 ? (
+                  <Typography variant="caption" color="text.secondary">
+                    <strong style={{ color: 'var(--text-primary)' }}>{progress.streakDays}</strong> dias de streak
+                  </Typography>
+                ) : null}
+              </Box>
             ) : null}
-          </Box>
-        ) : null}
-      </AppSurface>
+          </>
+        </AppSurface>
+      ) : null}
 
       <AppSurface>
         <SectionHeader
@@ -177,9 +226,11 @@ export function UserLevelProfileDrawer({ open, onClose }: UserLevelProfileDrawer
 
         <Divider sx={{ my: 2 }} />
 
-        <Button fullWidth variant="text" color="error" onClick={handleLogout}>
-          Desconectar
-        </Button>
+        {isOwnProfile ? (
+          <Button fullWidth variant="text" color="error" onClick={handleLogout}>
+            Desconectar
+          </Button>
+        ) : null}
       </AppSurface>
     </SidePanel>
   )

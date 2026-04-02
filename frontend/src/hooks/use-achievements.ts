@@ -3,13 +3,20 @@ import { useAuth } from '@/contexts/AuthContext'
 import { apiUrl } from '@/lib/api'
 import type { Achievement } from '@/types'
 
-export function useAchievements() {
+export function useAchievements(enabled = true) {
   const { getAuthHeaders } = useAuth()
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!enabled) {
+      setAchievements([])
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     async function fetchAchievements() {
       try {
         const response = await fetch(apiUrl('/api/achievements'), { headers: getAuthHeaders() })
@@ -23,7 +30,7 @@ export function useAchievements() {
       }
     }
     fetchAchievements()
-  }, [getAuthHeaders])
+  }, [enabled, getAuthHeaders])
 
   return { achievements, loading, error }
 }

@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiUrl } from '@/lib/api'
+
+const activityCache = new Map<string, Activity[]>()
+const activityInFlight = new Map<string, Promise<Activity[]>>()
 
 type MigrationErrorBody = {
   error?: string
@@ -12,47 +15,118 @@ type MigrationErrorBody = {
 }
 
 function formatMigrationRequiredMessage(err: MigrationErrorBody): string {
-  const lines: string[] = [err.error ?? 'É necessário atualizar o banco de dados no Supabase.']
+  const lines: string[] = [err.error ?? 'E necessario atualizar o banco de dados no Supabase.']
   if (err.migrations?.length) {
-    lines.push(`Migrações completas (recomendado): ${err.migrations.join(', ')}`)
+    lines.push(`Migracoes completas (recomendado): ${err.migrations.join(', ')}`)
   }
   if (err.quickFixSql) {
-    lines.push('', 'Correção rápida — cole no Supabase → SQL Editor → Run:', '', err.quickFixSql)
+    lines.push('', 'Correcao rapida - cole no Supabase > SQL Editor > Run:', '', err.quickFixSql)
   } else if (err.sql) {
     lines.push('', err.sql)
   }
   return lines.join('\n')
 }
 
-export function useActivities() {
-  const { getAuthHeaders } = useAuth()
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [loading, setLoading] = useState(true)
+async function fetchActivitiesForCacheKey(
+  cacheKey: string,
+  getAuthHeaders: () => Record<string, string>,
+  options?: { force?: boolean },
+): Promise<Activity[]> {
+  if (!options?.force && activityCache.has(cacheKey)) {
+    return activityCache.get(cacheKey) ?? []
+  }
+
+  const existingRequest = activityInFlight.get(cacheKey)
+  if (existingRequest) {
+    return existingRequest
+  }
+
+  const request = (async () => {
+    const response = await fetch(apiUrl('/api/activities'), { headers: getAuthHeaders() })
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+    const data = await response.json()
+    const normalized = Array.isArray(data) ? data : []
+    activityCache.set(cacheKey, normalized)
+    return normalized
+  })()
+
+  activityInFlight.set(cacheKey, request)
+
+  try {
+    return await request
+  } finally {
+    if (activityInFlight.get(cacheKey) === request) {
+      activityInFlight.delete(cacheKey)
+    }
+  }
+}
+
+export async function prefetchActivities(params: {
+  cacheKey: string
+  getAuthHeaders: () => Record<string, string>
+  force?: boolean
+}) {
+  return fetchActivitiesForCacheKey(params.cacheKey, params.getAuthHeaders, { force: params.force })
+}
+
+export function useActivities(enabled = true) {
+  const { currentUser, currentWorkspace, getAuthHeaders } = useAuth()
+  const cacheKey = useMemo(
+    () => `${currentWorkspace?.slug ?? 'workspace'}:${currentUser?.id ?? 'anonymous'}`,
+    [currentUser?.id, currentWorkspace?.slug],
+  )
+  const cachedActivities = activityCache.get(cacheKey) ?? []
+  const [activities, setActivities] = useState<Activity[]>(cachedActivities)
+  const [loading, setLoading] = useState(enabled && cachedActivities.length === 0)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchActivities = async () => {
-      try {
-        setLoading(true)
-      const response = await fetch(apiUrl('/api/activities'), { headers: getAuthHeaders() })
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText} - ${errorText}`)
-      }
-      const data = await response.json()
-      setActivities(data)
+  const commitActivities = useCallback((nextActivities: Activity[] | ((prev: Activity[]) => Activity[])) => {
+    setActivities((previous) => {
+      const resolved = typeof nextActivities === 'function'
+        ? (nextActivities as (prev: Activity[]) => Activity[])(previous)
+        : nextActivities
+
+      activityCache.set(cacheKey, resolved)
+      return resolved
+    })
+  }, [cacheKey])
+
+  const fetchActivities = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false)
+      return activityCache.get(cacheKey) ?? []
+    }
+
+    try {
+      setLoading(true)
+      const data = await fetchActivitiesForCacheKey(cacheKey, getAuthHeaders, { force: true })
+      commitActivities(data)
       setError(null)
+      return data
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
       console.error('Error fetching activities:', err)
+      return []
     } finally {
       setLoading(false)
     }
-  }
+  }, [cacheKey, commitActivities, enabled, getAuthHeaders])
 
   useEffect(() => {
-    fetchActivities()
-  }, [])
+    const nextActivities = activityCache.get(cacheKey) ?? []
+    setActivities(nextActivities)
+    setLoading(enabled && nextActivities.length === 0)
+    setError(null)
+  }, [cacheKey, enabled])
+
+  useEffect(() => {
+    if (!enabled) return
+    void fetchActivities()
+  }, [enabled, fetchActivities])
 
   const createActivity = async (activity: Partial<Activity>) => {
     try {
@@ -61,14 +135,14 @@ export function useActivities() {
         headers: getAuthHeaders(),
         body: JSON.stringify(activity),
       })
-      
+
       if (!response.ok) {
         const errorText = await response.text()
         throw new Error(`Failed to create activity: ${response.status} ${response.statusText} - ${errorText}`)
       }
-      
+
       const newActivity = await response.json()
-      setActivities(prev => [newActivity, ...prev])
+      commitActivities((prev) => [newActivity, ...prev])
       return newActivity
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
@@ -93,7 +167,7 @@ export function useActivities() {
         throw new Error(err.error ?? 'Falha ao atualizar atividade')
       }
       const updatedActivity = body
-      setActivities(prev => prev.map(a => a.id === id ? updatedActivity : a))
+      commitActivities((prev) => prev.map((activity) => (activity.id === id ? updatedActivity : activity)))
       return updatedActivity
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
@@ -109,7 +183,7 @@ export function useActivities() {
         headers: getAuthHeaders(),
       })
       if (!response.ok) throw new Error('Failed to delete activity')
-      setActivities(prev => prev.filter(a => a.id !== id))
+      commitActivities((prev) => prev.filter((activity) => activity.id !== id))
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)

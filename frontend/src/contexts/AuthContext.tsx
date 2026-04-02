@@ -4,6 +4,7 @@ import { User, Role, Permission, UserWithRole } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { apiUrl } from '@/lib/api';
 import { fetchCentralSsoLogoutUrl } from '@/lib/central-sso';
+import { isGlobalAdminRoleName } from '@/lib/global-admin';
 import { buildWorkspacePath, getWorkspaceSlugFromPath } from '@/lib/workspace-routing';
 import type { Session } from '@supabase/supabase-js';
 
@@ -342,9 +343,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const effectivePermissions = isViewingAs ? viewAsPermissions : userPermissions;
 
   const hasPermission = (permission: string): boolean =>
-    effectivePermissions.some((p) => p.name === permission);
+    isGlobalAdminRoleName(effectiveRole?.name) || effectivePermissions.some((p) => p.name === permission);
 
-  const hasRole = (role: string): boolean => effectiveRole?.name === role;
+  const hasRole = (role: string): boolean => {
+    if (role === 'admin') {
+      return isGlobalAdminRoleName(effectiveRole?.name);
+    }
+
+    return effectiveRole?.name === role;
+  };
 
   return (
     <AuthContext.Provider

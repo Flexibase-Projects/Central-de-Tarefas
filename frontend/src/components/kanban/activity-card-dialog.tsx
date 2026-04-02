@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -82,7 +82,7 @@ export function ActivityCardDialog({
 }: ActivityCardDialogProps) {
   const { achievements } = useAchievements()
   const linkedAchievements = achievements.filter(
-    (a) => (a.mode ?? 'global_auto') === 'linked_item'
+    (a) => ['linked_item', 'manual'].includes(a.mode ?? 'global_auto')
   )
 
   const [formData, setFormData] = useState({
@@ -114,7 +114,10 @@ export function ActivityCardDialog({
     }
   }, [activity])
 
-  const todosScope = open && activity ? { activityId: activity.id } : null
+  const todosScope = useMemo(
+    () => (open && activity ? { activityId: activity.id } : null),
+    [open, activity?.id],
+  )
   const activityTodosApi = useTodos(todosScope)
   const linkedActivityTodos = activityTodosApi.todos
 

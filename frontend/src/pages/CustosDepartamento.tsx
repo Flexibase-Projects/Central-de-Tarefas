@@ -27,7 +27,6 @@ import {
   Drawer,
 } from '@mui/material'
 import { Plus, RefreshCw, Link2, UserPlus, Building2, UserCircle, Pencil, X, Trash2 } from 'lucide-react'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import {
   CostTreeFlow,
   type CanvasDialogAction,
@@ -64,7 +63,7 @@ function numberToBrlField(value: number | string | null | undefined): string {
 }
 
 export default function CustosDepartamento() {
-  const { getAuthHeaders } = useAuth()
+  const { getAuthHeaders, currentWorkspace } = useAuth()
   const { graph, loading, error, fetchGraph } = useCostGraph()
   const { users, refreshUsers } = useUsersList()
   const { entries: orgEntries, fetchEntries, updateEntry } = useOrgEntries()
@@ -643,19 +642,18 @@ export default function CustosDepartamento() {
   const consumePendingCanvasNode = useCallback(() => setPendingNodePlacement(null), [])
 
   return (
-    <ProtectedRoute role="admin">
-      <Box
-        sx={{
-          height: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
-          maxHeight: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxSizing: 'border-box',
-          p: { xs: 2, md: 3 },
-          pb: 2,
-        }}
-      >
+    <Box
+      sx={{
+        height: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
+        maxHeight: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        p: { xs: 2, md: 3 },
+        pb: 2,
+      }}
+    >
         <AppSurface surface="subtle" sx={{ flexShrink: 0 }}>
           <SectionHeader
             title="Custos do Departamento"
@@ -686,6 +684,7 @@ export default function CustosDepartamento() {
             graph={graph}
             loading={loading}
             error={error}
+            workspaceSlug={currentWorkspace?.slug ?? null}
             canvasFocus={canvasFocus}
             onCanvasFocusChange={setCanvasFocus}
             onLinkCostToDepartment={handleLinkCostToDepartment}
@@ -1398,6 +1397,5 @@ export default function CustosDepartamento() {
           </DialogActions>
         </Dialog>
       </Box>
-    </ProtectedRoute>
   )
 }

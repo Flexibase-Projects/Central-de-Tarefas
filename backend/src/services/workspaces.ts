@@ -6,6 +6,8 @@ import {
   listCdtUsersByIds,
   updateCdtUserByIdCompat,
 } from './cdt-users.js';
+import { isGlobalAdminUserId } from './global-admin.js';
+import { listWorkspaceResolvedUserProfiles } from './workspace-user-profiles.js';
 
 export type WorkspaceRouteStatus = 'success' | 'pending' | 'blocked' | 'not_found';
 export type WorkspaceAccessState = 'active' | 'pending' | 'blocked' | 'none';
@@ -344,6 +346,29 @@ function titleize(value: string): string {
     .join(' ');
 }
 
+function buildGlobalWorkspaceMembership(params: {
+  workspaceId: string;
+  userId: string;
+  isDefault?: boolean;
+}): WorkspaceMembershipRow {
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: `global:${params.workspaceId}:${params.userId}`,
+    workspace_id: params.workspaceId,
+    user_id: params.userId,
+    role_key: 'admin',
+    membership_status: 'active',
+    is_default: params.isDefault ?? false,
+    joined_at: nowIso,
+    created_at: nowIso,
+    updated_at: nowIso,
+    role_id: null,
+    legacy_is_active: true,
+    legacy_left_at: null,
+  };
+}
+
 export function normalizeWorkspaceSlug(value: string): string {
   const slug = value.trim().toLowerCase();
   if (!slug) {
@@ -408,6 +433,18 @@ async function loadWorkspaceBySlug(slug: string): Promise<(WorkspaceRow & { grou
   const group = await loadWorkspaceGroupByKey(data.group_key).catch(() => null);
   return {
     ...data,
+    group,
+  };
+}
+
+async function loadWorkspaceById(workspaceId: string): Promise<(WorkspaceRow & { group: WorkspaceGroupSummary | null }) | null> {
+  const rows = await loadWorkspaceRows();
+  const workspace = rows.find((item) => item.id === workspaceId) ?? null;
+  if (!workspace) return null;
+
+  const group = await loadWorkspaceGroupByKey(workspace.group_key).catch(() => null);
+  return {
+    ...workspace,
     group,
   };
 }
@@ -536,12 +573,21 @@ async function loadWorkspaceAccessSnapshot(params: {
     };
   }
 
+  const hasGlobalAccess = params.subjectUser
+    ? await isGlobalAdminUserId(params.subjectUser.id)
+    : false;
+
   const membership = params.subjectUser
-    ? await loadWorkspaceMembershipByWorkspaceAndUser(workspace.id, params.subjectUser.id)
+    ? hasGlobalAccess
+      ? buildGlobalWorkspaceMembership({
+          workspaceId: workspace.id,
+          userId: params.subjectUser.id,
+        })
+      : await loadWorkspaceMembershipByWorkspaceAndUser(workspace.id, params.subjectUser.id)
     : null;
 
   let request: WorkspaceAccessRequestRow | null = null;
-  if (params.subjectUser) {
+  if (params.subjectUser && !hasGlobalAccess) {
     const normalizedEmail = normalizeEmail(params.subjectUser.email);
     const requestRows = await loadWorkspaceAccessRequestRows(workspace.id);
     request =
@@ -678,7 +724,7 @@ async function loadWorkspaceRows(): Promise<WorkspaceRow[]> {
 }
 
 export async function loadWorkspaceCatalog(subjectUserId: string | null): Promise<PublicWorkspacePayload> {
-  const [groupsRes, workspacesRes, membershipsRes, requestsRes] = await Promise.all([
+  const [groupsRes, workspacesRes, membershipsRes, requestsRes, hasGlobalAccess] = await Promise.all([
     loadWorkspaceGroups(),
     loadWorkspaceRows(),
     subjectUserId ? loadWorkspaceMembershipsForUser(subjectUserId) : Promise.resolve([] as WorkspaceMembershipRow[]),
@@ -688,6 +734,7 @@ export async function loadWorkspaceCatalog(subjectUserId: string | null): Promis
           return loadWorkspaceRequestsForUser(resolved.user);
         })
       : Promise.resolve([] as WorkspaceAccessRequestRow[]),
+    subjectUserId ? isGlobalAdminUserId(subjectUserId) : Promise.resolve(false),
   ]);
 
   const groupRows = groupsRes as WorkspaceGroupRow[];
@@ -708,15 +755,29 @@ export async function loadWorkspaceCatalog(subjectUserId: string | null): Promis
     }
   }
 
-  const workspaces = workspaceRows
-    .filter((workspace: WorkspaceRow) => {
-      if (!workspace.is_active || !workspace.is_public) return false;
-      const group = groupMap.get(workspace.group_key) ?? null;
-      return group?.is_public !== false;
-    })
-    .map((workspace: WorkspaceRow) => {
-      const membership = membershipByWorkspace.get(workspace.id) ?? null;
-      const request = requestByWorkspace.get(workspace.id) ?? null;
+  const visibleWorkspaces = workspaceRows.filter((workspace: WorkspaceRow) => {
+    if (!workspace.is_active || !workspace.is_public) return false;
+    const group = groupMap.get(workspace.group_key) ?? null;
+    return group?.is_public !== false;
+  });
+
+  const defaultWorkspaceId =
+    (hasGlobalAccess
+      ? membershipRows.find((membership) => membership.membership_status === 'active' && membership.is_default)?.workspace_id ??
+        visibleWorkspaces[0]?.id ??
+        null
+      : null) ??
+    null;
+
+  const workspaces = visibleWorkspaces.map((workspace: WorkspaceRow) => {
+      const membership = hasGlobalAccess && subjectUserId
+        ? buildGlobalWorkspaceMembership({
+            workspaceId: workspace.id,
+            userId: subjectUserId,
+            isDefault: workspace.id === defaultWorkspaceId,
+          })
+        : membershipByWorkspace.get(workspace.id) ?? null;
+      const request = hasGlobalAccess ? null : requestByWorkspace.get(workspace.id) ?? null;
       const access = mapAccessState({ workspace, membership, request });
       const group = groupMap.get(workspace.group_key) ?? null;
 
@@ -809,15 +870,21 @@ export async function loadWorkspaceMembersForSlug(params: {
     }
   }
 
+  const resolvedProfiles = await listWorkspaceResolvedUserProfiles(
+    snapshot.workspace.id,
+    Array.from(usersById.keys()),
+  );
+
   const members = membershipRows.flatMap((membership: WorkspaceMembershipRow) => {
     const user = usersById.get(membership.user_id) ?? null;
     if (!user) return [];
+    const resolvedProfile = resolvedProfiles.get(user.id) ?? null;
 
     const member: WorkspaceMemberRow = {
       id: user.id,
-      name: user.name,
+      name: resolvedProfile?.effective_name ?? user.name,
       email: user.email ?? null,
-      avatar_url: user.avatar_url,
+      avatar_url: resolvedProfile?.effective_avatar_url ?? user.avatar_url,
       central_user_id: user.central_user_id,
       role_key: membership.role_key,
       role_display_name: formatRoleKey(membership.role_key),
@@ -1270,11 +1337,12 @@ export async function loadCurrentWorkspaceMembers(params: {
     };
   }
 
+  const hasGlobalAccess = await isGlobalAdminUserId(subjectUser.user.id);
   const membershipRows = await loadWorkspaceMembershipsForUser(subjectUser.user.id);
   const activeMembership = membershipRows.find((membership: WorkspaceMembershipRow) => membership.membership_status === 'active') ?? null;
   const selectedMembership = activeMembership ?? membershipRows[0] ?? null;
 
-  if (!selectedMembership) {
+  if (!selectedMembership && !hasGlobalAccess) {
     const access =
       subjectUser.user.is_active
         ? 'success'
@@ -1288,17 +1356,19 @@ export async function loadCurrentWorkspaceMembers(params: {
     };
   }
 
-  const workspace = await loadWorkspaceBySlug(
-    (await supabase
-      .from('cdt_workspaces')
-      .select('slug')
-      .eq('id', selectedMembership.workspace_id)
-      .maybeSingle()
-      .then(({ data, error: workspaceError }: { data: Pick<WorkspaceRow, 'slug'> | null; error: unknown }) => {
-        if (workspaceError) throw workspaceError;
-        return data ?? null;
-      }))?.slug ?? '',
-  );
+  const selectedWorkspaceId = selectedMembership?.workspace_id
+    ?? (await loadWorkspaceRows()).find((workspace) => workspace.is_active)?.id
+    ?? null;
+
+  if (!selectedWorkspaceId) {
+    return {
+      status: 'not_found',
+      workspace: null,
+      members: [],
+    };
+  }
+
+  const workspace = await loadWorkspaceById(selectedWorkspaceId);
 
   if (!workspace) {
     return {
@@ -1316,21 +1386,23 @@ export async function loadCurrentWorkspaceMembers(params: {
     };
   }
 
-  const selectedStatus = selectedMembership.membership_status.toLowerCase();
-  if (selectedStatus === 'blocked' || selectedStatus === 'revoked') {
-    return {
-      status: 'blocked',
-      workspace,
-      members: [],
-    };
-  }
+  if (selectedMembership && !hasGlobalAccess) {
+    const selectedStatus = selectedMembership.membership_status.toLowerCase();
+    if (selectedStatus === 'blocked' || selectedStatus === 'revoked') {
+      return {
+        status: 'blocked',
+        workspace,
+        members: [],
+      };
+    }
 
-  if (selectedStatus === 'pending') {
-    return {
-      status: 'pending',
-      workspace,
-      members: [],
-    };
+    if (selectedStatus === 'pending') {
+      return {
+        status: 'pending',
+        workspace,
+        members: [],
+      };
+    }
   }
 
   if (!subjectUser.user.is_active) {

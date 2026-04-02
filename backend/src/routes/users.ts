@@ -10,6 +10,7 @@ import {
   insertCdtUserCompat,
   updateCdtUserByIdCompat,
 } from '../services/cdt-users.js';
+import { listAuthUsers } from '../services/auth-users.js';
 import {
   isSupabaseConnectionRefused,
   SUPABASE_UNAVAILABLE_MESSAGE,
@@ -55,6 +56,11 @@ async function getUserRole(userId: string) {
     .maybeSingle();
 
   return data?.cdt_roles ?? null;
+}
+
+function normalizeEmail(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase() ?? '';
+  return normalized || null;
 }
 
 async function assignRoleToUser(params: {
@@ -358,10 +364,53 @@ router.get('/', async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
     const forAssignmentRaw = String(req.query.for_assignment ?? '').trim().toLowerCase();
+    const forProjectResponsibleRaw = String(req.query.for_project_responsible ?? '').trim().toLowerCase();
     const isForAssignment = forAssignmentRaw === 'true' || forAssignmentRaw === '1' || forAssignmentRaw === 'yes';
+    const isForProjectResponsible =
+      forProjectResponsibleRaw === 'true' ||
+      forProjectResponsibleRaw === '1' ||
+      forProjectResponsibleRaw === 'yes';
 
     if (!requesterId) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (isForProjectResponsible) {
+      const { data: users, error } = await supabase
+        .from('cdt_users')
+        .select('id, name, email, is_active')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      if (error) throw error;
+
+      const authUsers = await listAuthUsers();
+      const authByEmail = new Map(
+        authUsers
+          .map((user) => [normalizeEmail(user.email), user] as const)
+          .filter((entry): entry is [string, (typeof authUsers)[number]] => Boolean(entry[0])),
+      );
+      const deduped = new Map<string, { id: string; name: string; email: string; is_active: boolean }>();
+
+      for (const user of users || []) {
+        const normalizedEmail = normalizeEmail(user.email);
+        if (!normalizedEmail) continue;
+
+        const authUser = authByEmail.get(normalizedEmail);
+        if (!authUser?.id) continue;
+
+        if (!deduped.has(authUser.id)) {
+          deduped.set(authUser.id, {
+            id: authUser.id,
+            name: user.name || authUser.name || user.email || authUser.email || 'Usuario',
+            email: user.email || authUser.email || '',
+            is_active: true,
+          });
+        }
+      }
+
+      return res.json(
+        Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+      );
     }
 
     if (isForAssignment) {

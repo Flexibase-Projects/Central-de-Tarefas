@@ -13,6 +13,7 @@ import {
   Box,
 } from '@mui/material';
 import { Project } from '@/types';
+import { useProjectResponsibleUsers } from '@/hooks/use-project-responsible-users';
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -29,11 +30,13 @@ const statusOptions: { value: Project['status']; label: string }[] = [
 ];
 
 export function CreateProjectDialog({ open, onOpenChange, onCreate }: CreateProjectDialogProps) {
+  const { users } = useProjectResponsibleUsers()
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     github_url: '',
     project_url: '',
+    responsible_user_id: '',
     status: 'backlog' as Project['status'],
   });
   const [loading, setLoading] = useState(false);
@@ -59,12 +62,13 @@ export function CreateProjectDialog({ open, onOpenChange, onCreate }: CreateProj
         description: formData.description || null,
         github_url: formData.github_url || null,
         project_url: formData.project_url || null,
+        responsible_user_id: formData.responsible_user_id || null,
         github_owner,
         github_repo,
         status: formData.status,
       });
 
-      setFormData({ name: '', description: '', github_url: '', project_url: '', status: 'backlog' });
+      setFormData({ name: '', description: '', github_url: '', project_url: '', responsible_user_id: '', status: 'backlog' });
       onOpenChange(false);
     } catch (error) {
       console.error('Error creating project:', error);
@@ -112,6 +116,23 @@ export function CreateProjectDialog({ open, onOpenChange, onCreate }: CreateProj
               placeholder="https://app.exemplo.com"
               fullWidth
             />
+            <FormControl fullWidth>
+              <InputLabel id="project-responsible-label">Responsável do Projeto</InputLabel>
+              <Select
+                labelId="project-responsible-label"
+                value={formData.responsible_user_id}
+                label="Responsável do Projeto"
+                onChange={(e) => setFormData({ ...formData, responsible_user_id: String(e.target.value) })}
+                inputProps={{ 'aria-label': 'Responsável do projeto' }}
+              >
+                <MenuItem value="">Sem responsável</MenuItem>
+                {users.map((user) => (
+                  <MenuItem key={user.id} value={user.id}>
+                    {user.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <FormControl fullWidth>
               <InputLabel>Status Inicial</InputLabel>
               <Select

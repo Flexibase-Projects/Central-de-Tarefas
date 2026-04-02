@@ -23,7 +23,6 @@ import {
   Tooltip,
 } from '@mui/material'
 import { Plus, Trash2, Pencil, X } from 'lucide-react'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { OrgTreeFlow } from '@/components/org-chart/OrgTreeFlow'
 import { OrgSummaryPanel } from '@/components/org-chart/OrgSummaryPanel'
 import AppSurface from '@/components/system/AppSurface'
@@ -306,19 +305,18 @@ export default function Organograma() {
   const departments: Department[] = graph?.departments ?? []
 
   return (
-    <ProtectedRoute role="admin">
-      <Box
-        sx={{
-          height: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
-          maxHeight: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxSizing: 'border-box',
-          p: { xs: 2, md: 3 },
-          pb: 2,
-        }}
-      >
+    <Box
+      sx={{
+        height: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
+        maxHeight: `calc(100dvh - ${MAIN_HEADER_PX}px)`,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        p: { xs: 2, md: 3 },
+        pb: 2,
+      }}
+    >
         <AppSurface surface="subtle" sx={{ flexShrink: 0 }}>
           <SectionHeader
             title="Organograma da Empresa"
@@ -701,6 +699,5 @@ export default function Organograma() {
           </DialogActions>
         </Dialog>
       </Box>
-    </ProtectedRoute>
   )
 }

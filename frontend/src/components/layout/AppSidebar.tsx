@@ -10,6 +10,7 @@ import {
   Menu,
   BarChart2,
   Flag,
+  Trophy,
   OrgChartIcon,
   DollarSign,
 } from '@/components/ui/icons'
@@ -25,50 +26,64 @@ import {
 import { ChevronDown, ChevronRight, Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/theme/ThemeProvider'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import type { UserProgress } from '@/types'
 import { buildWorkspacePath, stripWorkspacePrefix } from '@/lib/workspace-routing'
 import { useAuth } from '@/contexts/AuthContext'
 import AppSurface from '@/components/system/AppSurface'
 import StatusToken from '@/components/system/StatusToken'
+import {
+  APP_SHELL_HEADER_HEIGHT,
+  APP_SHELL_INFO_CARD_MIN_HEIGHT,
+  APP_SHELL_SIDEBAR_COLLAPSED_WIDTH,
+  APP_SHELL_SIDEBAR_EXPANDED_WIDTH,
+} from './layout-shell'
 
-type NavItem = { title: string; url: string; icon: React.ElementType; permission: string | null; requireRole?: string }
+type NavItem = {
+  title: string
+  url: string
+  icon: React.ElementType
+  permission: string | null
+  requireRole?: string
+  requireManagerial?: boolean
+  moduleKey?: string
+}
 type NavSection = { title: string; hint: string; items: NavItem[] }
-
-const SIDEBAR_EXPANDED_WIDTH = 248
-const SIDEBAR_COLLAPSED_WIDTH = 72
 
 const SIDEBAR_SECTIONS: NavSection[] = [
   {
     title: 'Central',
     hint: 'Fila principal e execução imediata',
     items: [
-      { title: 'Central de Tarefas', url: '/', icon: Dashboard, permission: null },
+      { title: 'Central de Tarefas', url: '/', icon: Dashboard, permission: null, moduleKey: 'dashboard' },
+      { title: 'Ranking', url: '/ranking', icon: Trophy, permission: null, moduleKey: 'ranking' },
     ],
   },
   {
     title: 'Execução',
     hint: 'Projetos, atividades e priorização',
     items: [
-      { title: 'Projetos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos' },
-      { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades' },
-      { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null },
+      { title: 'Projetos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos', moduleKey: 'projects' },
+      { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades', moduleKey: 'activities' },
+      { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null, moduleKey: 'projects' },
     ],
   },
   {
     title: 'Insights',
     hint: 'Análise e leitura do workspace',
     items: [
-      { title: 'Indicadores', url: '/indicadores', icon: BarChart2, permission: null },
-      { title: 'Mapa', url: '/mapa', icon: MapIcon, permission: null },
+      { title: 'Indicadores', url: '/indicadores', icon: BarChart2, permission: null, moduleKey: 'indicators' },
+      { title: 'Mapa', url: '/mapa', icon: MapIcon, permission: null, moduleKey: 'projects' },
     ],
   },
   {
     title: 'Administração',
     hint: 'Estrutura, custos e configurações',
     items: [
-      { title: 'Organograma', url: '/organograma', icon: OrgChartIcon, permission: null, requireRole: 'admin' },
-      { title: 'Custos', url: '/custos-departamento', icon: DollarSign, permission: null, requireRole: 'admin' },
-      { title: 'Configuracoes', url: '/configuracoes', icon: Settings, permission: null, requireRole: 'admin' },
+      { title: 'Canva em Equipe', url: '/canva-equipe', icon: MapIcon, permission: null, moduleKey: 'teams' },
+      { title: 'Organograma', url: '/organograma', icon: OrgChartIcon, permission: null, requireManagerial: true, moduleKey: 'org_chart' },
+      { title: 'Custos', url: '/custos-departamento', icon: DollarSign, permission: null, requireManagerial: true, moduleKey: 'costs' },
+      { title: 'Configuracoes', url: '/configuracoes', icon: Settings, permission: null },
     ],
   },
 ]
@@ -94,35 +109,71 @@ export function DemandCard({
 }) {
   const resolvedCount = count ?? 0
   const hasPending = resolvedCount > 0
+  const statusLabel = hasPending ? 'Abertas' : 'Em dia'
+  const statusTone = hasPending ? 'warning' : 'success'
+  const linkLabel = hasPending
+    ? `Abrir minhas demandas, ${resolvedCount} itens em aberto`
+    : 'Abrir minhas demandas, nenhuma pendência em aberto'
 
   if (headerInline) {
     return (
       <Box
         component={Link}
         to={targetPath}
+        aria-label={linkLabel}
         sx={{
           textDecoration: 'none',
           color: 'inherit',
+          display: 'block',
+          '&:focus-visible': {
+            outline: 'none',
+          },
+          '&:focus-visible > *': {
+            borderColor: 'primary.main',
+            boxShadow: (theme) => `0 0 0 1px ${theme.palette.primary.main}`,
+          },
         }}
       >
         <AppSurface
           compact
           surface={hasPending ? 'interactive' : 'subtle'}
           sx={{
-            px: 1.25,
-            py: 0.75,
-            minHeight: 38,
+            px: 1.125,
+            py: 0.625,
+            minHeight: 40,
             display: 'flex',
             alignItems: 'center',
             gap: 1,
           }}
         >
-          <Typography variant="caption" sx={{ fontWeight: 700 }}>
-            Demandas
-          </Typography>
-          <StatusToken tone={hasPending ? 'warning' : 'neutral'}>
-            {resolvedCount.toString().padStart(2, '0')}
-          </StatusToken>
+          <Box
+            aria-hidden
+            sx={{
+              width: 3,
+              alignSelf: 'stretch',
+              borderRadius: '999px',
+              bgcolor: hasPending ? 'warning.main' : 'success.main',
+              opacity: hasPending ? 0.9 : 0.75,
+              flexShrink: 0,
+            }}
+          />
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+              Demandas
+            </Typography>
+            <Typography
+              component="span"
+              sx={{
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1,
+                color: 'text.primary',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {resolvedCount.toString().padStart(2, '0')}
+            </Typography>
+          </Box>
         </AppSurface>
       </Box>
     )
@@ -132,22 +183,79 @@ export function DemandCard({
     <Box
       component={Link}
       to={targetPath}
+      aria-label={linkLabel}
       sx={{
         textDecoration: 'none',
         color: 'inherit',
+        display: 'block',
+        '&:focus-visible': {
+          outline: 'none',
+        },
+        '&:focus-visible > *': {
+          borderColor: 'primary.main',
+          boxShadow: (theme) => `0 0 0 1px ${theme.palette.primary.main}`,
+        },
       }}
     >
-      <AppSurface compact={compact} surface={hasPending ? 'interactive' : 'subtle'}>
-        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.75 }}>
-          Minhas demandas
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-          <Typography variant="h4" sx={{ fontSize: '1.125rem' }}>
-            {resolvedCount.toString().padStart(2, '0')}
-          </Typography>
-          <StatusToken tone={hasPending ? 'warning' : 'neutral'}>
-            {hasPending ? 'Em aberto' : 'Resolvidas'}
-          </StatusToken>
+      <AppSurface
+        compact={compact}
+        surface={hasPending ? 'interactive' : 'subtle'}
+        sx={{
+          px: compact ? 1.125 : 1.25,
+          py: compact ? 0.875 : 1,
+        }}
+      >
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: '4px minmax(0, 1fr)',
+            gap: 1,
+            alignItems: 'stretch',
+          }}
+        >
+          <Box
+            aria-hidden
+            sx={{
+              borderRadius: '999px',
+              bgcolor: hasPending ? 'warning.main' : 'success.main',
+              opacity: hasPending ? 0.9 : 0.75,
+              minHeight: 42,
+            }}
+          />
+
+          <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.45, justifyContent: 'center' }}>
+            <Typography
+              component="span"
+              sx={{
+                fontSize: 13,
+                lineHeight: 1.2,
+                fontWeight: 700,
+                color: 'text.secondary',
+              }}
+            >
+              Minhas demandas
+            </Typography>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: '1.55rem',
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  color: 'text.primary',
+                  fontVariantNumeric: 'tabular-nums',
+                  letterSpacing: '-0.03em',
+                }}
+              >
+                {resolvedCount.toString().padStart(2, '0')}
+              </Typography>
+
+              <StatusToken tone={statusTone} sx={{ alignSelf: 'center' }}>
+                {statusLabel}
+              </StatusToken>
+            </Box>
+          </Box>
         </Box>
       </AppSurface>
     </Box>
@@ -165,6 +273,7 @@ export function AppSidebar(props: AppSidebarProps) {
   const { mode, toggleTheme } = useThemeMode()
   const { hasPermission, hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
+  const { modulesByKey, gamificationEnabled, isManagerial } = useWorkspaceContext(currentWorkspace?.slug ?? null)
   const [internalCollapsed, setInternalCollapsed] = useState(false)
   const [expandedSection, setExpandedSection] = useState<string>('Central')
   const isCollapsed = controlledCollapsed ?? internalCollapsed
@@ -175,16 +284,26 @@ export function AppSidebar(props: AppSidebarProps) {
   }
 
   const normalizedPath = stripWorkspacePrefix(location.pathname)
+  const hasResolvedModules = modulesByKey.size > 0
   const visibleSections = useMemo(() => {
     return SIDEBAR_SECTIONS.map((section) => ({
       ...section,
       items: section.items.filter((item) => {
+        if (item.moduleKey && hasResolvedModules) {
+          const moduleState = modulesByKey.get(item.moduleKey)
+          if (!moduleState?.available || !moduleState.is_enabled) {
+            return false
+          }
+        }
+        if (item.requireManagerial && !isManagerial && !hasRole('admin')) {
+          return false
+        }
         if (item.requireRole) return hasRole(item.requireRole)
         if (item.permission) return hasPermission(item.permission)
         return true
       }),
     })).filter((section) => section.items.length > 0)
-  }, [hasPermission, hasRole])
+  }, [hasPermission, hasResolvedModules, hasRole, isManagerial, modulesByKey])
 
   useEffect(() => {
     const activeSection = visibleSections.find((section) =>
@@ -194,7 +313,7 @@ export function AppSidebar(props: AppSidebarProps) {
   }, [normalizedPath, visibleSections])
 
   const workspaceRoot = currentWorkspace?.slug ? buildWorkspacePath(currentWorkspace.slug) : '/'
-  const sidebarWidth = isCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+  const sidebarWidth = isCollapsed ? APP_SHELL_SIDEBAR_COLLAPSED_WIDTH : APP_SHELL_SIDEBAR_EXPANDED_WIDTH
   const isActiveLink = (url: string) =>
     url === '/'
       ? normalizedPath === '/'
@@ -212,7 +331,7 @@ export function AppSidebar(props: AppSidebarProps) {
         zIndex: 1200,
         width: sidebarWidth,
         transition: theme.transitions.create('width', { duration: 180 }),
-        bgcolor: 'background.default',
+        bgcolor: 'background.paper',
         color: 'text.primary',
         boxShadow: 'inset -1px 0 0 rgba(0, 0, 0, 0.03)',
       }}
@@ -220,7 +339,7 @@ export function AppSidebar(props: AppSidebarProps) {
       <Box
         sx={{
           borderBottom: `1px solid ${theme.palette.divider}`,
-          minHeight: 64,
+          minHeight: APP_SHELL_HEADER_HEIGHT,
           py: 1.5,
           px: isCollapsed ? 1 : 1.5,
           display: 'flex',
@@ -256,11 +375,16 @@ export function AppSidebar(props: AppSidebarProps) {
         ) : (
           <>
             <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary' }}>
-                Central de Tarefas
-              </Typography>
-              <Typography sx={{ fontSize: 14, fontWeight: 700 }} noWrap>
-                {currentWorkspace?.name || 'Workspace'}
+              <Typography
+                sx={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: 'text.primary',
+                  letterSpacing: '-0.01em',
+                }}
+                noWrap
+              >
+                Central
               </Typography>
             </Box>
             <IconButton onClick={() => setIsCollapsed(true)} size="small" aria-label="Recolher sidebar">
@@ -432,18 +556,21 @@ export function AppSidebar(props: AppSidebarProps) {
                 flexDirection: 'column',
                 gap: 0.5,
                 p: 1.25,
+                minHeight: APP_SHELL_INFO_CARD_MIN_HEIGHT,
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  Perfil e progresso
+                  {gamificationEnabled ? 'Perfil e progresso' : 'Perfil'}
                 </Typography>
                 <StatusToken tone="neutral">
                   Via avatar
                 </StatusToken>
               </Box>
               <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.55 }}>
-                Conquistas, níveis e preferências pessoais continuam acessíveis pelo drawer de perfil no cabeçalho.
+                {gamificationEnabled
+                  ? 'Conquistas, níveis e preferências pessoais continuam acessíveis pelo drawer de perfil no cabeçalho.'
+                  : 'Preferências pessoais e dados do workspace continuam acessíveis pelo drawer de perfil no cabeçalho.'}
               </Typography>
             </AppSurface>
           </>

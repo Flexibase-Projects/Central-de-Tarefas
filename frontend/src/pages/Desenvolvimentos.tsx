@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
-  CircularProgress,
   Fab,
   FormControlLabel,
   InputAdornment,
@@ -36,6 +35,7 @@ import { useSearchParams } from 'react-router-dom'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'
 import StatusToken from '@/components/system/StatusToken'
+import { PageSyncScreen, WorkspaceSyncBanner } from '@/components/system/WorkspaceSyncFeedback'
 import { getStatusLabel } from '@/lib/status-labels'
 import {
   normalizeExecutionViewMode,
@@ -49,10 +49,10 @@ function priorityLabel(priorityOrder: number | null | undefined) {
 }
 
 export default function Desenvolvimentos() {
-  const { projects, loading, createProject, updateProject, moveProject, deleteProject } = useProjects()
+  const { projects, loading, error, createProject, updateProject, moveProject, deleteProject } = useProjects()
   const { rows: summaryRows, error: summaryError } = useTodoCardSummary()
   const { hasRole } = usePermissions()
-  const { currentUser, currentWorkspace } = useAuth()
+  const { currentUser, currentWorkspace, session } = useAuth()
   const isAdmin = hasRole('admin')
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -120,6 +120,7 @@ export default function Desenvolvimentos() {
 
   const filteredProjects = useMemo(() => {
     const query = search.trim().toLowerCase()
+    const authUserId = session?.user?.id
 
     return [...projects]
       .filter((project) => {
@@ -133,9 +134,13 @@ export default function Desenvolvimentos() {
         const matchesPriority =
           priorityFilter === 'all' ||
           (priorityFilter === 'prioritized' ? isPrioritized : !isPrioritized)
+        const isCurrentResponsible =
+          project.responsible_user_id === currentUser?.id || project.responsible_user_id === authUserId
+        const isCurrentCreator =
+          project.created_by === currentUser?.id || project.created_by === authUserId
         const matchesMine = !onlyMine || isAdmin
-          ? !onlyMine || project.created_by === currentUser?.id
-          : (metrics?.myAssignedOpenCount ?? 0) > 0 || project.created_by === currentUser?.id
+          ? !onlyMine || isCurrentResponsible || isCurrentCreator
+          : (metrics?.myAssignedOpenCount ?? 0) > 0 || isCurrentResponsible || isCurrentCreator
 
         return matchesSearch && matchesStatus && matchesPriority && matchesMine
       })
@@ -150,7 +155,7 @@ export default function Desenvolvimentos() {
 
         return a.name.localeCompare(b.name, 'pt-BR')
       })
-  }, [currentUser?.id, isAdmin, onlyMine, priorityFilter, projectSummaryById, projects, search, statusFilter])
+  }, [currentUser?.id, isAdmin, onlyMine, priorityFilter, projectSummaryById, projects, search, session?.user?.id, statusFilter])
 
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project)
@@ -165,8 +170,8 @@ export default function Desenvolvimentos() {
     await createProject(project)
   }
 
-  const handleUpdateProject = async (project: Project) => {
-    const updated = await updateProject(project.id, project)
+  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
+    const updated = await updateProject(projectId, updates)
     setSelectedProject(updated)
   }
 
@@ -176,16 +181,7 @@ export default function Desenvolvimentos() {
     setIsProjectDialogOpen(false)
   }
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        <Stack spacing={2} alignItems="center">
-          <CircularProgress />
-          <Typography color="text.secondary">Carregando projetos...</Typography>
-        </Stack>
-      </Box>
-    )
-  }
+  const showInitialSync = loading && projects.length === 0
 
   return (
     <ProtectedRoute permission="access_desenvolvimentos">
@@ -266,10 +262,23 @@ export default function Desenvolvimentos() {
           </Stack>
         </AppSurface>
 
+        <WorkspaceSyncBanner
+          active={loading && projects.length > 0}
+          title="Atualizando projetos"
+          description="Os projetos continuam na tela enquanto sincronizamos cards, filtros e contagens operacionais."
+        />
+
+        {error ? <Alert severity="warning">{error}</Alert> : null}
         {summaryError ? <Alert severity="warning">{summaryError}</Alert> : null}
 
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          {activeView === 'kanban' ? (
+          {showInitialSync ? (
+            <PageSyncScreen
+              title="Sincronizando projetos"
+              description="Estamos preparando a lista, o kanban e os filtros de projetos para voce entrar direto no contexto certo."
+              minHeight="100%"
+            />
+          ) : activeView === 'kanban' ? (
             <Box sx={{ height: '100%', overflow: 'hidden', px: { xs: 0, md: 0 } }}>
               <KanbanBoard
                 projects={filteredProjects}

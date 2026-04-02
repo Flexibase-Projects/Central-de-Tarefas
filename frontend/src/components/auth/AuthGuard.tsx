@@ -1,9 +1,9 @@
 import { ReactNode, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Box, CircularProgress } from '@mui/material';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceAccess } from '@/hooks/use-workspace-access';
 import { buildWorkspaceLoginPath, getWorkspaceSlugFromPath } from '@/lib/workspace-routing';
+import { PageSyncScreen } from '@/components/system/WorkspaceSyncFeedback';
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -57,9 +57,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (isLoading || (currentUser && routeWorkspaceSlug && workspaceAccess.loading)) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <CircularProgress size={40} />
-      </Box>
+      <PageSyncScreen
+        title="Validando acesso ao workspace"
+        description="Estamos conferindo sua sessao e sincronizando as permissoes para abrir a area correta."
+        minHeight="100vh"
+      />
     );
   }
 

@@ -114,8 +114,9 @@ async function hasXpLogEntry(
   reason: string,
   relatedId: string,
   relatedType: string,
+  workspaceId?: string | null,
 ): Promise<boolean> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('cdt_user_xp_log')
     .select('id')
     .eq('user_id', userId)
@@ -123,6 +124,12 @@ async function hasXpLogEntry(
     .eq('related_id', relatedId)
     .eq('related_type', relatedType)
     .limit(1);
+
+  if (workspaceId) {
+    query = query.eq('workspace_id', workspaceId);
+  }
+
+  const { data, error } = await query;
   if (error) return false;
   return (data?.length ?? 0) > 0;
 }
@@ -130,8 +137,9 @@ async function hasXpLogEntry(
 async function getTodoCompletionCycleState(
   userId: string,
   todoId: string,
+  workspaceId?: string | null,
 ): Promise<TodoCompletionCycleState> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('cdt_user_xp_log')
     .select('id, xp_amount, reason, created_at')
     .eq('user_id', userId)
@@ -140,6 +148,12 @@ async function getTodoCompletionCycleState(
     .in('reason', ['todo_completed', 'todo_uncompleted'])
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
+
+  if (workspaceId) {
+    query = query.eq('workspace_id', workspaceId);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) {
     return { openCompletionLogId: null, openCompletionXp: 0 };
@@ -175,11 +189,13 @@ async function insertXpLog(params: {
   reason: string;
   relatedId: string;
   relatedType: string;
+  workspaceId?: string | null;
 }): Promise<boolean> {
   const rounded = roundXp(params.xpAmount);
   if (rounded === 0) return false;
   const { error } = await supabase.from('cdt_user_xp_log').insert({
     user_id: params.userId,
+    workspace_id: params.workspaceId ?? null,
     xp_amount: rounded,
     reason: params.reason,
     related_id: params.relatedId,
@@ -191,19 +207,35 @@ async function insertXpLog(params: {
   return !error;
 }
 
-async function fetchStats(userId: string): Promise<UserStatsContext> {
+async function fetchStats(userId: string, workspaceId?: string | null): Promise<UserStatsContext> {
   const [xpLogRes, todosRes, activitiesRes, commentsRes] = await Promise.all([
-    supabase.from('cdt_user_xp_log').select('xp_amount').eq('user_id', userId),
-    supabase
-      .from('cdt_project_todos')
-      .select('id, completed_at, deadline, achievement_id')
-      .eq('assigned_to', userId)
-      .eq('completed', true),
-    supabase
-      .from('cdt_activities')
-      .select('id, completed_at, due_date')
-      .eq('status', 'done')
-      .or(`assigned_to.eq.${userId},created_by.eq.${userId}`),
+    (workspaceId
+      ? supabase.from('cdt_user_xp_log').select('xp_amount').eq('user_id', userId).eq('workspace_id', workspaceId)
+      : supabase.from('cdt_user_xp_log').select('xp_amount').eq('user_id', userId)),
+    (workspaceId
+      ? supabase
+          .from('cdt_project_todos')
+          .select('id, completed_at, deadline, achievement_id')
+          .eq('workspace_id', workspaceId)
+          .eq('assigned_to', userId)
+          .eq('completed', true)
+      : supabase
+          .from('cdt_project_todos')
+          .select('id, completed_at, deadline, achievement_id')
+          .eq('assigned_to', userId)
+          .eq('completed', true)),
+    (workspaceId
+      ? supabase
+          .from('cdt_activities')
+          .select('id, completed_at, due_date')
+          .eq('workspace_id', workspaceId)
+          .eq('status', 'done')
+          .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+      : supabase
+          .from('cdt_activities')
+          .select('id, completed_at, due_date')
+          .eq('status', 'done')
+          .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)),
     supabase.from('cdt_project_comments').select('id').eq('user_id', userId),
   ]);
 
@@ -241,16 +273,30 @@ async function fetchStats(userId: string): Promise<UserStatsContext> {
   let totalXp = roundXp(totalXpFromLog);
   if (totalXp <= 0 && (completedTodos > 0 || completedActivities > 0)) {
     const [legacyTodoXpRes, legacyActivityXpRes] = await Promise.all([
-      supabase
-        .from('cdt_project_todos')
-        .select('xp_reward')
-        .eq('assigned_to', userId)
-        .eq('completed', true),
-      supabase
-        .from('cdt_activities')
-        .select('xp_reward')
-        .eq('status', 'done')
-        .or(`assigned_to.eq.${userId},created_by.eq.${userId}`),
+      (workspaceId
+        ? supabase
+            .from('cdt_project_todos')
+            .select('xp_reward')
+            .eq('workspace_id', workspaceId)
+            .eq('assigned_to', userId)
+            .eq('completed', true)
+        : supabase
+            .from('cdt_project_todos')
+            .select('xp_reward')
+            .eq('assigned_to', userId)
+            .eq('completed', true)),
+      (workspaceId
+        ? supabase
+            .from('cdt_activities')
+            .select('xp_reward')
+            .eq('workspace_id', workspaceId)
+            .eq('status', 'done')
+            .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+        : supabase
+            .from('cdt_activities')
+            .select('xp_reward')
+            .eq('status', 'done')
+            .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)),
     ]);
     if (!legacyTodoXpRes.error && !legacyActivityXpRes.error) {
       const todoXp = (legacyTodoXpRes.data ?? []).reduce(
@@ -265,7 +311,7 @@ async function fetchStats(userId: string): Promise<UserStatsContext> {
     }
   }
 
-  const streakDays = await fetchStreakDaysFromCompletions(userId);
+  const streakDays = await fetchStreakDaysFromCompletions(userId, workspaceId);
   const { level } = getLevelFromTotalXp(totalXp);
 
   return {
@@ -281,20 +327,39 @@ async function fetchStats(userId: string): Promise<UserStatsContext> {
   };
 }
 
-async function fetchStreakDaysFromCompletions(userId: string): Promise<number> {
+async function fetchStreakDaysFromCompletions(
+  userId: string,
+  workspaceId?: string | null,
+): Promise<number> {
   const [todoDaysRes, activityDaysRes] = await Promise.all([
-    supabase
-      .from('cdt_project_todos')
-      .select('completed_at')
-      .eq('assigned_to', userId)
-      .eq('completed', true)
-      .not('completed_at', 'is', null),
-    supabase
-      .from('cdt_activities')
-      .select('completed_at')
-      .eq('status', 'done')
-      .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
-      .not('completed_at', 'is', null),
+    (workspaceId
+      ? supabase
+          .from('cdt_project_todos')
+          .select('completed_at')
+          .eq('workspace_id', workspaceId)
+          .eq('assigned_to', userId)
+          .eq('completed', true)
+          .not('completed_at', 'is', null)
+      : supabase
+          .from('cdt_project_todos')
+          .select('completed_at')
+          .eq('assigned_to', userId)
+          .eq('completed', true)
+          .not('completed_at', 'is', null)),
+    (workspaceId
+      ? supabase
+          .from('cdt_activities')
+          .select('completed_at')
+          .eq('workspace_id', workspaceId)
+          .eq('status', 'done')
+          .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+          .not('completed_at', 'is', null)
+      : supabase
+          .from('cdt_activities')
+          .select('completed_at')
+          .eq('status', 'done')
+          .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+          .not('completed_at', 'is', null)),
   ]);
 
   if (todoDaysRes.error && activityDaysRes.error) return 0;
@@ -324,10 +389,15 @@ async function fetchStreakDaysFromCompletions(userId: string): Promise<number> {
   return streak;
 }
 
-async function ensureAchievementUnlocked(userId: string, achievementId: string): Promise<boolean> {
+async function ensureAchievementUnlocked(
+  userId: string,
+  achievementId: string,
+  workspaceId?: string | null,
+): Promise<boolean> {
   const { error } = await supabase.from('cdt_user_achievements').insert({
     user_id: userId,
     achievement_id: achievementId,
+    workspace_id: workspaceId ?? null,
   });
   if (error && error.code !== '23505') {
     throw error;
@@ -346,11 +416,20 @@ async function fetchActiveAchievements(): Promise<DbAchievement[]> {
   return data as DbAchievement[];
 }
 
-async function fetchUnlockedAchievementIds(userId: string): Promise<Set<string>> {
-  const { data, error } = await supabase
+async function fetchUnlockedAchievementIds(
+  userId: string,
+  workspaceId?: string | null,
+): Promise<Set<string>> {
+  let query = supabase
     .from('cdt_user_achievements')
     .select('achievement_id')
     .eq('user_id', userId);
+
+  if (workspaceId) {
+    query = query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+  }
+
+  const { data, error } = await query;
   if (error || !data) return new Set<string>();
   return new Set((data as Array<{ achievement_id: string }>).map((row) => row.achievement_id));
 }
@@ -404,8 +483,9 @@ export async function awardTodoCompletionXp(params: {
   userId: string;
   todoId: string;
   xpAmount: number;
+  workspaceId?: string | null;
 }): Promise<{ awarded: boolean; xpDelta: number }> {
-  const cycleState = await getTodoCompletionCycleState(params.userId, params.todoId);
+  const cycleState = await getTodoCompletionCycleState(params.userId, params.todoId, params.workspaceId);
   const roundedXp = roundXp(params.xpAmount);
   if (cycleState.openCompletionLogId) {
     return { awarded: false, xpDelta: 0 };
@@ -416,6 +496,7 @@ export async function awardTodoCompletionXp(params: {
     reason: 'todo_completed',
     relatedId: params.todoId,
     relatedType: 'todo',
+    workspaceId: params.workspaceId,
   });
   return { awarded: inserted, xpDelta: inserted ? roundedXp : 0 };
 }
@@ -423,8 +504,9 @@ export async function awardTodoCompletionXp(params: {
 export async function revertTodoCompletionXp(params: {
   userId: string;
   todoId: string;
+  workspaceId?: string | null;
 }): Promise<{ reverted: boolean; xpDelta: number }> {
-  const cycleState = await getTodoCompletionCycleState(params.userId, params.todoId);
+  const cycleState = await getTodoCompletionCycleState(params.userId, params.todoId, params.workspaceId);
   if (!cycleState.openCompletionLogId || cycleState.openCompletionXp === 0) {
     return { reverted: false, xpDelta: 0 };
   }
@@ -435,6 +517,7 @@ export async function revertTodoCompletionXp(params: {
     reason: 'todo_uncompleted',
     relatedId: params.todoId,
     relatedType: 'todo',
+    workspaceId: params.workspaceId,
   });
 
   return {
@@ -447,12 +530,14 @@ export async function awardActivityCompletionXp(params: {
   userId: string;
   activityId: string;
   xpAmount: number;
+  workspaceId?: string | null;
 }): Promise<boolean> {
   const alreadyAwarded = await hasXpLogEntry(
     params.userId,
     'activity_completed',
     params.activityId,
     'activity',
+    params.workspaceId,
   );
   if (alreadyAwarded) return false;
   return insertXpLog({
@@ -461,25 +546,30 @@ export async function awardActivityCompletionXp(params: {
     reason: 'activity_completed',
     relatedId: params.activityId,
     relatedType: 'activity',
+    workspaceId: params.workspaceId,
   });
 }
 
 export async function unlockLinkedAchievementIfNeeded(
   userId: string,
   achievementId: string | null | undefined,
+  workspaceId?: string | null,
 ): Promise<void> {
   if (!achievementId) return;
-  await ensureAchievementUnlocked(userId, achievementId);
+  await ensureAchievementUnlocked(userId, achievementId, workspaceId);
 }
 
-export async function evaluateAndAwardGlobalAchievements(userId: string): Promise<void> {
+export async function evaluateAndAwardGlobalAchievements(
+  userId: string,
+  workspaceId?: string | null,
+): Promise<void> {
   const [achievements, unlockedIds] = await Promise.all([
     fetchActiveAchievements(),
-    fetchUnlockedAchievementIds(userId),
+    fetchUnlockedAchievementIds(userId, workspaceId),
   ]);
   if (achievements.length === 0) return;
 
-  let stats = await fetchStats(userId);
+  let stats = await fetchStats(userId, workspaceId);
   let unlockedSlugSet = new Set<string>();
 
   for (const achievement of achievements) {
@@ -508,7 +598,7 @@ export async function evaluateAndAwardGlobalAchievements(userId: string): Promis
       }
       if (!shouldUnlock) continue;
 
-      const inserted = await ensureAchievementUnlocked(userId, achievement.id);
+      const inserted = await ensureAchievementUnlocked(userId, achievement.id, workspaceId);
       if (!inserted) {
         unlockedIds.add(achievement.id);
         continue;
@@ -526,6 +616,7 @@ export async function evaluateAndAwardGlobalAchievements(userId: string): Promis
         reason: 'achievement_unlocked',
         relatedId: achievement.id,
         relatedType: 'achievement',
+        workspaceId,
       });
 
       stats = {

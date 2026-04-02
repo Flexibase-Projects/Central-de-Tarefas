@@ -3,6 +3,11 @@ import { supabase } from '../config/supabase.js';
 import { getAuthUserEmail, getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { getUserPermissions } from './permissions.js';
 import { resolveWorkspaceContext as resolveWorkspaceContextCompat } from './workspaces.js';
+import {
+  loadWorkspaceMembershipByWorkspaceAndUser,
+  loadWorkspaceMembershipRows,
+  type WorkspaceMembershipCompatRow,
+} from './workspace-memberships.js';
 
 export type WorkspaceStatus = 'active' | 'pending' | 'revoked';
 
@@ -23,6 +28,8 @@ export type WorkspaceMembershipRecord = {
   id: string;
   workspace_id: string;
   user_id: string;
+  role_id: string | null;
+  role_key: string | null;
   role_name: string | null;
   role_display_name: string | null;
   status: WorkspaceStatus;
@@ -106,6 +113,8 @@ function toWorkspaceMembershipRecord(
     id: membership.id,
     workspace_id: membership.workspace_id,
     user_id: membership.user_id,
+    role_id: membership.role_id ?? null,
+    role_key: roleName,
     role_name: roleName,
     role_display_name: roleName === 'admin' ? 'Administrador' : roleName === 'member' ? 'Membro' : roleName,
     status:
@@ -117,6 +126,41 @@ function toWorkspaceMembershipRecord(
     source: 'workspace_compat',
     approved_at: membership.membership_status === 'active' ? membership.updated_at ?? membership.created_at : null,
     revoked_at: membership.membership_status === 'revoked' ? membership.updated_at ?? membership.created_at : null,
+  };
+}
+
+function normalizeWorkspaceStatus(status: string): WorkspaceStatus {
+  return status === 'pending' ? 'pending' : status === 'active' ? 'active' : 'revoked';
+}
+
+function formatWorkspaceRoleDisplayName(roleName?: string | null, currentValue?: string | null): string | null {
+  if (currentValue) return currentValue;
+  if (!roleName) return null;
+  return roleName === 'admin' ? 'Administrador' : roleName === 'member' ? 'Membro' : roleName;
+}
+
+function toWorkspaceMembershipRecordFromCompat(
+  membership: WorkspaceMembershipCompatRow,
+): WorkspaceMembershipRecord {
+  const roleName = membership.role_name ?? membership.role_key ?? 'member';
+  const normalizedStatus = normalizeWorkspaceStatus(membership.membership_status);
+
+  return {
+    id: membership.id,
+    workspace_id: membership.workspace_id,
+    user_id: membership.user_id,
+    role_id: membership.role_id ?? null,
+    role_key: roleName,
+    role_name: roleName,
+    role_display_name: formatWorkspaceRoleDisplayName(roleName, membership.role_display_name),
+    status: normalizedStatus,
+    source: membership.source ?? 'workspace_compat',
+    approved_at:
+      membership.approved_at ??
+      (normalizedStatus === 'active' ? membership.updated_at ?? membership.created_at : null),
+    revoked_at:
+      membership.revoked_at ??
+      (normalizedStatus === 'revoked' ? membership.updated_at ?? membership.created_at : null),
   };
 }
 
@@ -153,17 +197,8 @@ export async function getMembershipForWorkspace(params: {
   workspaceId: string;
   userId: string;
 }): Promise<WorkspaceMembershipRecord | null> {
-  const { data, error } = await supabase
-    .from('cdt_workspace_memberships')
-    .select(
-      'id, workspace_id, user_id, role_name, role_display_name, status, source, approved_at, revoked_at',
-    )
-    .eq('workspace_id', params.workspaceId)
-    .eq('user_id', params.userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return (data as WorkspaceMembershipRecord | null) ?? null;
+  const membership = await loadWorkspaceMembershipByWorkspaceAndUser(params.workspaceId, params.userId);
+  return membership ? toWorkspaceMembershipRecordFromCompat(membership) : null;
 }
 
 export async function getPendingAccessRequest(params: {
@@ -183,7 +218,7 @@ export async function getPendingAccessRequest(params: {
 }
 
 export async function listPublicWorkspaces(userId?: string | null) {
-  const [{ data: workspaces, error: workspacesError }, membershipResponse] = await Promise.all([
+  const [{ data: workspaces, error: workspacesError }, memberships] = await Promise.all([
     supabase
       .from('cdt_workspaces')
       .select(
@@ -193,22 +228,14 @@ export async function listPublicWorkspaces(userId?: string | null) {
       .eq('is_active', true)
       .order('group_label', { ascending: true })
       .order('name', { ascending: true }),
-    userId
-      ? supabase
-          .from('cdt_workspace_memberships')
-          .select(
-            'id, workspace_id, user_id, role_name, role_display_name, status, source, approved_at, revoked_at',
-          )
-          .eq('user_id', userId)
-      : Promise.resolve({ data: [], error: null } as const),
+    userId ? loadWorkspaceMembershipRows({ userId }) : Promise.resolve([] as WorkspaceMembershipCompatRow[]),
   ]);
 
   if (workspacesError) throw workspacesError;
-  if (membershipResponse.error) throw membershipResponse.error;
 
   const membershipByWorkspaceId = new Map<string, WorkspaceMembershipRecord>();
-  for (const membership of (membershipResponse.data ?? []) as WorkspaceMembershipRecord[]) {
-    membershipByWorkspaceId.set(membership.workspace_id, membership);
+  for (const membership of memberships) {
+    membershipByWorkspaceId.set(membership.workspace_id, toWorkspaceMembershipRecordFromCompat(membership));
   }
 
   const rows = ((workspaces ?? []) as WorkspaceRecord[]).map<WorkspaceSummary>((workspace) => {
@@ -246,42 +273,30 @@ export async function listPublicWorkspaces(userId?: string | null) {
 }
 
 export async function listMembershipsForUser(userId: string): Promise<WorkspaceSummary[]> {
+  const memberships = await loadWorkspaceMembershipRows({ userId });
+  if (memberships.length === 0) return [];
+
+  const workspaceIds = Array.from(new Set(memberships.map((membership) => membership.workspace_id)));
   const { data, error } = await supabase
-    .from('cdt_workspace_memberships')
+    .from('cdt_workspaces')
     .select(
-      `
-      id,
-      role_name,
-      role_display_name,
-      status,
-      cdt_workspaces!inner (
-        id,
-        slug,
-        name,
-        description,
-        group_key,
-        group_label,
-        group_description,
-        avatar_url,
-        is_public,
-        is_active
-      )
-    `,
+      'id, slug, name, description, group_key, group_label, group_description, avatar_url, is_public, is_active',
     )
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
+    .in('id', workspaceIds);
 
   if (error) throw error;
 
-  return ((data ?? []) as Array<{
-    id: string;
-    role_name: string | null;
-    role_display_name: string | null;
-    status: WorkspaceStatus;
-    cdt_workspaces: WorkspaceRecord | WorkspaceRecord[] | null;
-  }>).flatMap((row) => {
-    const workspace = Array.isArray(row.cdt_workspaces) ? row.cdt_workspaces[0] : row.cdt_workspaces;
+  const workspaceById = new Map(
+    ((data ?? []) as WorkspaceRecord[]).map((workspace) => [workspace.id, workspace] as const),
+  );
+
+  return memberships.flatMap((membership) => {
+    const workspace = workspaceById.get(membership.workspace_id) ?? null;
     if (!workspace) return [];
+
+    const normalizedStatus = normalizeWorkspaceStatus(membership.membership_status);
+    const roleName = membership.role_name ?? membership.role_key;
+
     return [
       {
         id: workspace.id,
@@ -292,10 +307,10 @@ export async function listMembershipsForUser(userId: string): Promise<WorkspaceS
         group_label: workspace.group_label,
         group_description: workspace.group_description,
         avatar_url: workspace.avatar_url,
-        has_access: row.status === 'active',
-        membership_status: row.status,
-        role_name: row.role_name,
-        role_display_name: row.role_display_name,
+        has_access: normalizedStatus === 'active',
+        membership_status: normalizedStatus,
+        role_name: roleName,
+        role_display_name: formatWorkspaceRoleDisplayName(roleName, membership.role_display_name),
       },
     ];
   });
@@ -409,55 +424,38 @@ export async function createWorkspaceAccessRequest(params: {
 }
 
 export async function listWorkspaceMembers(workspaceId: string) {
+  const memberships = await loadWorkspaceMembershipRows({ workspaceId, status: 'active' });
+  if (memberships.length === 0) return [];
+
+  const userIds = Array.from(new Set(memberships.map((membership) => membership.user_id)));
   const { data, error } = await supabase
-    .from('cdt_workspace_memberships')
-    .select(
-      `
-      id,
-      role_display_name,
-      status,
-      cdt_users!inner (
-        id,
-        name,
-        email,
-        avatar_url
-      )
-    `,
-    )
-    .eq('workspace_id', workspaceId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: true });
+    .from('cdt_users')
+    .select('id, name, email, avatar_url')
+    .in('id', userIds);
 
   if (error) throw error;
 
-  return ((data ?? []) as Array<{
-    id: string;
-    role_display_name: string | null;
-    status: WorkspaceStatus;
-    cdt_users:
-      | {
-          id: string;
-          name: string;
-          email: string;
-          avatar_url: string | null;
-        }
-      | Array<{
-          id: string;
-          name: string;
-          email: string;
-          avatar_url: string | null;
-        }>
-      | null;
-  }>).flatMap((row) => {
-    const user = Array.isArray(row.cdt_users) ? row.cdt_users[0] : row.cdt_users;
+  const userById = new Map(
+    ((data ?? []) as Array<{ id: string; name: string; email: string; avatar_url: string | null }>).map((user) => [
+      user.id,
+      user,
+    ]),
+  );
+
+  return memberships.flatMap((membership) => {
+    const user = userById.get(membership.user_id) ?? null;
     if (!user) return [];
+
     return [
       {
         id: user.id,
         name: user.name,
         email: user.email,
         avatar_url: user.avatar_url,
-        role_display_name: row.role_display_name,
+        role_display_name: formatWorkspaceRoleDisplayName(
+          membership.role_name ?? membership.role_key,
+          membership.role_display_name,
+        ),
       },
     ];
   });

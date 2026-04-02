@@ -1,10 +1,14 @@
 import type { XYPosition } from '@xyflow/react'
 
-const LS_KEY = 'cdt-cost-canvas-positions-v1'
+const LS_KEY_PREFIX = 'cdt-cost-canvas-positions-v1'
 
-export function loadCostCanvasPositions(): Record<string, XYPosition> {
+function getStorageKey(workspaceSlug?: string | null) {
+  return workspaceSlug ? `${LS_KEY_PREFIX}:${workspaceSlug}` : LS_KEY_PREFIX
+}
+
+export function loadCostCanvasPositions(workspaceSlug?: string | null): Record<string, XYPosition> {
   try {
-    const raw = localStorage.getItem(LS_KEY)
+    const raw = localStorage.getItem(getStorageKey(workspaceSlug))
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== 'object') return {}
@@ -22,9 +26,12 @@ export function loadCostCanvasPositions(): Record<string, XYPosition> {
   }
 }
 
-export function saveCostCanvasPositions(positions: Record<string, XYPosition>) {
+export function saveCostCanvasPositions(
+  positions: Record<string, XYPosition>,
+  workspaceSlug?: string | null,
+) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(positions))
+    localStorage.setItem(getStorageKey(workspaceSlug), JSON.stringify(positions))
   } catch {
     /* ignore quota */
   }
