@@ -35,9 +35,9 @@ import StatusToken from '@/components/system/StatusToken'
 import { listWorkspaceSidebarSections } from '@/features/workspace/module-manifest'
 import {
   APP_SHELL_HEADER_HEIGHT,
-  APP_SHELL_INFO_CARD_MIN_HEIGHT,
   APP_SHELL_SIDEBAR_COLLAPSED_WIDTH,
   APP_SHELL_SIDEBAR_EXPANDED_WIDTH,
+  appShellHeaderControlSx,
 } from './layout-shell'
 
 type NavItem = {
@@ -125,57 +125,49 @@ export function DemandCard({
         sx={{
           textDecoration: 'none',
           color: 'inherit',
-          display: 'block',
-          '&:focus-visible': {
+          ...appShellHeaderControlSx,
+          px: 1.125,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          '&:focus': {
             outline: 'none',
           },
-          '&:focus-visible > *': {
-            borderColor: 'primary.main',
-            boxShadow: (theme: Theme) => `0 0 0 1px ${theme.palette.primary.main}`,
+          '&:focus-visible': {
+            outline: '2px solid hsl(var(--ring))',
+            outlineOffset: 2,
           },
         }}
       >
-        <AppSurface
-          compact
-          surface={hasPending ? 'interactive' : 'subtle'}
+        <Box
+          aria-hidden
           sx={{
-            px: 1.125,
-            py: 0.625,
-            minHeight: 40,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
+            width: 3,
+            height: 18,
+            flexShrink: 0,
+            alignSelf: 'center',
+            borderRadius: 'var(--radius-xs)',
+            bgcolor: hasPending ? 'warning.main' : 'success.main',
+            opacity: hasPending ? 0.9 : 0.75,
           }}
-        >
-          <Box
-            aria-hidden
+        />
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+            Demandas
+          </Typography>
+          <Typography
+            component="span"
             sx={{
-              width: 3,
-              alignSelf: 'stretch',
-              borderRadius: '999px',
-              bgcolor: hasPending ? 'warning.main' : 'success.main',
-              opacity: hasPending ? 0.9 : 0.75,
-              flexShrink: 0,
+              fontSize: 13,
+              fontWeight: 700,
+              lineHeight: 1,
+              color: 'text.primary',
+              fontVariantNumeric: 'tabular-nums',
             }}
-          />
-          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, minWidth: 0 }}>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-              Demandas
-            </Typography>
-            <Typography
-              component="span"
-              sx={{
-                fontSize: 13,
-                fontWeight: 700,
-                lineHeight: 1,
-                color: 'text.primary',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {resolvedCount.toString().padStart(2, '0')}
-            </Typography>
-          </Box>
-        </AppSurface>
+          >
+            {resolvedCount.toString().padStart(2, '0')}
+          </Typography>
+        </Box>
       </Box>
     )
   }
@@ -193,8 +185,8 @@ export function DemandCard({
           outline: 'none',
         },
         '&:focus-visible > *': {
-          borderColor: 'primary.main',
-          boxShadow: (theme: Theme) => `0 0 0 1px ${theme.palette.primary.main}`,
+          borderColor: 'divider',
+          boxShadow: (theme: Theme) => `0 0 0 1px ${theme.palette.divider}`,
         },
       }}
     >
@@ -274,7 +266,6 @@ export function AppSidebar(props: AppSidebarProps) {
   const { mode, toggleTheme } = useThemeMode()
   const { currentWorkspace } = useAuth()
   const {
-    gamificationEnabled,
     canManageWorkspace,
     moduleCapabilities,
     visibleModuleKeys,
@@ -377,6 +368,7 @@ export function AppSidebar(props: AppSidebarProps) {
             <Box
               component={Link}
               to={workspaceRoot}
+              aria-label={currentWorkspace?.name ?? 'Ir para início do workspace'}
               sx={{
                 width: 38,
                 height: 38,
@@ -386,18 +378,30 @@ export function AppSidebar(props: AppSidebarProps) {
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: 'var(--radius-sm)',
-                color: 'text.primary',
-                fontSize: 12,
-                fontWeight: 800,
-                letterSpacing: '0.06em',
+                color: 'text.secondary',
               }}
             >
-              CDT
+              <Dashboard size={20} aria-hidden />
             </Box>
           </Tooltip>
         ) : (
           <>
-            <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Box sx={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: 36,
+                  height: 36,
+                  borderRadius: 'var(--radius-sm)',
+                  bgcolor: 'action.hover',
+                  color: 'text.secondary',
+                }}
+                aria-hidden
+              >
+                <Dashboard size={20} />
+              </Box>
               <Typography
                 sx={{
                   fontSize: 18,
@@ -416,18 +420,42 @@ export function AppSidebar(props: AppSidebarProps) {
           </>
         )}
 
-        {isCollapsed ? (
-          <IconButton onClick={() => setIsCollapsed(false)} size="small" aria-label="Expandir sidebar">
-            <Menu size={16} />
-          </IconButton>
-        ) : null}
       </Box>
 
-      {!isCollapsed ? (
+      {isCollapsed ? (
+        <Box sx={{ flexShrink: 0 }}>
+          <Box sx={{ px: 0.75, pt: 0.75, pb: 0.5 }}>
+            <Tooltip title="Expandir sidebar" placement="right">
+              <ButtonBase
+                onClick={() => setIsCollapsed(false)}
+                aria-label="Expandir sidebar"
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%',
+                  height: 40,
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'text.secondary',
+                  '&:hover': {
+                    color: 'text.primary',
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                <Menu size={16} />
+              </ButtonBase>
+            </Tooltip>
+          </Box>
+          <Box sx={{ px: 2, pb: 0.75 }}>
+            <Box sx={{ borderBottom: `1px solid ${theme.palette.divider}` }} />
+          </Box>
+        </Box>
+      ) : (
         <Box sx={{ px: 1.25, pt: 1.25, pb: 0.5 }}>
           <DemandCard count={pendingTodosCount} targetPath={buildWorkspacePath(currentWorkspace?.slug)} />
         </Box>
-      ) : null}
+      )}
 
       <Box sx={{ flex: 1, overflowY: 'auto', px: isCollapsed ? 0.75 : 1, py: 1.5 }}>
         {isCollapsed ? (
@@ -446,11 +474,11 @@ export function AppSidebar(props: AppSidebarProps) {
                       display: 'grid',
                       placeItems: 'center',
                       borderRadius: 'var(--radius-sm)',
-                      color: active ? 'primary.main' : 'text.secondary',
+                      color: active ? 'text.primary' : 'text.secondary',
                       bgcolor: active ? 'action.selected' : 'transparent',
                       textDecoration: 'none',
                       border: '1px solid',
-                      borderColor: active ? 'primary.main' : 'transparent',
+                      borderColor: active ? 'divider' : 'transparent',
                     }}
                   >
                     <Icon size={16} />
@@ -504,10 +532,10 @@ export function AppSidebar(props: AppSidebarProps) {
                               py: 0.95,
                               borderRadius: 'var(--radius-sm)',
                               textDecoration: 'none',
-                              color: active ? 'primary.main' : 'text.primary',
+                              color: active ? 'text.primary' : 'text.secondary',
                               bgcolor: active ? 'action.selected' : 'transparent',
                               border: '1px solid',
-                              borderColor: active ? 'primary.main' : 'transparent',
+                              borderColor: active ? 'divider' : 'transparent',
                               transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
                               '&:hover': {
                                 bgcolor: 'action.hover',
@@ -515,7 +543,7 @@ export function AppSidebar(props: AppSidebarProps) {
                             }}
                           >
                             <Icon size={16} />
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            <Typography variant="body2" sx={{ fontWeight: active ? 700 : 600 }}>
                               {item.title}
                             </Typography>
                           </Box>
@@ -555,7 +583,7 @@ export function AppSidebar(props: AppSidebarProps) {
               color: 'text.secondary',
               justifyContent: isCollapsed ? 'center' : 'flex-start',
               '&:hover': {
-                color: 'primary.main',
+                color: 'text.primary',
                 bgcolor: 'action.hover',
               },
             }}
@@ -568,55 +596,6 @@ export function AppSidebar(props: AppSidebarProps) {
             ) : null}
           </ButtonBase>
         </Tooltip>
-
-        {!isCollapsed ? (
-          <>
-            <AppSurface
-              surface="subtle"
-              sx={{
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0.5,
-                p: 1.25,
-                minHeight: APP_SHELL_INFO_CARD_MIN_HEIGHT,
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.25 }}>
-                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-                  {gamificationEnabled ? 'Perfil e progresso' : 'Perfil'}
-                </Typography>
-                <StatusToken tone="neutral">
-                  Via avatar
-                </StatusToken>
-              </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.55 }}>
-                {gamificationEnabled
-                  ? 'Conquistas, níveis e preferências pessoais continuam acessíveis pelo drawer de perfil no cabeçalho.'
-                  : 'Preferências pessoais e dados do workspace continuam acessíveis pelo drawer de perfil no cabeçalho.'}
-              </Typography>
-            </AppSurface>
-          </>
-        ) : (
-          <Tooltip title="Workspace atual" placement="right">
-            <Box
-              component={Link}
-              to={workspaceRoot}
-              sx={{
-                textDecoration: 'none',
-                display: 'grid',
-                placeItems: 'center',
-                height: 40,
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid',
-                borderColor: theme.palette.divider,
-                color: 'text.secondary',
-              }}
-            >
-              <Code size={16} />
-            </Box>
-          </Tooltip>
-        )}
       </Box>
     </Box>
   )

@@ -13,14 +13,14 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Box, CircularProgress, Typography, useTheme } from '@/compat/mui/material'
+import { alpha } from '@/compat/mui/styles'
 import { layoutWithDagre } from '@/components/tree-funnel/dagreLayout'
 import type { OrgTreeNode } from '@/types/cost-org'
 import OrgPersonNode from './OrgPersonNode'
 
 const nodeTypes = { orgPerson: OrgPersonNode }
 
-/** Cores sólidas: `var(--mui-*)` em stroke dentro do SVG do React Flow pode falhar (igual tela de custos). */
-const EDGE_ORG = '#94a3b8'
+const EDGE_ORG_LIGHT = '#94a3b8'
 const EDGE_ORG_ACTIVE = '#a855f7'
 
 function arrowToTarget(strokeColor: string) {
@@ -32,7 +32,11 @@ function arrowToTarget(strokeColor: string) {
   }
 }
 
-function treeToNodesEdges(roots: OrgTreeNode[], highlighted: Set<string>): { nodes: Node[]; edges: Edge[] } {
+function treeToNodesEdges(
+  roots: OrgTreeNode[],
+  highlighted: Set<string>,
+  edgeDefault: string,
+): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = []
   const edges: Edge[] = []
 
@@ -51,7 +55,7 @@ function treeToNodesEdges(roots: OrgTreeNode[], highlighted: Set<string>): { nod
     })
     for (const c of n.children) {
       const edgeHid = highlighted.has(c.orgEntryId) && highlighted.has(n.orgEntryId)
-      const stroke = edgeHid ? EDGE_ORG_ACTIVE : EDGE_ORG
+      const stroke = edgeHid ? EDGE_ORG_ACTIVE : edgeDefault
       edges.push({
         id: `e-${n.orgEntryId}-${c.orgEntryId}`,
         type: 'simplebezier',
@@ -86,14 +90,21 @@ type Props = {
 export function OrgTreeFlow({ tree, loading, error, highlightedIds, onSelectEntry, fillHeight }: Props) {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
+  const edgeDefault = isDark ? '#6b6b6b' : EDGE_ORG_LIGHT
+  const flowBg = theme.palette.background.default
+  const flowGrid = isDark ? alpha(theme.palette.common.white, 0.07) : 'rgba(148,163,184,0.35)'
+  const panelSurface = theme.palette.background.paper
+  const panelBorder = theme.palette.divider
+  const minimapMask = isDark ? alpha(theme.palette.common.black, 0.5) : 'rgba(148,163,184,0.22)'
+  const minimapNode = isDark ? theme.palette.text.secondary : '#64748b'
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   const laidOut = useMemo(() => {
-    const { nodes: n, edges: e } = treeToNodesEdges(tree, highlightedIds)
+    const { nodes: n, edges: e } = treeToNodesEdges(tree, highlightedIds, edgeDefault)
     if (n.length === 0) return { nodes: n, edges: e }
     return { nodes: layoutWithDagre(n, e), edges: e }
-  }, [tree, highlightedIds])
+  }, [tree, highlightedIds, edgeDefault])
 
   useEffect(() => {
     setNodes(laidOut.nodes)
@@ -175,12 +186,12 @@ export function OrgTreeFlow({ tree, loading, error, highlightedIds, onSelectEntr
           connectionLineType={ConnectionLineType.Bezier}
           defaultEdgeOptions={{
             type: 'simplebezier',
-            style: { stroke: EDGE_ORG, strokeWidth: 1.25 },
+            style: { stroke: edgeDefault, strokeWidth: 1.25 },
             markerEnd: {
               type: MarkerType.ArrowClosed,
               width: 12,
               height: 12,
-              color: EDGE_ORG,
+              color: edgeDefault,
             },
           }}
           fitView
@@ -190,17 +201,13 @@ export function OrgTreeFlow({ tree, loading, error, highlightedIds, onSelectEntr
           proOptions={{ hideAttribution: true }}
           colorMode={isDark ? 'dark' : 'light'}
         >
-          <Background
-            gap={16}
-            color={isDark ? 'rgba(148,163,184,0.18)' : 'rgba(148,163,184,0.35)'}
-            bgColor={isDark ? '#0f172a' : '#ffffff'}
-          />
+          <Background gap={16} color={flowGrid} bgColor={flowBg} />
           <Controls
             style={{
-              background: isDark ? 'rgba(15,23,42,0.9)' : '#ffffff',
-              border: `1px solid ${isDark ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.35)'}`,
+              background: alpha(panelSurface, 0.98),
+              border: `1px solid ${panelBorder}`,
               borderRadius: 8,
-              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.35)' : '0 6px 16px rgba(15,23,42,0.12)',
+              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.45)' : '0 6px 16px rgba(15,23,42,0.12)',
             }}
             className="org-flow-controls"
           />
@@ -208,13 +215,13 @@ export function OrgTreeFlow({ tree, loading, error, highlightedIds, onSelectEntr
             pannable
             zoomable
             style={{
-              backgroundColor: isDark ? 'rgba(15,23,42,0.92)' : '#ffffff',
-              border: `1px solid ${isDark ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.35)'}`,
+              backgroundColor: alpha(panelSurface, 0.96),
+              border: `1px solid ${panelBorder}`,
               borderRadius: 8,
-              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.35)' : '0 6px 16px rgba(15,23,42,0.12)',
+              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.45)' : '0 6px 16px rgba(15,23,42,0.12)',
             }}
-            maskColor={isDark ? 'rgba(2,6,23,0.45)' : 'rgba(148,163,184,0.22)'}
-            nodeColor={isDark ? '#94a3b8' : '#64748b'}
+            maskColor={minimapMask}
+            nodeColor={minimapNode}
           />
         </ReactFlow>
         <Box
@@ -224,18 +231,18 @@ export function OrgTreeFlow({ tree, loading, error, highlightedIds, onSelectEntr
             pointerEvents: 'none',
             '& .org-flow-controls .react-flow__controls-button': {
               pointerEvents: 'auto',
-              color: isDark ? '#60A5FA' : '#2563EB',
-              borderColor: isDark ? 'rgba(96,165,250,0.35)' : 'rgba(37,99,235,0.28)',
-              backgroundColor: isDark ? 'rgba(30,41,59,0.92)' : 'rgba(255,255,255,0.95)',
-              transition: 'all 0.15s ease',
+              color: 'text.secondary',
+              borderColor: 'divider',
+              backgroundColor: 'background.paper',
+              transition: 'background-color 0.15s ease, color 0.15s ease',
             },
             '& .org-flow-controls .react-flow__controls-button:hover': {
-              backgroundColor: isDark ? 'rgba(37,99,235,0.22)' : 'rgba(37,99,235,0.1)',
-              color: isDark ? '#93C5FD' : '#1D4ED8',
+              backgroundColor: 'action.hover',
+              color: 'text.primary',
             },
             '& .org-flow-controls .react-flow__controls-button:focus-visible': {
               outline: '2px solid',
-              outlineColor: isDark ? 'rgba(96,165,250,0.55)' : 'rgba(37,99,235,0.45)',
+              outlineColor: isDark ? alpha(theme.palette.common.white, 0.25) : alpha(theme.palette.common.black, 0.2),
               outlineOffset: '-1px',
             },
           }}

@@ -28,6 +28,7 @@ import { Plus, Pencil } from '@/components/ui/icons'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Achievement } from '@/types'
 import { apiUrl } from '@/lib/api'
+import { denseTableHeadCellSx, denseTableBodyCellSx } from '@/components/system/denseTableHeadCellSx'
 
 type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 type AchievementMode = 'global_auto' | 'linked_item' | 'manual'
@@ -274,10 +275,28 @@ export function AchievementsAdminTable() {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" fontWeight={700}>Conquistas ({achievements.length})</Typography>
-        <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={openCreate} sx={{ textTransform: 'none', fontWeight: 600 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+        <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.95rem' }}>
+          Conquistas ({achievements.length})
+        </Typography>
+        <Button
+          variant="outlined"
+          color="inherit"
+          size="small"
+          startIcon={<Plus size={15} />}
+          onClick={openCreate}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: 12,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            minHeight: 30,
+            py: 0.35,
+            px: 1,
+          }}
+        >
           Nova Conquista
         </Button>
       </Box>
@@ -292,67 +311,84 @@ export function AchievementsAdminTable() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Icone</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Nome</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Categoria</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Raridade</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>XP Fixo</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>% Bonus</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Modo</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }}>Condicao</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="center">Ativo</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: 12 }} align="center">Acoes</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>Icone</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>Nome</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>Categoria</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>Raridade</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>XP fixo</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>% bonus</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>Modo</TableCell>
+                <TableCell sx={denseTableHeadCellSx}>Condicao</TableCell>
+                <TableCell sx={denseTableHeadCellSx} align="center">
+                  Ativo
+                </TableCell>
+                <TableCell sx={denseTableHeadCellSx} align="center">
+                  Acoes
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {achievements.map((achievement) => (
                 <TableRow key={achievement.id} hover sx={{ opacity: (achievement.isActive ?? true) ? 1 : 0.55 }}>
-                  <TableCell>
-                    <Box sx={{ width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(124,58,237,0.08)', fontSize: 16 }}>
+                  <TableCell sx={denseTableBodyCellSx}>
+                    <Box
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: 'action.hover',
+                        fontSize: 14,
+                      }}
+                    >
                       {achievement.icon.length <= 2 ? achievement.icon : '??'}
                     </Box>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: 13 }}>{achievement.name}</Typography>
-                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: 11 }}>
+                  <TableCell sx={denseTableBodyCellSx}>
+                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: 12, lineHeight: 1.3 }}>
+                      {achievement.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: 10.5, display: 'block', mt: 0.25 }}>
                       {achievement.description.length > 50 ? `${achievement.description.slice(0, 50)}...` : achievement.description}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ fontSize: 12 }}>{achievement.category}</Typography>
+                  <TableCell sx={denseTableBodyCellSx}>
+                    <Typography variant="caption" sx={{ fontSize: 11 }}>{achievement.category}</Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ fontSize: 12 }}>{achievement.rarity}</Typography>
+                  <TableCell sx={denseTableBodyCellSx}>
+                    <Typography variant="caption" sx={{ fontSize: 11 }}>{achievement.rarity}</Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={denseTableBodyCellSx}>
                     {(achievement.rewardXpFixed ?? achievement.xpBonus ?? 0) > 0 ? (
-                      <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700, color: '#7C3AED' }}>
+                      <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'primary.main' }}>
                         +{formatDecimal(parseNumber(achievement.rewardXpFixed ?? achievement.xpBonus, 0))} XP
                       </Typography>
                     ) : (
-                      <Typography variant="caption" color="text.disabled">-</Typography>
+                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: 11 }}>-</Typography>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={denseTableBodyCellSx}>
                     {(achievement.rewardPercent ?? 0) > 0 ? (
-                      <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 700, color: '#F59E0B' }}>
+                      <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'warning.main' }}>
                         +{formatDecimal(parseNumber(achievement.rewardPercent, 0))}%
                       </Typography>
                     ) : (
-                      <Typography variant="caption" color="text.disabled">-</Typography>
+                      <Typography variant="caption" color="text.disabled" sx={{ fontSize: 11 }}>-</Typography>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ fontSize: 12 }}>
+                  <TableCell sx={denseTableBodyCellSx}>
+                    <Typography variant="caption" sx={{ fontSize: 11 }}>
                       {linkedModeLabel.get((achievement.mode as AchievementMode) ?? 'global_auto') ?? achievement.mode ?? 'global_auto'}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" sx={{ fontSize: 12 }}>
+                  <TableCell sx={denseTableBodyCellSx}>
+                    <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.35 }}>
                       {conditionLabel.get(achievement.conditionType ?? 'manual') ?? achievement.conditionType ?? 'manual'} ({formatConditionValue(achievement.conditionValue ?? null)})
                     </Typography>
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" sx={denseTableBodyCellSx}>
                     <Switch
                       size="small"
                       checked={achievement.isActive ?? true}
@@ -360,7 +396,7 @@ export function AchievementsAdminTable() {
                       color="primary"
                     />
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" sx={denseTableBodyCellSx}>
                     <Tooltip title="Editar">
                       <IconButton size="small" onClick={() => openEdit(achievement)}>
                         <Pencil size={14} />

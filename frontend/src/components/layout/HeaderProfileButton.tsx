@@ -1,4 +1,5 @@
 import { Avatar, ButtonBase, Typography } from '@/compat/mui/material'
+import { appShellHeaderControlSx } from '@/components/layout/layout-shell'
 
 interface HeaderProfileButtonProps {
   name: string
@@ -12,19 +13,16 @@ export function HeaderProfileButton({ name, avatarUrl, onClick }: HeaderProfileB
       onClick={onClick}
       aria-label="Meu perfil, nível e indicadores"
       sx={{
+        ...appShellHeaderControlSx,
         px: 1,
-        py: 0.5,
-        borderRadius: 2,
+        py: 0,
+        maxWidth: 240,
         display: 'flex',
         alignItems: 'center',
-        gap: 1,
-        maxWidth: 240,
-        border: '1px solid',
-        borderColor: 'divider',
-        '&:hover': { bgcolor: 'action.hover' },
+        gap: 0.75,
       }}
     >
-      <Avatar src={avatarUrl ?? undefined} sx={{ width: 30, height: 30, fontSize: 13, fontWeight: 700 }}>
+      <Avatar src={avatarUrl ?? undefined} sx={{ width: 28, height: 28, fontSize: 12, fontWeight: 700 }}>
         {name?.[0]?.toUpperCase() ?? '?'}
       </Avatar>
       <Typography

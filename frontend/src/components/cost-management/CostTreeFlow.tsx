@@ -25,6 +25,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Box, CircularProgress, Menu, MenuItem, Snackbar, Alert, Typography, useTheme } from '@/compat/mui/material'
+import { alpha } from '@/compat/mui/styles'
 import { layoutWithDagre } from '@/components/tree-funnel/dagreLayout'
 import type { CostManagementGraph, CostItem, CostCanvasFocus } from '@/types/cost-org'
 import type { OrgEntry } from '@/hooks/use-org'
@@ -136,7 +137,8 @@ function memberNodeHighlighted(focus: CostCanvasFocus | null, deptId: string, us
 function graphToFlow(
   graph: CostManagementGraph,
   canvasFocus: CostCanvasFocus | null,
-  orgEntries: OrgEntry[] = []
+  orgEntries: OrgEntry[] = [],
+  edgeNeutral: string = EDGE_NEUTRAL,
 ): { nodes: Node[]; edges: Edge[] } {
   const { departments, departmentCosts, members, costItems } = graph
   const costMap = new Map(costItems.map((c) => [c.id, c]))
@@ -195,7 +197,7 @@ function graphToFlow(
         : canvasFocus?.kind === 'cost'
           ? canvasFocus.costId === l.cost_id
           : false
-    const costStroke = edgeHid ? EDGE_COST_ACTIVE : EDGE_NEUTRAL
+    const costStroke = edgeHid ? EDGE_COST_ACTIVE : edgeNeutral
     edges.push({
       id: `dept-${l.department_id}-cost-${l.cost_id}`,
       type: 'default',
@@ -242,7 +244,7 @@ function graphToFlow(
         : canvasFocus?.kind === 'member'
           ? canvasFocus.departmentId === m.department_id && canvasFocus.userId === m.user_id
           : false
-    const memStroke = edgeHid ? EDGE_MEMBER_ACTIVE : EDGE_NEUTRAL
+    const memStroke = edgeHid ? EDGE_MEMBER_ACTIVE : edgeNeutral
     edges.push({
       id: `dept-${m.department_id}-mem-${m.user_id}`,
       type: 'simplebezier',
@@ -358,6 +360,13 @@ function CostCanvasCore({
 }: Omit<Props, 'graph' | 'loading' | 'error'> & { graph: CostManagementGraph }) {
   const theme = useTheme()
   const isDark = theme.palette.mode === 'dark'
+  const edgeNeutral = isDark ? '#6b6b6b' : EDGE_NEUTRAL
+  const flowBg = theme.palette.background.default
+  const flowGrid = isDark ? alpha(theme.palette.common.white, 0.07) : 'rgba(148,163,184,0.35)'
+  const panelSurface = theme.palette.background.paper
+  const panelBorder = theme.palette.divider
+  const minimapMask = isDark ? alpha(theme.palette.common.black, 0.5) : 'rgba(148,163,184,0.22)'
+  const minimapNode = isDark ? theme.palette.text.secondary : '#64748b'
   const screenToFlowRef = useRef<((position: XYPosition) => XYPosition) | null>(null)
   const layoutPositionsRef = useRef<Record<string, XYPosition>>({})
 
@@ -422,7 +431,7 @@ function CostCanvasCore({
   const focusSig = focusSignature(canvasFocus)
 
   const displayNodes = useMemo(() => {
-    const { nodes: n } = graphToFlow(graph, canvasFocus, orgEntries)
+    const { nodes: n } = graphToFlow(graph, canvasFocus, orgEntries, edgeNeutral)
     return n.map((node) => ({
       ...node,
       position: mergedPositions[node.id] ?? { x: 0, y: 0 },
@@ -437,12 +446,13 @@ function CostCanvasCore({
     focusSig,
     mergedPositions,
     orgResponsibleSig,
+    edgeNeutral,
   ])
 
   const displayEdges = useMemo(
-    () => graphToFlow(graph, canvasFocus, orgEntries).edges,
+    () => graphToFlow(graph, canvasFocus, orgEntries, edgeNeutral).edges,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [keys.deptKey, keys.costKey, keys.memKey, keys.dcKey, structureSig, focusSig, orgResponsibleSig]
+    [keys.deptKey, keys.costKey, keys.memKey, keys.dcKey, structureSig, focusSig, orgResponsibleSig, edgeNeutral]
   )
 
   useEffect(() => {
@@ -630,12 +640,12 @@ function CostCanvasCore({
           connectionLineStyle={{ stroke: EDGE_DEPT_ACTIVE, strokeWidth: 1.5 }}
           defaultEdgeOptions={{
             type: 'default',
-            style: { stroke: EDGE_NEUTRAL, strokeWidth: 1.25 },
+            style: { stroke: edgeNeutral, strokeWidth: 1.25 },
             markerEnd: {
               type: MarkerType.ArrowClosed,
               width: 12,
               height: 12,
-              color: EDGE_DEPT_ACTIVE,
+              color: edgeNeutral,
             },
           }}
           fitView
@@ -643,31 +653,27 @@ function CostCanvasCore({
           colorMode={isDark ? 'dark' : 'light'}
         >
           <ScreenToFlowBinder flowFnRef={screenToFlowRef} />
-          <Background
-            gap={16}
-            color={isDark ? 'rgba(148,163,184,0.18)' : 'rgba(148,163,184,0.35)'}
-            bgColor={isDark ? '#0f172a' : '#ffffff'}
-          />
+          <Background gap={16} color={flowGrid} bgColor={flowBg} />
           <Controls
             className="cost-flow-controls"
             style={{
-              background: isDark ? 'rgba(15,23,42,0.9)' : '#ffffff',
-              border: `1px solid ${isDark ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.35)'}`,
+              background: alpha(panelSurface, 0.98),
+              border: `1px solid ${panelBorder}`,
               borderRadius: 8,
-              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.35)' : '0 6px 16px rgba(15,23,42,0.12)',
+              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.45)' : '0 6px 16px rgba(15,23,42,0.12)',
             }}
           />
           <MiniMap
             pannable
             zoomable
             style={{
-              backgroundColor: isDark ? 'rgba(15,23,42,0.92)' : '#ffffff',
-              border: `1px solid ${isDark ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.35)'}`,
+              backgroundColor: alpha(panelSurface, 0.96),
+              border: `1px solid ${panelBorder}`,
               borderRadius: 8,
-              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.35)' : '0 6px 16px rgba(15,23,42,0.12)',
+              boxShadow: isDark ? '0 8px 20px rgba(0,0,0,0.45)' : '0 6px 16px rgba(15,23,42,0.12)',
             }}
-            maskColor={isDark ? 'rgba(2,6,23,0.45)' : 'rgba(148,163,184,0.22)'}
-            nodeColor={isDark ? '#94a3b8' : '#64748b'}
+            maskColor={minimapMask}
+            nodeColor={minimapNode}
           />
         </ReactFlow>
         <Box
@@ -677,18 +683,18 @@ function CostCanvasCore({
             pointerEvents: 'none',
             '& .cost-flow-controls .react-flow__controls-button': {
               pointerEvents: 'auto',
-              color: isDark ? '#60A5FA' : '#2563EB',
-              borderColor: isDark ? 'rgba(96,165,250,0.35)' : 'rgba(37,99,235,0.28)',
-              backgroundColor: isDark ? 'rgba(30,41,59,0.92)' : 'rgba(255,255,255,0.95)',
-              transition: 'all 0.15s ease',
+              color: 'text.secondary',
+              borderColor: 'divider',
+              backgroundColor: 'background.paper',
+              transition: 'background-color 0.15s ease, color 0.15s ease',
             },
             '& .cost-flow-controls .react-flow__controls-button:hover': {
-              backgroundColor: isDark ? 'rgba(37,99,235,0.22)' : 'rgba(37,99,235,0.1)',
-              color: isDark ? '#93C5FD' : '#1D4ED8',
+              backgroundColor: 'action.hover',
+              color: 'text.primary',
             },
             '& .cost-flow-controls .react-flow__controls-button:focus-visible': {
               outline: '2px solid',
-              outlineColor: isDark ? 'rgba(96,165,250,0.55)' : 'rgba(37,99,235,0.45)',
+              outlineColor: isDark ? alpha(theme.palette.common.white, 0.25) : alpha(theme.palette.common.black, 0.2),
               outlineOffset: '-1px',
             },
           }}

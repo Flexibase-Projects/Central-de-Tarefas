@@ -323,7 +323,7 @@ export default function Organograma() {
             title="Organograma da Empresa"
             description="Canvas principal da estrutura. O painel lateral funciona como inspector persistente para consulta e edição contextual."
             actions={
-              <Button variant="contained" startIcon={<Plus size={18} />} onClick={openManage}>
+              <Button variant="outlined" color="inherit" startIcon={<Plus size={18} />} onClick={openManage}>
                 Gerenciar estrutura
               </Button>
             }
@@ -331,7 +331,7 @@ export default function Organograma() {
           />
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
-            <StatusToken tone="info">Canvas + inspector</StatusToken>
+            <StatusToken tone="neutral">Canvas + inspector</StatusToken>
             <StatusToken tone="neutral">Clique em um nó para editar</StatusToken>
             {selectedEntryId ? <StatusToken tone="success">Inspector aberto</StatusToken> : null}
           </Box>

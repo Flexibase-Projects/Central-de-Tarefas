@@ -81,6 +81,31 @@ export type WorkspaceTeamGamificationSummary = {
   }>;
 };
 
+export type WorkspaceRankingEntry = {
+  position: number;
+  user_id: string;
+  name: string;
+  avatar_url: string | null;
+  level: number;
+  total_xp: number;
+  unlocked_achievements: number;
+};
+
+export type WorkspaceRankingSnapshot = {
+  total_members: number;
+  active_with_xp: number;
+  average_level: number;
+  average_xp: number;
+  total_unlocked_achievements: number;
+  leaderboard: WorkspaceRankingEntry[];
+  current_user: WorkspaceRankingEntry | null;
+  gap_to_next: {
+    position: number;
+    name: string;
+    xp_difference: number;
+  } | null;
+};
+
 function roundNumber(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -431,6 +456,54 @@ export async function getWorkspaceUserProgress(
 export async function getWorkspaceTeamGamificationSummary(
   workspaceId: string,
 ): Promise<WorkspaceTeamGamificationSummary> {
+  const ranking = await buildWorkspaceRankingComputation(workspaceId);
+
+  return {
+    total_members: ranking.total_members,
+    active_with_xp: ranking.active_with_xp,
+    average_level: ranking.average_level,
+    average_xp: ranking.average_xp,
+    total_unlocked_achievements: ranking.total_unlocked_achievements,
+    top_members: ranking.leaderboard.slice(0, 5).map(({ position: _position, ...member }) => member),
+  };
+}
+
+export async function getWorkspaceRankingSnapshot(
+  workspaceId: string,
+  requesterUserId: string,
+): Promise<WorkspaceRankingSnapshot> {
+  const ranking = await buildWorkspaceRankingComputation(workspaceId);
+  const currentUserIndex = ranking.leaderboard.findIndex((entry) => entry.user_id === requesterUserId);
+  const currentUser = currentUserIndex >= 0 ? ranking.leaderboard[currentUserIndex] : null;
+  const userAbove = currentUserIndex > 0 ? ranking.leaderboard[currentUserIndex - 1] : null;
+
+  return {
+    total_members: ranking.total_members,
+    active_with_xp: ranking.active_with_xp,
+    average_level: ranking.average_level,
+    average_xp: ranking.average_xp,
+    total_unlocked_achievements: ranking.total_unlocked_achievements,
+    leaderboard: ranking.leaderboard.slice(0, 5),
+    current_user: currentUser,
+    gap_to_next:
+      currentUser && userAbove
+        ? {
+            position: userAbove.position,
+            name: userAbove.name,
+            xp_difference: Math.max(0, userAbove.total_xp - currentUser.total_xp),
+          }
+        : null,
+  };
+}
+
+async function buildWorkspaceRankingComputation(workspaceId: string): Promise<{
+  total_members: number;
+  active_with_xp: number;
+  average_level: number;
+  average_xp: number;
+  total_unlocked_achievements: number;
+  leaderboard: WorkspaceRankingEntry[];
+}> {
   const userIds = await listActiveWorkspaceUserIds(workspaceId);
   if (userIds.length === 0) {
     return {
@@ -439,7 +512,7 @@ export async function getWorkspaceTeamGamificationSummary(
       average_level: 0,
       average_xp: 0,
       total_unlocked_achievements: 0,
-      top_members: [],
+      leaderboard: [],
     };
   }
 
@@ -455,6 +528,25 @@ export async function getWorkspaceTeamGamificationSummary(
     (sum, row) => sum + row.achievements.filter((achievement) => achievement.unlocked).length,
     0,
   );
+  const leaderboard = [...progressRows]
+    .sort((left, right) => {
+      if (right.totalXp !== left.totalXp) return right.totalXp - left.totalXp;
+      if (right.level !== left.level) return right.level - left.level;
+      return left.userId.localeCompare(right.userId);
+    })
+    .map((row, index) => {
+      const profile = profiles.get(row.userId) ?? null;
+
+      return {
+        position: index + 1,
+        user_id: row.userId,
+        name: profile?.effective_name ?? 'Usuario',
+        avatar_url: profile?.effective_avatar_url ?? null,
+        level: row.level,
+        total_xp: row.totalXp,
+        unlocked_achievements: row.achievements.filter((achievement) => achievement.unlocked).length,
+      };
+    });
 
   return {
     total_members: totalMembers,
@@ -462,23 +554,6 @@ export async function getWorkspaceTeamGamificationSummary(
     average_level: totalMembers > 0 ? roundNumber(totalLevels / totalMembers) : 0,
     average_xp: totalMembers > 0 ? roundNumber(totalXp / totalMembers) : 0,
     total_unlocked_achievements: totalUnlockedAchievements,
-    top_members: [...progressRows]
-      .sort((left, right) => {
-        if (right.totalXp !== left.totalXp) return right.totalXp - left.totalXp;
-        if (right.level !== left.level) return right.level - left.level;
-        return left.userId.localeCompare(right.userId);
-      })
-      .slice(0, 5)
-      .map((row) => {
-        const profile = profiles.get(row.userId) ?? null;
-        return {
-          user_id: row.userId,
-          name: profile?.effective_name ?? 'Usuario',
-          avatar_url: profile?.effective_avatar_url ?? null,
-          level: row.level,
-          total_xp: row.totalXp,
-          unlocked_achievements: row.achievements.filter((achievement) => achievement.unlocked).length,
-        };
-      }),
+    leaderboard,
   };
 }

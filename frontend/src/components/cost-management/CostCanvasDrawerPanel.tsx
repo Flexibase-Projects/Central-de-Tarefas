@@ -14,7 +14,6 @@ import {
   TableRow,
 } from '@/compat/mui/material'
 import type { ReactNode } from 'react'
-import type { Theme } from '@/compat/mui/styles'
 import type { CostCanvasFocus, CostManagementGraph } from '@/types/cost-org'
 import type { OrgEntry } from '@/hooks/use-org'
 
@@ -100,10 +99,6 @@ export function CostCanvasDrawerPanel({
           minHeight: 160,
           height: '100%',
           boxSizing: 'border-box',
-          background: (t: Theme) =>
-            t.palette.mode === 'dark'
-              ? 'linear-gradient(145deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0.95) 100%)'
-              : 'linear-gradient(145deg, rgba(99,102,241,0.06) 0%, #fff 100%)',
         }}
       >
         <Typography variant="overline" color="text.secondary">
@@ -139,10 +134,6 @@ export function CostCanvasDrawerPanel({
           display: 'flex',
           flexDirection: 'column',
           gap: 0,
-          background: (t: Theme) =>
-            t.palette.mode === 'dark'
-              ? 'linear-gradient(145deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0.95) 100%)'
-              : 'linear-gradient(145deg, rgba(99,102,241,0.06) 0%, #fff 100%)',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
@@ -309,7 +300,7 @@ export function CostCanvasDrawerPanel({
                 sx={{ mb: 1.5 }}
               />
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button variant="contained" size="small" onClick={onSaveDrawerDept} disabled={drawerDeptSaving}>
+                <Button variant="outlined" color="inherit" size="small" onClick={onSaveDrawerDept} disabled={drawerDeptSaving}>
                   Salvar
                 </Button>
                 <Button variant="outlined" size="small" onClick={onCancelDrawerDeptEdit} disabled={drawerDeptSaving}>
@@ -363,10 +354,6 @@ export function CostCanvasDrawerPanel({
           display: 'flex',
           flexDirection: 'column',
           gap: 0,
-          background: (t: Theme) =>
-            t.palette.mode === 'dark'
-              ? 'linear-gradient(145deg, rgba(168,85,247,0.1) 0%, rgba(15,23,42,0.95) 100%)'
-              : 'linear-gradient(145deg, rgba(168,85,247,0.08) 0%, #fff 100%)',
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
@@ -380,7 +367,7 @@ export function CostCanvasDrawerPanel({
         </Typography>
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', mt: 0.5 }}>
           {c ? (
-            <Typography variant="h6" color="primary" sx={{ mt: 0.5 }}>
+            <Typography variant="h6" color="text.primary" sx={{ mt: 0.5 }}>
               {money(Number(c.amount) || 0, c.currency || 'BRL')}
             </Typography>
           ) : null}
@@ -405,7 +392,7 @@ export function CostCanvasDrawerPanel({
             )}
           </Box>
 
-          <Button variant="contained" size="small" onClick={() => onEditCostFull(focus.costId)} disabled={!c}>
+          <Button variant="outlined" color="inherit" size="small" onClick={() => onEditCostFull(focus.costId)} disabled={!c}>
             Abrir edição completa do custo
           </Button>
         </Box>
@@ -448,10 +435,6 @@ export function CostCanvasDrawerPanel({
         display: 'flex',
         flexDirection: 'column',
         gap: 0,
-        background: (t: Theme) =>
-          t.palette.mode === 'dark'
-            ? 'linear-gradient(145deg, rgba(34,197,94,0.12) 0%, rgba(15,23,42,0.95) 100%)'
-            : 'linear-gradient(145deg, rgba(34,197,94,0.08) 0%, #fff 100%)',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
@@ -501,7 +484,7 @@ export function CostCanvasDrawerPanel({
               sx={{ mb: 1.5 }}
             />
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button variant="contained" size="small" onClick={onSaveDrawerMember} disabled={drawerMemberSaving}>
+              <Button variant="outlined" color="inherit" size="small" onClick={onSaveDrawerMember} disabled={drawerMemberSaving}>
                 Salvar
               </Button>
               <Button variant="outlined" size="small" onClick={onCancelDrawerMemberEdit} disabled={drawerMemberSaving}>

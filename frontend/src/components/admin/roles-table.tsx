@@ -139,9 +139,17 @@ export function RolesTable() {
       </Dialog>
 
       {selectedRole && (
-        <Dialog open={isPermissionsDialogOpen} onClose={() => setIsPermissionsDialogOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { maxHeight: '90vh' } }}>
-          <DialogTitle>Gerenciar Permissões - {selectedRole.display_name}</DialogTitle>
-          <DialogContent>
+        <Dialog
+          open={isPermissionsDialogOpen}
+          onClose={() => setIsPermissionsDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{ sx: { maxHeight: '90vh' } }}
+        >
+          <DialogTitle sx={{ fontSize: '1rem', fontWeight: 700, py: 1.5, px: 2 }}>
+            Permissoes — {selectedRole.display_name}
+          </DialogTitle>
+          <DialogContent sx={{ px: 2, pb: 2, pt: 0 }}>
             <RolePermissionsEditor
               role={selectedRole}
               onSave={() => {

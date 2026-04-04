@@ -20,13 +20,17 @@ export default function Administracao() {
 
   const tabs = useMemo(() => {
     return [
-      { value: 'users' as const, label: 'Usuarios', icon: <People />, visible: canManageWorkspace },
-      { value: 'roles' as const, label: 'Cargos', icon: <Security />, visible: isGlobalAdmin },
-      { value: 'permissions' as const, label: 'Permissoes', icon: <Key />, visible: isGlobalAdmin },
+      { value: 'users' as const, label: 'Usuarios', icon: <People size={16} />, visible: canManageWorkspace },
+      { value: 'roles' as const, label: 'Cargos', icon: <Security size={16} />, visible: isGlobalAdmin },
+      { value: 'permissions' as const, label: 'Permissoes', icon: <Key size={16} />, visible: isGlobalAdmin },
       {
         value: 'achievements' as const,
         label: 'Conquistas',
-        icon: <Trophy style={{ color: '#F59E0B' }} />,
+        icon: (
+          <Box component="span" sx={{ display: 'inline-flex', color: 'warning.main', lineHeight: 0 }}>
+            <Trophy size={16} />
+          </Box>
+        ),
         visible: isGlobalAdmin,
       },
     ].filter((tab) => tab.visible)
@@ -39,7 +43,7 @@ export default function Administracao() {
 
   if (!canManageWorkspace) {
     return (
-      <Box sx={{ height: '100%', overflow: 'auto', p: 3 }}>
+      <Box sx={{ height: '100%', overflow: 'auto', p: 2 }}>
         <Alert severity="warning">
           Esta area exige perfil gerencial dentro da workspace atual.
         </Alert>
@@ -48,27 +52,40 @@ export default function Administracao() {
   }
 
   return (
-    <Box sx={{ height: '100%', overflow: 'auto', p: 3 }}>
-      <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>
-        Administracao da workspace
+    <Box sx={{ height: '100%', overflow: 'auto', p: { xs: 1.75, sm: 2 } }}>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.35, fontSize: '1rem' }}>
+        Administracao
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ mb: 1.25, display: 'block', maxWidth: 640, lineHeight: 1.45 }}>
         {isGlobalAdmin
-          ? 'Gerencie membros da workspace e, se necessario, as configuracoes globais de cargos, permissoes e conquistas.'
-          : 'Gerencie apenas os membros vinculados a esta workspace. Configuracoes globais continuam restritas ao administrador do sistema.'}
+          ? 'Membros da workspace e configuracoes globais (cargos, permissoes, conquistas).'
+          : 'Apenas membros desta workspace; configuracoes globais ficam com o admin do sistema.'}
       </Typography>
 
       <Tabs
         value={activeTab}
         onChange={(_, value) => setActiveTab(value as AdminTab)}
-        sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+        sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          mb: 1.25,
+          gap: 0.25,
+          '& > button': {
+            minHeight: 34,
+            paddingLeft: 1,
+            paddingRight: 1,
+            fontSize: 12,
+            fontWeight: 600,
+          },
+          '& .inline-flex': { gap: '6px' },
+        }}
       >
         {tabs.map((tab) => (
           <Tab key={tab.value} value={tab.value} label={tab.label} icon={tab.icon} iconPosition="start" />
         ))}
       </Tabs>
 
-      <Box sx={{ pt: 2 }}>
+      <Box sx={{ pt: 0.75 }}>
         {activeTab === 'users' && <UsersTable />}
         {activeTab === 'roles' && isGlobalAdmin ? <RolesTable /> : null}
         {activeTab === 'permissions' && isGlobalAdmin ? <PermissionsList /> : null}

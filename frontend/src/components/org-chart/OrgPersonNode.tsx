@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Avatar, Box, Typography } from '@/compat/mui/material'
+import { Avatar, Box, Typography, useTheme } from '@/compat/mui/material'
 import { HANDLE_CLASS, flowHandleStyle } from '@/components/cost-management/CostFlowNodes'
 
 export type OrgPersonNodeData = {
@@ -11,10 +11,11 @@ export type OrgPersonNodeData = {
 }
 
 function OrgPersonNode({ data, selected }: NodeProps) {
+  const theme = useTheme()
   const d = data as OrgPersonNodeData
   const hl = d.highlighted ?? false
   const titleLine = d.jobTitle?.trim() ? d.jobTitle.trim() : '—'
-  const accent = hl ? '#a855f7' : '#64748b'
+  const accent = hl ? '#a855f7' : theme.palette.text.secondary
   return (
     <Box
       className="cdt-rf-node"

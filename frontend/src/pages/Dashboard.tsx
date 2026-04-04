@@ -197,7 +197,7 @@ function TodoCard({
         minHeight: compact ? 84 : 98,
         transition: 'border-color 160ms ease, background-color 160ms ease',
         '&:hover': {
-          borderColor: 'primary.main',
+          borderColor: 'var(--border-strong)',
           bgcolor: 'action.hover',
         },
       }}
@@ -256,7 +256,7 @@ function TeamCompactCard({
         minHeight: 72,
         transition: 'border-color 140ms ease, background-color 140ms ease',
         '&:hover': {
-          borderColor: 'primary.main',
+          borderColor: 'var(--border-strong)',
           bgcolor: 'action.hover',
         },
       }}
@@ -309,7 +309,7 @@ function WaitingCard({
         minHeight: 98,
         transition: 'border-color 160ms ease, background-color 160ms ease',
         '&:hover': {
-          borderColor: 'primary.main',
+          borderColor: 'var(--border-strong)',
           bgcolor: 'action.hover',
         },
       }}
@@ -639,6 +639,7 @@ export default function Dashboard() {
         actions={(
           <Button
             variant="outlined"
+            color="inherit"
             onClick={() => void refresh()}
             startIcon={<RefreshCw size={16} />}
           >
@@ -672,10 +673,13 @@ export default function Dashboard() {
           display: 'grid',
           gridTemplateColumns: {
             xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            xl: homeData.persona === 'admin' ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            md:
+              homeData.persona === 'admin'
+                ? 'repeat(4, minmax(0, 1fr))'
+                : 'repeat(3, minmax(0, 1fr))',
           },
-          gap: 2,
+          gap: { xs: 2, sm: 2, md: 1.5 },
         }}
       >
         <SummaryCard
@@ -858,7 +862,7 @@ export default function Dashboard() {
                 cursor: 'pointer',
                 transition: 'border-color 140ms ease, background-color 140ms ease',
                 '&:hover': {
-                  borderColor: 'primary.main',
+                  borderColor: 'var(--border-strong)',
                   bgcolor: 'action.hover',
                 },
               }}

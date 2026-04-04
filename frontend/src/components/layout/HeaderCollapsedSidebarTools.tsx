@@ -1,9 +1,8 @@
-import { Box, Typography } from '@/compat/mui/material'
+import { Box } from '@/compat/mui/material'
 import { DemandCard } from '@/components/layout/AppSidebar'
 import type { UserProgress } from '@/types'
 import { buildWorkspacePath } from '@/lib/workspace-routing'
 import { useAuth } from '@/contexts/AuthContext'
-import AppSurface from '@/components/system/AppSurface'
 
 export interface HeaderCollapsedSidebarToolsProps {
   pendingTodosCount: number | null
@@ -25,7 +24,7 @@ export function HeaderCollapsedSidebarTools({
         minWidth: 0,
         flexShrink: 1,
         overflow: 'hidden',
-        maxHeight: 44,
+        maxHeight: 40,
       }}
     >
       <DemandCard
@@ -33,11 +32,6 @@ export function HeaderCollapsedSidebarTools({
         headerInline
         targetPath={buildWorkspacePath(currentWorkspace?.slug)}
       />
-      <AppSurface compact surface="subtle" sx={{ display: { xs: 'none', md: 'block' } }}>
-        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>
-          Perfil pelo avatar
-        </Typography>
-      </AppSurface>
     </Box>
   )
 }

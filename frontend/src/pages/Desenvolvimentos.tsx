@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
-  Fab,
   FormControlLabel,
   InputAdornment,
   MenuItem,
@@ -42,6 +41,12 @@ import {
   readExecutionViewPreference,
   writeExecutionViewPreference,
 } from '@/lib/execution-views'
+import {
+  compactScopeToggleLabelSx,
+  executionSearchFieldWrapperWideSx,
+} from '@/components/filters/execution-filters'
+import { AppFloatingActionIconButton } from '@/components/system/AppFloatingActionIconButton'
+import { denseTableHeadCellSx } from '@/components/system/denseTableHeadCellSx'
 
 function priorityLabel(priorityOrder: number | null | undefined) {
   if (typeof priorityOrder !== 'number') return 'Sem ordem'
@@ -185,40 +190,101 @@ export default function Desenvolvimentos() {
 
   return (
     <ProtectedRoute permission="access_desenvolvimentos">
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', p: { xs: 2, md: 3 }, gap: 2 }}>
-        <AppSurface surface="subtle">
+      <Box
+        sx={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          p: { xs: 1.5, md: 2 },
+          gap: 1.25,
+        }}
+      >
+        <AppSurface surface="subtle" compact>
           <SectionHeader
+            compact
             title="Projetos"
-            description="Vista principal em lista para leitura rápida, filtros e priorização. O Kanban segue disponível para acompanhamento macro."
-            sx={{ pb: 1.5 }}
+            description="Leitura rápida da fila, filtros e priorização. Alterne para o Kanban quando quiser visão macro."
+            sx={{
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              pb: 1.25,
+              mb: 0.5,
+            }}
           />
 
-          <Stack spacing={1.5}>
-            <Tabs value={activeView} onChange={handleViewChange}>
-              <Tab value="list" label="Lista" />
-              <Tab value="kanban" label="Kanban" />
-            </Tabs>
-
-            <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1.25}>
-              <TextField
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar por nome ou descrição"
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search size={16} />
-                    </InputAdornment>
-                  ),
+          <Stack spacing={1.125}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'stretch', sm: 'center' },
+                justifyContent: 'space-between',
+                gap: 0.75,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Tabs
+                value={activeView}
+                onChange={handleViewChange}
+                sx={{
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  '& > button': {
+                    minHeight: 34,
+                    paddingLeft: 1,
+                    paddingRight: 1,
+                    fontSize: 13,
+                  },
                 }}
-              />
+              >
+                <Tab value="list" label="Lista" />
+                <Tab value="kanban" label="Kanban" />
+              </Tabs>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
+                <StatusToken tone="neutral">
+                  {filteredProjects.length} projeto{filteredProjects.length === 1 ? '' : 's'} na vista
+                </StatusToken>
+                <StatusToken tone="neutral">
+                  {activeView === 'list' ? 'Lista padrão por perfil' : 'Kanban secundário'}
+                </StatusToken>
+                {summaryError ? <StatusToken tone="warning">Resumo operacional parcial</StatusToken> : null}
+              </Stack>
+            </Box>
+
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={0.875}
+              useFlexGap
+              sx={{
+                flexWrap: 'wrap',
+                alignItems: { xs: 'stretch', md: 'flex-end' },
+                alignContent: { md: 'flex-end' },
+                rowGap: { md: 0.875 },
+              }}
+            >
+              <Box sx={executionSearchFieldWrapperWideSx}>
+                <TextField
+                  label="Buscar"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Nome ou descrição"
+                  fullWidth
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={16} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
               <TextField
                 select
                 label="Status"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as 'all' | Project['status'])}
-                sx={{ minWidth: 180 }}
+                sx={{ minWidth: { md: 148 }, width: { xs: '100%', md: 'auto' }, flex: { md: '0 1 auto' } }}
               >
                 <MenuItem value="all">Todos</MenuItem>
                 <MenuItem value="backlog">{getStatusLabel('backlog')}</MenuItem>
@@ -232,7 +298,7 @@ export default function Desenvolvimentos() {
                 label="Priorização"
                 value={priorityFilter}
                 onChange={(event) => setPriorityFilter(event.target.value as 'all' | 'prioritized' | 'unprioritized')}
-                sx={{ minWidth: 190 }}
+                sx={{ minWidth: { md: 190 }, width: { xs: '100%', md: 'auto' }, flex: { md: '0 1 auto' } }}
               >
                 <MenuItem value="all">Todas</MenuItem>
                 <MenuItem value="prioritized">Na fila prioritária</MenuItem>
@@ -245,19 +311,10 @@ export default function Desenvolvimentos() {
                     onChange={(event) => setOnlyMine(event.target.checked)}
                   />
                 }
-                label="Apenas meus"
-                sx={{ ml: { lg: 0.5 } }}
+                label="Só meus"
+                title="Apenas projetos em que você é responsável ou criador"
+                sx={compactScopeToggleLabelSx('md')}
               />
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <StatusToken tone="neutral">
-                {filteredProjects.length} projeto{filteredProjects.length === 1 ? '' : 's'} na vista
-              </StatusToken>
-              <StatusToken tone="info">
-                {activeView === 'list' ? 'Lista padrão por perfil' : 'Kanban secundário'}
-              </StatusToken>
-              {summaryError ? <StatusToken tone="warning">Resumo operacional parcial</StatusToken> : null}
             </Stack>
           </Stack>
         </AppSurface>
@@ -292,12 +349,18 @@ export default function Desenvolvimentos() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Projeto</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Prioridade</TableCell>
-                      <TableCell align="right">Meus to-dos</TableCell>
-                      <TableCell align="right">Abertos</TableCell>
-                      <TableCell align="right">XP pendente</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Projeto</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Status</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Prioridade</TableCell>
+                      <TableCell align="right" sx={denseTableHeadCellSx}>
+                        Meus to-dos
+                      </TableCell>
+                      <TableCell align="right" sx={denseTableHeadCellSx}>
+                        Abertos
+                      </TableCell>
+                      <TableCell align="right" sx={denseTableHeadCellSx}>
+                        XP pendente
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -352,14 +415,9 @@ export default function Desenvolvimentos() {
         </Box>
 
         <RequirePermission permission="move_card">
-          <Fab
-            color="primary"
-            aria-label="Novo projeto"
-            onClick={() => setIsCreateDialogOpen(true)}
-            sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1200 }}
-          >
-            <Plus size={24} />
-          </Fab>
+          <AppFloatingActionIconButton aria-label="Novo projeto" onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus size={20} strokeWidth={2.25} />
+          </AppFloatingActionIconButton>
         </RequirePermission>
 
         <CreateProjectDialog

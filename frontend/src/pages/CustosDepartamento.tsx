@@ -660,7 +660,7 @@ export default function CustosDepartamento() {
             title="Custos do Departamento"
             description="Canvas financeiro com foco em centros de custo, vínculos e responsáveis do organograma, sempre com inspector lateral para edição contextual."
             actions={
-              <Button variant="contained" startIcon={<Plus size={18} />} onClick={openManageDialog}>
+              <Button variant="outlined" color="inherit" startIcon={<Plus size={18} />} onClick={openManageDialog}>
                 Gerenciar custos
               </Button>
             }
@@ -668,7 +668,7 @@ export default function CustosDepartamento() {
           />
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1.25 }}>
-            <StatusToken tone="info">Canvas + inspector</StatusToken>
+            <StatusToken tone="neutral">Canvas + inspector</StatusToken>
             <StatusToken tone="neutral">Clique para editar contexto</StatusToken>
             <StatusToken tone="success">Ações rápidas no botão direito</StatusToken>
           </Box>
@@ -743,7 +743,6 @@ export default function CustosDepartamento() {
                     <Tooltip title="Editar departamento">
                       <IconButton
                         size="small"
-                        color="primary"
                         onClick={() => {
                           setDrawerDeptEditOpen(true)
                           setDrawerMemberEditOpen(false)
@@ -758,7 +757,6 @@ export default function CustosDepartamento() {
                     <Tooltip title="Abrir edição completa do custo">
                       <IconButton
                         size="small"
-                        color="primary"
                         onClick={() => openEditCost(canvasFocus.costId)}
                         aria-label="Editar custo"
                       >
@@ -770,7 +768,6 @@ export default function CustosDepartamento() {
                     <Tooltip title="Editar custo mensal">
                       <IconButton
                         size="small"
-                        color="primary"
                         onClick={() => setDrawerMemberEditOpen(true)}
                         aria-label="Editar pessoa"
                       >
@@ -911,7 +908,6 @@ export default function CustosDepartamento() {
             <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
               <Tooltip title="Atualizar mapa e organograma">
                 <IconButton
-                  color="primary"
                   onClick={() => {
                     void fetchGraph()
                     void fetchEntries()
@@ -1061,7 +1057,7 @@ export default function CustosDepartamento() {
                 ))}
               </Select>
             </FormControl>
-            <Button variant="contained" sx={{ mt: 1 }} onClick={() => void handleSaveAssignResponsible()} disabled={saving}>
+            <Button variant="outlined" color="inherit" sx={{ mt: 1 }} onClick={() => void handleSaveAssignResponsible()} disabled={saving}>
               Vincular a este departamento
             </Button>
             <Divider sx={{ my: 3 }} />
@@ -1158,7 +1154,7 @@ export default function CustosDepartamento() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDeptDialog(false)}>Cancelar</Button>
-            <Button variant="contained" onClick={() => void handleCreateDept()} disabled={saving}>
+            <Button variant="outlined" color="inherit" onClick={() => void handleCreateDept()} disabled={saving}>
               Salvar
             </Button>
           </DialogActions>
@@ -1199,7 +1195,7 @@ export default function CustosDepartamento() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setCostDialog(false)}>Cancelar</Button>
-            <Button variant="contained" onClick={() => void handleCreateCost()} disabled={saving}>
+            <Button variant="outlined" color="inherit" onClick={() => void handleCreateCost()} disabled={saving}>
               Salvar
             </Button>
           </DialogActions>
@@ -1233,7 +1229,7 @@ export default function CustosDepartamento() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setLinkDialog(false)}>Cancelar</Button>
-            <Button variant="contained" onClick={() => void handleLink()} disabled={saving}>
+            <Button variant="outlined" color="inherit" onClick={() => void handleLink()} disabled={saving}>
               Vincular
             </Button>
           </DialogActions>
@@ -1348,7 +1344,7 @@ export default function CustosDepartamento() {
             >
               Cancelar
             </Button>
-            <Button variant="contained" onClick={() => void handleSaveEditCost()} disabled={saving}>
+            <Button variant="outlined" color="inherit" onClick={() => void handleSaveEditCost()} disabled={saving}>
               Salvar alterações
             </Button>
           </DialogActions>
@@ -1392,7 +1388,7 @@ export default function CustosDepartamento() {
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setMemberDialog(false)}>Cancelar</Button>
-            <Button variant="contained" onClick={() => void handleMember()} disabled={saving}>
+            <Button variant="outlined" color="inherit" onClick={() => void handleMember()} disabled={saving}>
               Salvar
             </Button>
           </DialogActions>

@@ -3,7 +3,10 @@ import { supabase } from '../config/supabase.js';
 import { getAuthUserEmail, getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { getCurrentWorkspaceContextFromRequest } from '../services/workspace-access.js';
 import { listCdtUsersByIds } from '../services/cdt-users.js';
-import { getWorkspaceTeamGamificationSummary } from '../services/workspace-gamification.js';
+import {
+  getWorkspaceRankingSnapshot,
+  getWorkspaceTeamGamificationSummary,
+} from '../services/workspace-gamification.js';
 import {
   insertWorkspaceMembershipCompat,
   loadWorkspaceMembershipByWorkspaceAndUser,
@@ -599,6 +602,53 @@ router.get('/:workspaceSlug/my-profile', async (req, res) => {
     console.error('workspaces.my-profile:', error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Falha ao carregar o perfil do workspace',
+    });
+  }
+});
+
+router.get('/:workspaceSlug/ranking', async (req, res) => {
+  try {
+    const workspaceContext = await requireWorkspaceContext(req, res);
+    if (!workspaceContext) return;
+
+    const modules = await listWorkspaceModuleStates(workspaceContext.workspace.id);
+    const gamificationModule = modules.find((module) => module.key === 'gamification') ?? null;
+    const rankingModule = modules.find((module) => module.key === 'ranking') ?? null;
+    const gamificationEnabled = Boolean(gamificationModule?.available && gamificationModule.is_enabled);
+    const rankingEnabled = Boolean(rankingModule?.available && rankingModule.is_enabled);
+    const available = gamificationEnabled && rankingEnabled;
+
+    if (!available) {
+      return res.json({
+        workspace: workspaceContext.workspace,
+        enabled: false,
+        reason:
+          !rankingEnabled
+            ? rankingModule?.reason ?? 'not_configured'
+            : gamificationModule?.reason ?? 'not_configured',
+        ranking: null,
+      });
+    }
+
+    const requesterUserId = getRequesterId(req) ?? workspaceContext.membership.user_id;
+    const ranking = await getWorkspaceRankingSnapshot(workspaceContext.workspace.id, requesterUserId);
+
+    return res.json({
+      workspace: workspaceContext.workspace,
+      enabled: true,
+      reason: null,
+      ranking,
+    });
+  } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
+    if (isSupabaseConnectionRefused(error)) {
+      return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
+    }
+    console.error('workspaces.ranking:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Falha ao carregar ranking do workspace',
     });
   }
 });

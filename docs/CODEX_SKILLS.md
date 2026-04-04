@@ -19,6 +19,18 @@ Objetivo:
 Local instalada:
 - `C:\Users\juand\.codex\skills\uncodixfy`
 
+### `image-prompt-refiner`
+
+Skill local deste projeto para pedidos de imagem.
+
+Objetivo:
+- Obrigar uma rodada curta de perguntas antes de gerar ou editar imagens
+- Refinar prompts vagos em especificacoes mais operacionais
+- Entregar um prompt final mais forte antes de acionar a skill ou ferramenta de imagem
+
+Local instalada:
+- `C:\Users\juand\Documents\GitHub\Central-de-Tarefas\.codex\skills\image-prompt-refiner`
+
 ## Pacote base oficial
 
 As skills abaixo foram instaladas nesta maquina e formam o pacote padrao recomendado para este projeto:
@@ -62,6 +74,7 @@ As skills e sistemas abaixo foram preparados para elevar o fluxo alem do basico:
 - `gh-fix-ci`: apoio para diagnostico e correcao de pipelines
 - `security-best-practices`: endurecimento de seguranca em implementacoes
 - `sentry`: investigacao de erros e observabilidade, quando o projeto usar essa integracao
+- `image-prompt-refiner`: refinamento obrigatorio de prompt antes de qualquer geracao ou edicao de imagem neste projeto
 - `frontend-design`: UI diferenciada e de alto acabamento, evitando visual generico de IA
 - `theme-factory`: exploracao de temas, paletas e direcao visual mais forte
 - `webapp-testing`: automacao de validacao de UI via Playwright para apps locais
@@ -99,6 +112,7 @@ No Codex, o GSD adicionou uma familia grande de comandos `gsd-*`, como:
 
 Para tarefas futuras neste repositorio, considere este pacote como o baseline de skills do projeto.
 Quando a demanda for de frontend ou UI, priorize `uncodixfy`, `ui-ux-pro-max`, `frontend-design` e as skills visuais e de validacao conforme necessario.
+Quando a demanda envolver gerar ou editar imagens, priorize `image-prompt-refiner` antes da skill de imagem.
 
 ## Observacao
 

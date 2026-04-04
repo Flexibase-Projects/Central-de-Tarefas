@@ -21,6 +21,7 @@ import { isGlobalAdminRoleName } from '@/lib/global-admin'
 import { useUsers } from '@/hooks/use-users'
 import { UserWithRole } from '@/types'
 import AppSurface from '@/components/system/AppSurface'
+import { appShellHeaderControlSx } from '@/components/layout/layout-shell'
 
 export function ViewAsUserButton() {
   const { realUserRole, isViewingAs, viewAsUser, startViewingAs, stopViewingAs } = useAuth()
@@ -48,40 +49,46 @@ export function ViewAsUserButton() {
 
   if (isViewingAs && viewAsUser) {
     return (
-      <AppSurface
-        compact
-        surface="interactive"
+      <Box
         sx={{
+          ...appShellHeaderControlSx,
           px: 1,
-          py: 0.5,
           display: 'flex',
           alignItems: 'center',
           gap: 0.75,
+          maxWidth: 380,
+          borderColor: 'divider',
+          '&:hover': {
+            bgcolor: 'action.hover',
+            borderColor: 'var(--border-strong)',
+          },
         }}
       >
         <Avatar
           src={viewAsUser.avatar_url ?? undefined}
-          sx={{ width: 22, height: 22, fontSize: 11 }}
+          sx={{ width: 24, height: 24, fontSize: 11 }}
         >
           {viewAsUser.name.charAt(0).toUpperCase()}
         </Avatar>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: 1 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, flexShrink: 0 }}>
             Vendo como
           </Typography>
-          <Typography variant="caption">{viewAsUser.name}</Typography>
+          <Typography variant="caption" noWrap sx={{ flex: 1, minWidth: 0 }}>
+            {viewAsUser.name}
+          </Typography>
         </Box>
         <Tooltip title="Sair do modo visualizacao">
           <Button
             size="small"
             color="inherit"
             onClick={stopViewingAs}
-            sx={{ minWidth: 0, px: 1, py: 0.2 }}
+            sx={{ minWidth: 0, px: 0.75, py: 0.25, flexShrink: 0 }}
           >
             <Close fontSize="small" />
           </Button>
         </Tooltip>
-      </AppSurface>
+      </Box>
     )
   }
 
@@ -93,20 +100,18 @@ export function ViewAsUserButton() {
             ref={anchorRef}
             size="small"
             variant="outlined"
-            startIcon={starting ? <CircularProgress size={14} /> : <Visibility />}
+            color="inherit"
+            startIcon={starting ? <CircularProgress size={14} color="inherit" /> : <Visibility />}
             onClick={() => setOpen((prev) => !prev)}
             disabled={starting}
             sx={{
+              ...appShellHeaderControlSx,
+              color: 'text.primary',
               textTransform: 'none',
               fontSize: 12,
-              height: 40,
               px: 1.25,
-              borderColor: 'divider',
-              bgcolor: 'background.paper',
-              '&:hover': {
-                borderColor: 'divider',
-                bgcolor: 'action.hover',
-              },
+              boxShadow: 'none',
+              '& .MuiButton-startIcon': { color: 'text.secondary' },
             }}
           >
             Ver como

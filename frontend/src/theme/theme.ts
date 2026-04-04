@@ -25,15 +25,15 @@ export function createAppTheme(mode: PaletteMode) {
         lineStrong: '#bcc7d4',
       }
     : {
-        bg: '#111418',
-        panel: '#171c22',
-        panelAlt: '#1d232b',
-        panelInteractive: '#202731',
-        text: '#edf1f5',
-        textMuted: '#a4afbb',
-        textSubtle: '#758192',
-        line: '#2a313b',
-        lineStrong: '#3a4451',
+        bg: '#0e0e0e',
+        panel: '#141414',
+        panelAlt: '#1a1a1a',
+        panelInteractive: '#222222',
+        text: '#ececec',
+        textMuted: '#a8a8a8',
+        textSubtle: '#787878',
+        line: '#2e2e2e',
+        lineStrong: '#404040',
       }
 
   const primary = {
@@ -56,13 +56,13 @@ export function createAppTheme(mode: PaletteMode) {
         main: primary.main,
         dark: primary.dark,
         light: light ? '#5e86d9' : '#9ab9ff',
-        contrastText: light ? '#ffffff' : '#0f141a',
+        contrastText: light ? '#ffffff' : '#0e0e0e',
       },
       secondary: {
-        main: light ? '#4f5965' : '#cad2dc',
-        dark: light ? '#313843' : '#a8b2bf',
-        light: light ? '#e6ebf1' : '#2b333d',
-        contrastText: light ? '#ffffff' : '#0f141a',
+        main: light ? '#4f5965' : '#c6c6c6',
+        dark: light ? '#313843' : '#9a9a9a',
+        light: light ? '#e6ebf1' : '#2a2a2a',
+        contrastText: light ? '#ffffff' : '#0e0e0e',
       },
       background: {
         default: neutrals.bg,
@@ -91,8 +91,8 @@ export function createAppTheme(mode: PaletteMode) {
         contrastText: light ? '#ffffff' : '#0f171d',
       },
       action: {
-        hover: light ? '#eef2f7' : '#202731',
-        selected: light ? '#e7edf7' : '#222d3a',
+        hover: light ? '#eef2f7' : '#262626',
+        selected: light ? '#e7edf7' : '#2c2c2c',
         focus: alpha(primary.main, light ? 0.18 : 0.28),
       },
     },
@@ -137,14 +137,14 @@ export function createAppTheme(mode: PaletteMode) {
             '--surface-default': neutrals.panel,
             '--surface-subtle': neutrals.panelAlt,
             '--surface-interactive': neutrals.panelInteractive,
-            '--surface-raised': light ? '#ffffff' : '#1b2129',
+            '--surface-raised': light ? '#ffffff' : '#1c1c1c',
             '--border-default': neutrals.line,
             '--border-strong': neutrals.lineStrong,
             '--text-primary': neutrals.text,
             '--text-secondary': neutrals.textMuted,
             '--text-subtle': neutrals.textSubtle,
-            '--status-neutral-bg': light ? '#edf1f6' : '#212831',
-            '--status-neutral-fg': light ? '#47515d' : '#c2cbd5',
+            '--status-neutral-bg': light ? '#edf1f6' : '#252525',
+            '--status-neutral-fg': light ? '#47515d' : '#c8c8c8',
             '--status-info-bg': light ? '#e2eef5' : alpha(statuses.info, 0.16),
             '--status-success-bg': light ? '#e3f1e8' : alpha(statuses.success, 0.16),
             '--status-warning-bg': light ? '#f7eedf' : alpha(statuses.warning, 0.18),
@@ -163,7 +163,7 @@ export function createAppTheme(mode: PaletteMode) {
           },
           '*': {
             scrollbarWidth: 'thin',
-            scrollbarColor: `${light ? '#aab5c2' : '#4a5564'} transparent`,
+            scrollbarColor: `${light ? '#aab5c2' : '#525252'} transparent`,
           },
           '*::-webkit-scrollbar': {
             width: 8,
@@ -173,7 +173,7 @@ export function createAppTheme(mode: PaletteMode) {
             backgroundColor: 'transparent',
           },
           '*::-webkit-scrollbar-thumb': {
-            backgroundColor: light ? '#aab5c2' : '#4a5564',
+            backgroundColor: light ? '#aab5c2' : '#525252',
             borderRadius: radii.xs,
           },
         },
@@ -258,7 +258,7 @@ export function createAppTheme(mode: PaletteMode) {
             borderColor: neutrals.lineStrong,
             backgroundColor: 'transparent',
             '&:hover': {
-              borderColor: light ? '#98a5b4' : '#566171',
+              borderColor: light ? '#98a5b4' : '#6e6e6e',
               backgroundColor: neutrals.panelAlt,
             },
           },
@@ -307,14 +307,14 @@ export function createAppTheme(mode: PaletteMode) {
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            backgroundColor: light ? '#171a1f' : '#edf1f5',
-            color: light ? '#edf1f5' : '#171a1f',
+            backgroundColor: light ? '#171a1f' : '#2a2a2a',
+            color: light ? '#edf1f5' : '#ececec',
             borderRadius: radii.xs,
             fontSize: '0.75rem',
             padding: '6px 8px',
           },
           arrow: {
-            color: light ? '#171a1f' : '#edf1f5',
+            color: light ? '#171a1f' : '#2a2a2a',
           },
         },
       },
@@ -327,7 +327,7 @@ export function createAppTheme(mode: PaletteMode) {
               borderColor: neutrals.lineStrong,
             },
             '&:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: light ? '#aab5c2' : '#566171',
+              borderColor: light ? '#aab5c2' : '#6e6e6e',
             },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
               borderWidth: 1,
@@ -403,7 +403,7 @@ export function createAppTheme(mode: PaletteMode) {
           root: {
             height: 6,
             borderRadius: radii.xs,
-            backgroundColor: light ? '#dde5ef' : '#27303a',
+            backgroundColor: light ? '#dde5ef' : '#333333',
           },
           bar: {
             borderRadius: radii.xs,

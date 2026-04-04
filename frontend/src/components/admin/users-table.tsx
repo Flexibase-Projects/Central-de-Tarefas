@@ -10,10 +10,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
   Stack,
   Table,
   TableBody,
@@ -24,11 +20,34 @@ import {
   Tooltip,
   Typography,
 } from '@/compat/mui/material'
+import { AdminThemedSelect } from '@/components/admin/admin-themed-select'
 import { ToggleOn, ToggleOff } from '@/compat/mui/icons-material'
 import { Plus } from '@/components/ui/icons'
+import { denseTableHeadCellSx, denseTableBodyCellSx } from '@/components/system/denseTableHeadCellSx'
 import { useAssignableUsersCatalog } from '@/hooks/use-assignable-users-catalog'
 import { useRoles } from '@/hooks/use-roles'
 import { useWorkspaceMembers } from '@/hooks/use-workspace-members'
+import type { WorkspaceManagedMember } from '@/types'
+
+/**
+ * Alinha o cargo do membro ao catálogo `/api/roles`: o backend pode mandar `role_id` vazio
+ * mas `role.name` / `role_key` preenchidos — o valor do &lt;select&gt; precisa ser o `id` real.
+ */
+function resolveMemberRoleCatalogId(
+  member: WorkspaceManagedMember,
+  catalog: Array<{ id: string; name: string }>,
+): string {
+  const rawId = member.role?.id?.trim() ?? ''
+  if (rawId && catalog.some((r) => r.id === rawId)) return rawId
+
+  const key = (member.role?.name ?? member.role_key ?? '').trim().toLowerCase()
+  if (key) {
+    const byName = catalog.find((r) => r.name.trim().toLowerCase() === key)
+    if (byName) return byName.id
+  }
+
+  return rawId
+}
 
 function getPreferredRoleId(roles: Array<{ id: string; name: string }>): string {
   if (roles.length === 0) return ''
@@ -146,22 +165,33 @@ export function UsersTable() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={1.5}>
-        <Box>
-          <Typography variant="h6" fontWeight={700}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'flex-start' }} gap={1}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.95rem' }}>
             Usuarios deste workspace
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Somente membros vinculados a esta workspace podem aparecer como responsaveis e atuar nos elementos locais.
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, lineHeight: 1.4, maxWidth: 520 }}>
+            Membros vinculados podem ser responsaveis nos fluxos locais.
           </Typography>
         </Box>
         <Button
-          variant="contained"
+          variant="outlined"
+          color="inherit"
           size="small"
-          startIcon={<Plus size={18} />}
+          startIcon={<Plus size={16} />}
           onClick={handleOpenAddDialog}
           disabled={rolesLoading}
+          sx={{
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            fontSize: 12,
+            fontWeight: 600,
+            py: 0.5,
+            px: 1.125,
+            minHeight: 32,
+            alignSelf: { xs: 'stretch', sm: 'center' },
+          }}
         >
           Adicionar usuario
         </Button>
@@ -179,12 +209,12 @@ export function UsersTable() {
       <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'action.hover' }}>
-              <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Cargo</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600 }}>
+            <TableRow>
+              <TableCell sx={denseTableHeadCellSx}>Nome</TableCell>
+              <TableCell sx={denseTableHeadCellSx}>Email</TableCell>
+              <TableCell sx={denseTableHeadCellSx}>Cargo</TableCell>
+              <TableCell sx={denseTableHeadCellSx}>Status</TableCell>
+              <TableCell align="right" sx={denseTableHeadCellSx}>
                 Acoes
               </TableCell>
             </TableRow>
@@ -201,53 +231,58 @@ export function UsersTable() {
             ) : (
               members.map((member) => (
                 <TableRow key={member.id} hover>
-                  <TableCell sx={{ fontWeight: 500 }}>
-                    <Stack direction="row" alignItems="center" gap={1}>
-                      <Typography variant="body2" fontWeight={600}>
+                  <TableCell
+                    sx={[
+                      denseTableBodyCellSx,
+                      { fontWeight: 500, verticalAlign: 'middle', py: 0.5 },
+                    ]}
+                  >
+                    <Stack direction="row" alignItems="center" gap={0.5} sx={{ flexWrap: 'wrap' }}>
+                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.8125rem', lineHeight: 1.3 }}>
                         {member.name}
                       </Typography>
                       {member.is_default ? (
-                        <Chip label="Principal" size="small" variant="outlined" sx={{ height: 20 }} />
+                        <Chip label="Principal" size="small" variant="outlined" sx={{ height: 18, fontSize: 10 }} />
                       ) : null}
                     </Stack>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                  <TableCell sx={[denseTableBodyCellSx, { verticalAlign: 'middle', py: 0.5 }]}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem', lineHeight: 1.35 }}>
                       {member.email || '-'}
                     </Typography>
                   </TableCell>
-                  <TableCell>
-                    <FormControl size="small" sx={{ minWidth: 180 }}>
-                      <InputLabel id={`workspace-role-${member.id}`}>Cargo</InputLabel>
-                      <Select
-                        labelId={`workspace-role-${member.id}`}
-                        value={member.role?.id ?? ''}
-                        label="Cargo"
-                        onChange={(event) => handleRoleChange(member.id, String(event.target.value))}
-                      >
-                        {roles.map((role) => (
-                          <MenuItem key={role.id} value={role.id}>
-                            {role.display_name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                  <TableCell sx={[denseTableBodyCellSx, { verticalAlign: 'middle', py: 0.5, maxWidth: 220 }]}>
+                    <Box sx={{ minWidth: 140, maxWidth: 220 }}>
+                      <AdminThemedSelect
+                        dense
+                        ariaLabel="Cargo no workspace"
+                        value={resolveMemberRoleCatalogId(member, roles)}
+                        fallbackLabel={member.role_display_name ?? member.role?.display_name ?? undefined}
+                        onChange={(roleId) => handleRoleChange(member.id, roleId)}
+                        options={roles.map((role) => ({
+                          value: role.id,
+                          label: role.display_name,
+                        }))}
+                      />
+                    </Box>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={[denseTableBodyCellSx, { verticalAlign: 'middle', py: 0.5 }]}>
                     <Chip
                       label={member.is_active ? 'Ativo' : 'Inativo'}
                       size="small"
                       color={member.is_active ? 'success' : 'default'}
                       variant="outlined"
+                      sx={{ height: 22, fontSize: 11, fontWeight: 600 }}
                     />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" sx={[denseTableBodyCellSx, { verticalAlign: 'middle', py: 0.5 }]}>
                     <Tooltip title={member.is_active ? 'Desativar neste workspace' : 'Reativar neste workspace'}>
                       <Button
                         size="small"
                         color={member.is_active ? 'success' : 'inherit'}
                         onClick={() => handleToggleActive(member.id, !member.is_active)}
                         startIcon={member.is_active ? <ToggleOn fontSize="small" /> : <ToggleOff fontSize="small" />}
+                        sx={{ py: 0.25, minHeight: 28, fontSize: 12, textTransform: 'none' }}
                       >
                         {member.is_active ? 'Ativo' : 'Reativar'}
                       </Button>
@@ -301,21 +336,16 @@ export function UsersTable() {
               noOptionsText="Nenhum usuario disponivel para vincular"
             />
 
-            <FormControl fullWidth>
-              <InputLabel id="workspace-add-role-label">Cargo</InputLabel>
-              <Select
-                labelId="workspace-add-role-label"
-                value={selectedRoleId}
-                label="Cargo"
-                onChange={(event) => setSelectedRoleId(String(event.target.value))}
-              >
-                {roles.map((role) => (
-                  <MenuItem key={role.id} value={role.id}>
-                    {role.display_name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <AdminThemedSelect
+              fullWidth
+              label="Cargo"
+              value={selectedRoleId}
+              onChange={setSelectedRoleId}
+              options={roles.map((role) => ({
+                value: role.id,
+                label: role.display_name,
+              }))}
+            />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -323,7 +353,8 @@ export function UsersTable() {
             Cancelar
           </Button>
           <Button
-            variant="contained"
+            variant="outlined"
+            color="inherit"
             onClick={handleConfirmAdd}
             disabled={saving || !selectedUserId || !selectedRoleId}
           >

@@ -16,9 +16,10 @@ function getSurfaceStyles(surface: ExtendedAppSurfaceVariant): SxProps<Theme> {
       default: theme.palette.background.paper,
       subtle: theme.palette.action.hover,
       raised: 'var(--surface-raised)',
+      /** No escuro, destaque neutro (evita lavado azul do primário); semântica fica nos StatusToken/badges. */
       interactive: theme.palette.mode === 'light'
         ? alpha(theme.palette.primary.main, 0.035)
-        : alpha(theme.palette.primary.main, 0.08),
+        : theme.palette.action.selected,
     }
 
     return {

@@ -131,6 +131,14 @@ const FRONTEND_ROUTES = [
   },
   {
     scope: 'Workspace',
+    route: '/w/:workspaceSlug/ranking',
+    type: 'Tela',
+    access: 'Autenticado + módulo Ranking disponível',
+    title: 'Ranking',
+    summary: 'Leaderboard gamificado do workspace com pódio, top 5 e leitura da posição atual do usuário.',
+  },
+  {
+    scope: 'Workspace',
     route: '/w/:workspaceSlug/conquistas',
     type: 'Tela',
     access: 'Autenticado + acesso ao workspace',
@@ -241,13 +249,14 @@ const MODULE_DESCRIPTIONS = {
   '/api/team-canvas': 'Estado persistido do canvas de equipe.',
   '/api/todos': 'Todos de projeto/atividade e reordenação.',
   '/api/users': 'Identidade de usuário, vínculo de cargo e bootstrap de conta.',
-  '/api/workspaces': 'Contexto, membros e catálogo do workspace atual.',
+  '/api/workspaces': 'Contexto, membros, perfil e ranking do workspace atual.',
 }
 
 const API_NOTES = [
   'GET /api/health é a única rota antes do authMiddleware.',
   'Depois do health check, todo /api/* passa pelo authMiddleware, que hidrata o usuário a partir do JWT quando ele existe.',
   'Os módulos montados com requireWorkspaceAccess exigem contexto do workspace e validam o vínculo do usuário antes da lógica do domínio.',
+  'GET /api/workspaces/:workspaceSlug/ranking entrega o snapshot do leaderboard usado pela tela de Ranking.',
   'Em produção, rotas não-API caem no build da SPA; rotas /api/* desconhecidas retornam 404 em JSON.',
 ]
 

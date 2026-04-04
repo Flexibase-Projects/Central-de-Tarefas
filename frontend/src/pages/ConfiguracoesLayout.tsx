@@ -40,19 +40,19 @@ export default function ConfiguracoesLayout() {
       <Box
         sx={{
           flexShrink: 0,
-          px: 3,
-          pt: 2.5,
+          px: { xs: 2, sm: 2.5 },
+          pt: 1.5,
           pb: 0,
           borderBottom: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',
         }}
       >
-        <Typography variant="h5" fontWeight={800} letterSpacing="-0.02em" color="text.primary">
+        <Typography variant="subtitle1" fontWeight={800} letterSpacing="-0.02em" color="text.primary" sx={{ fontSize: '1.05rem' }}>
           Configuracoes
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, mb: 1.5, maxWidth: 760 }}>
-          Visibilidade completa do que esta ativo nesta workspace. A aba Administracao libera a gestao de membros para administradores e gerentes do workspace.
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.15, mb: 1, maxWidth: 720, display: 'block', lineHeight: 1.45 }}>
+          Visibilidade do que esta ativo nesta workspace. Em Administracao: membros (perfil gerencial).
         </Typography>
         <Tabs
           value={tabValue}
@@ -60,8 +60,8 @@ export default function ConfiguracoesLayout() {
           variant="scrollable"
           scrollButtons="auto"
           sx={{
-            minHeight: 44,
-            '& .MuiTab-root': { minHeight: 44, textTransform: 'none', fontWeight: 600, fontSize: '0.875rem' },
+            minHeight: 36,
+            '& > button': { minHeight: 36, paddingLeft: 1, paddingRight: 1, fontSize: 13 },
           }}
         >
           {visibleTabs.map((tab) => (

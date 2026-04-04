@@ -1,8 +1,6 @@
 import { memo, type CSSProperties } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Avatar, Box, Chip, Typography } from '@/compat/mui/material'
-import type { Theme } from '@/compat/mui/styles'
-
+import { Avatar, Box, Chip, Typography, useTheme } from '@/compat/mui/material'
 export const HANDLE_CLASS = 'cdt-rf-handle'
 
 /**
@@ -21,7 +19,7 @@ export function flowHandleStyle(accent: string, opts?: { connectable?: boolean }
     border: `2px solid ${accent}`,
     background: 'rgba(255,255,255,0.95)',
     boxSizing: 'border-box',
-    boxShadow: '0 0 0 1px rgba(15,23,42,0.08)',
+    boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
     opacity: connectable ? 0.38 : 0.2,
   }
 }
@@ -43,8 +41,9 @@ function formatResponsiblesLine(list: NonNullable<DeptFlowData['responsibles']>)
 }
 
 export const DepartmentCostNode = memo(function DepartmentCostNode({ data }: NodeProps) {
+  const theme = useTheme()
   const d = data as DeptFlowData
-  const accent = d.highlighted ? '#818cf8' : '#6366f1'
+  const accent = d.highlighted ? '#a855f7' : theme.palette.text.secondary
   const resp = d.responsibles ?? []
   const respText = formatResponsiblesLine(resp)
   return (
@@ -58,15 +57,9 @@ export const DepartmentCostNode = memo(function DepartmentCostNode({ data }: Nod
         py: 1.5,
         borderRadius: 2,
         border: '2px solid',
-        borderColor: d.highlighted ? 'primary.main' : 'divider',
-        bgcolor: d.highlighted ? 'primary.dark' : 'background.paper',
-        background: (t: Theme) =>
-          d.highlighted
-            ? t.palette.mode === 'dark'
-              ? 'linear-gradient(135deg, rgba(99,102,241,0.35) 0%, rgba(30,27,75,0.9) 100%)'
-              : 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, #fff 100%)'
-            : undefined,
-        boxShadow: d.highlighted ? 6 : 1,
+        borderColor: 'divider',
+        bgcolor: d.highlighted ? 'action.selected' : 'background.paper',
+        boxShadow: d.highlighted ? 3 : 1,
         [`&:hover .${HANDLE_CLASS}`]: { opacity: 1 },
       }}
     >
@@ -124,9 +117,10 @@ export type CostFlowData = {
 }
 
 export const CostItemFlowNode = memo(function CostItemFlowNode({ data }: NodeProps) {
+  const theme = useTheme()
   const d = data as CostFlowData
   const fmt = d.amount.toLocaleString('pt-BR', { style: 'currency', currency: d.currency || 'BRL' })
-  const accent = d.highlighted ? '#c084fc' : '#9333ea'
+  const accent = d.highlighted ? '#a855f7' : theme.palette.text.secondary
   return (
     <Box
       className="cdt-rf-node"
@@ -144,20 +138,20 @@ export const CostItemFlowNode = memo(function CostItemFlowNode({ data }: NodePro
           py: 1,
           borderRadius: 2,
           border: '1px solid',
-          borderColor: d.highlighted ? 'secondary.main' : 'divider',
+          borderColor: 'divider',
           bgcolor: d.highlighted ? 'action.selected' : 'background.paper',
           cursor: 'pointer',
           transition: 'transform 0.15s, box-shadow 0.15s',
           '&:hover': {
             boxShadow: 2,
-            borderColor: 'secondary.light',
+            borderColor: 'var(--border-strong)',
           },
         }}
       >
         <Typography variant="subtitle2" fontWeight={600} noWrap>
           {d.name}
         </Typography>
-        <Typography variant="body2" color="primary.light">
+        <Typography variant="body2" color="text.primary">
           {fmt}
         </Typography>
         <Chip label={d.status} size="small" sx={{ mt: 0.5, height: 22, fontSize: '0.65rem' }} />
@@ -181,9 +175,10 @@ export type MemberFlowData = {
 }
 
 export const MemberFlowNode = memo(function MemberFlowNode({ data }: NodeProps) {
+  const theme = useTheme()
   const d = data as MemberFlowData
   const fmt = d.monthlyCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-  const accent = d.highlighted ? '#4ade80' : '#22c55e'
+  const accent = d.highlighted ? '#22c55e' : theme.palette.text.secondary
   return (
     <Box
       className="cdt-rf-node"
@@ -194,7 +189,7 @@ export const MemberFlowNode = memo(function MemberFlowNode({ data }: NodeProps) 
         py: 1,
         borderRadius: 2,
         border: '1px solid',
-        borderColor: d.highlighted ? 'success.main' : 'divider',
+        borderColor: 'divider',
         bgcolor: d.highlighted ? 'action.selected' : 'background.paper',
         display: 'flex',
         alignItems: 'center',

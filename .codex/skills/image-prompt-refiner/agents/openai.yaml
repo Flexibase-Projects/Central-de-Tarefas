@@ -1,0 +1,4 @@
+interface:
+  display_name: "Image Prompt Refiner"
+  short_description: "Refina prompts antes de gerar imagens"
+  default_prompt: "Use $image-prompt-refiner to refine my image prompt before generating anything."

@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useNavigate } from 'react-router-dom'
 import { Notification } from '@/types'
+import { appShellHeaderControlSx } from '@/components/layout/layout-shell'
 
 function getNotificationRoute(notification: Notification): string | null {
   const message = notification.message?.toLowerCase() ?? ''
@@ -136,18 +137,18 @@ export function NotificationsDropdown() {
           aria-expanded={open ? 'true' : undefined}
           size="small"
           sx={{
+            ...appShellHeaderControlSx,
             width: 40,
-            height: 40,
-            bgcolor: 'background.paper',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-            '&:hover': {
-              bgcolor: 'action.hover',
-            },
+            minWidth: 40,
+            padding: 0,
+            flexShrink: 0,
             ...(unreadCount > 0 && {
               color: 'primary.main',
               borderColor: 'primary.light',
+              '&:hover': {
+                bgcolor: 'action.hover',
+                borderColor: 'primary.main',
+              },
             }),
           }}
         >

@@ -429,6 +429,38 @@ export interface WorkspaceTeamGamificationSummaryState {
   summary: WorkspaceTeamGamificationSummaryData | null
 }
 
+export interface WorkspaceRankingEntry {
+  position: number
+  user_id: string
+  name: string
+  avatar_url: string | null
+  level: number
+  total_xp: number
+  unlocked_achievements: number
+}
+
+export interface WorkspaceRankingData {
+  total_members: number
+  active_with_xp: number
+  average_level: number
+  average_xp: number
+  total_unlocked_achievements: number
+  leaderboard: WorkspaceRankingEntry[]
+  current_user: WorkspaceRankingEntry | null
+  gap_to_next: {
+    position: number
+    name: string
+    xp_difference: number
+  } | null
+}
+
+export interface WorkspaceRankingResponse {
+  workspace: WorkspaceContextSummary
+  enabled: boolean
+  reason?: string | null
+  ranking: WorkspaceRankingData | null
+}
+
 export interface WorkspaceProfileResponse {
   workspace: WorkspaceContextSummary
   membership: WorkspaceMembershipContext

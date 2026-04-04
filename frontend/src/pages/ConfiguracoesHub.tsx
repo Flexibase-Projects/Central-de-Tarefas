@@ -55,112 +55,112 @@ export default function ConfiguracoesHub() {
   }
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1120 }}>
-      <Stack direction="row" alignItems="center" gap={1.5} sx={{ mb: 2 }}>
+    <Box sx={{ p: { xs: 1.75, sm: 2 }, maxWidth: 1120 }}>
+      <Stack direction="row" alignItems="center" gap={1.25} sx={{ mb: 1.5 }}>
         <Box
           sx={{
-            width: 44,
-            height: 44,
-            borderRadius: 2,
+            width: 36,
+            height: 36,
+            borderRadius: 1.5,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: (theme: Theme) => (theme.palette.mode === 'dark' ? 'rgba(96,165,250,0.12)' : 'rgba(37,99,235,0.08)'),
-            color: 'primary.main',
+            bgcolor: 'action.hover',
+            color: 'text.secondary',
+            flexShrink: 0,
           }}
         >
-          <Settings size={22} />
+          <Settings size={18} />
         </Box>
-        <Box>
-          <Typography variant="h5" fontWeight={800} letterSpacing="-0.02em">
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="subtitle1" fontWeight={800} letterSpacing="-0.02em" sx={{ fontSize: '1.05rem', lineHeight: 1.25 }}>
             Workspace atual
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Visao centralizada do que esta ativo nesta workspace e dos recursos de gestao disponiveis no seu perfil.
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.4 }}>
+            O que esta ativo nesta workspace e recursos do seu perfil.
           </Typography>
         </Box>
       </Stack>
 
-      <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mb: 3 }}>
+      <Stack direction="row" gap={0.75} flexWrap="wrap" sx={{ mb: 2 }}>
         <Chip label={workspace?.name ?? currentWorkspace?.name ?? 'Workspace'} />
         {workspace?.slug ? <Chip label={`slug: ${workspace.slug}`} variant="outlined" /> : null}
-        {membership?.role_display_name ? <Chip label={membership.role_display_name} color="primary" variant="outlined" /> : null}
+        {membership?.role_display_name ? <Chip label={membership.role_display_name} variant="outlined" /> : null}
         {canManageWorkspace ? <Chip label="Perfil gerencial" color="success" variant="outlined" /> : null}
       </Stack>
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
-        <Card variant="outlined" sx={{ flex: 1, borderRadius: 2 }}>
-          <CardContent>
-            <Typography variant="overline" color="text.secondary">
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+        <Card variant="outlined" sx={{ flex: 1, borderRadius: 1.5 }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Typography variant="overline" color="text.secondary" sx={{ fontSize: 10, lineHeight: 1.2 }}>
               Pessoas
             </Typography>
-            <Typography variant="h4" fontWeight={800}>
+            <Typography variant="h5" fontWeight={800} sx={{ mt: 0.25, lineHeight: 1.15 }}>
               {membersLoading ? '--' : activeMembersCount}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              usuarios ativos nesta workspace
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+              ativos nesta workspace
             </Typography>
             {inactiveMembersCount > 0 ? (
-              <Typography variant="caption" color="text.secondary">
-                {inactiveMembersCount} vinculacoes inativas registradas
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.35 }}>
+                {inactiveMembersCount} inativos
               </Typography>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card variant="outlined" sx={{ flex: 1, borderRadius: 2 }}>
-          <CardContent>
-            <Typography variant="overline" color="text.secondary">
-              Elementos ativos
+        <Card variant="outlined" sx={{ flex: 1, borderRadius: 1.5 }}>
+          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Typography variant="overline" color="text.secondary" sx={{ fontSize: 10, lineHeight: 1.2 }}>
+              Elementos
             </Typography>
-            <Typography variant="h4" fontWeight={800}>
+            <Typography variant="h5" fontWeight={800} sx={{ mt: 0.25, lineHeight: 1.15 }}>
               {activeModules.length}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              modulos habilitados para esta workspace
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Organograma, custos, canvas e demais ferramentas agora variam por workspace.
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+              modulos habilitados
             </Typography>
           </CardContent>
         </Card>
       </Stack>
 
       {activeMembersCount === 0 ? (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 2, py: 0.75 }}>
           Esta workspace precisa manter ao menos um usuario ativo. Sem isso, os responsaveis locais deixam de funcionar.
         </Alert>
       ) : null}
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
-          Elementos ativos nesta workspace
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.35 }}>
+          Modulos e rotas
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Cada card abaixo representa um elemento local da workspace atual. Nao ha mais compartilhamento automatico com outra workspace.
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 1.25, display: 'block', lineHeight: 1.45 }}>
+          Um card por elemento habilitado nesta workspace.
         </Typography>
 
         {visibleModuleCards.length === 0 ? (
-          <Alert severity="info">Nenhum elemento adicional esta habilitado nesta workspace.</Alert>
+          <Alert severity="info" sx={{ py: 0.75 }}>
+            Nenhum elemento adicional habilitado.
+          </Alert>
         ) : (
-          <Stack spacing={2}>
+          <Stack spacing={1.25}>
             {visibleModuleCards.map((card) => {
               const content = (
-                <CardContent sx={{ display: 'flex', gap: 2, py: 2.5 }}>
+                <CardContent sx={{ display: 'flex', gap: 1.5, py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mb: 0.75 }}>
-                      <Typography variant="subtitle1" fontWeight={700}>
+                    <Stack direction="row" alignItems="center" gap={0.75} flexWrap="wrap" sx={{ mb: 0.35 }}>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.9rem' }}>
                         {card.title}
                       </Typography>
                       <Chip label="Ativo nesta workspace" size="small" color="success" variant="outlined" />
                       {card.managerialOnly ? (
-                        <Chip label="Gestao gerencial" size="small" color="primary" variant="outlined" />
+                        <Chip label="Gestao gerencial" size="small" variant="outlined" />
                       ) : null}
                       {card.maintenance ? (
                         <Chip label="Interface em manutencao" size="small" color="warning" variant="outlined" />
                       ) : null}
                     </Stack>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.45, display: 'block' }}>
                       {card.description}
                     </Typography>
                   </Box>
@@ -178,7 +178,7 @@ export default function ConfiguracoesHub() {
                     transition: 'border-color 0.2s, box-shadow 0.2s',
                     '&:hover': canOpen
                       ? {
-                          borderColor: 'primary.main',
+                          borderColor: 'var(--border-strong)',
                           boxShadow: (theme: Theme) =>
                             theme.palette.mode === 'light' ? '0 8px 24px rgba(15,23,42,0.08)' : 8,
                         }
@@ -203,18 +203,18 @@ export default function ConfiguracoesHub() {
       </Box>
 
       <Box>
-        <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
-          Gestao da workspace
+        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.75 }}>
+          Gestao
         </Typography>
         {canManageWorkspace ? (
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
+          <Card variant="outlined" sx={{ borderRadius: 1.5 }}>
             <CardActionArea onClick={() => navigate(buildWorkspacePath(workspaceSlug, '/configuracoes/administracao'))}>
-              <CardContent sx={{ display: 'flex', gap: 2, py: 2.5 }}>
+              <CardContent sx={{ display: 'flex', gap: 1.5, py: 1.25, px: 1.5, '&:last-child': { pb: 1.25 } }}>
                 <Box
                   sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 1.5,
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1.25,
                     flexShrink: 0,
                     display: 'flex',
                     alignItems: 'center',
@@ -223,24 +223,24 @@ export default function ConfiguracoesHub() {
                     color: 'text.secondary',
                   }}
                 >
-                  <Security size={22} />
+                  <Security size={18} />
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mb: 0.5 }}>
-                    <Typography variant="subtitle1" fontWeight={700}>
+                  <Stack direction="row" alignItems="center" gap={0.75} flexWrap="wrap" sx={{ mb: 0.25 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
                       Administracao
                     </Typography>
-                    <Chip label="Usuarios da workspace" size="small" color="primary" variant="outlined" sx={{ height: 22 }} />
+                    <Chip label="Membros" size="small" variant="outlined" sx={{ height: 20, fontSize: 10 }} />
                   </Stack>
-                  <Typography variant="body2" color="text.secondary">
-                    Gerencie membros desta workspace sem sair da area de configuracoes. Administradores globais continuam com acesso extra a cargos, permissoes e conquistas.
+                  <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.45, display: 'block' }}>
+                    Membros da workspace; admin global: cargos, permissoes e conquistas.
                   </Typography>
                 </Box>
               </CardContent>
             </CardActionArea>
           </Card>
         ) : (
-          <Alert severity="info">
+          <Alert severity="info" sx={{ py: 0.75 }}>
             Seu perfil atual pode visualizar os elementos ativos desta workspace, mas a gestao de membros exige perfil gerencial.
           </Alert>
         )}

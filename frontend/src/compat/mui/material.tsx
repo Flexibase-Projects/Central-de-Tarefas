@@ -90,10 +90,11 @@ function ensureNode(children: React.ReactNode) {
 
 function useCompatClassName(baseSx: SxProps<Theme> | Record<string, unknown> | undefined, props: Record<string, unknown>) {
   const { system, rest } = splitSystemProps(props)
-  const className = useSxClassName(mergeSx(baseSx, system, rest.sx))
+  const { sx: propsSX, className: propsClassName, ...domRest } = rest
+  const className = useSxClassName(mergeSx(baseSx, system, propsSX))
   return {
-    className: cn(className, rest.className),
-    rest,
+    className: cn(className, propsClassName as string | undefined),
+    rest: domRest,
   }
 }
 
@@ -788,8 +789,8 @@ export const Tab: any = function Tab({ label, value, icon, disabled, style, ...r
       paddingLeft: 1.5,
       paddingRight: 1.5,
       borderBottom: '2px solid',
-      borderColor: selected ? 'primary.main' : 'transparent',
-      color: selected ? 'primary.main' : 'text.secondary',
+      borderColor: selected ? 'text.primary' : 'transparent',
+      color: selected ? 'text.primary' : 'text.secondary',
       fontWeight: 600,
       backgroundColor: 'transparent',
       '&:hover': {
@@ -1304,6 +1305,7 @@ function FieldFrame({
   InputProps,
   children,
   rootSx,
+  compact,
 }) {
   const wrapperClass = useSxClassName(
     mergeSx(
@@ -1318,14 +1320,15 @@ function FieldFrame({
   const fieldClass = useSxClassName({
     display: 'flex',
     alignItems: 'center',
-    gap: 0.5,
+    gap: compact ? 0.25 : 0.5,
     width: '100%',
     borderRadius: 'var(--radius-md)',
     border: '1px solid',
     borderColor: error ? 'error.main' : 'divider',
     backgroundColor: 'background.paper',
-    paddingLeft: 1,
-    paddingRight: 1,
+    paddingLeft: compact ? 0.625 : 1,
+    paddingRight: compact ? 0.5 : 1,
+    minHeight: compact ? 30 : undefined,
     '&:focus-within': {
       borderColor: 'primary.main',
       boxShadow: '0 0 0 3px rgba(62, 99, 184, 0.12)',
@@ -1334,7 +1337,16 @@ function FieldFrame({
 
   return (
     <div className={wrapperClass}>
-      {label ? <label className="MuiInputLabel-root mb-1 block text-[13px] font-semibold text-[var(--text-secondary)]">{label}</label> : null}
+      {label ? (
+        <label
+          className={cn(
+            'MuiInputLabel-root block text-[13px] font-semibold text-[var(--text-secondary)]',
+            compact ? 'mb-0.5' : 'mb-1',
+          )}
+        >
+          {label}
+        </label>
+      ) : null}
       <div className={cn('MuiInputBase-root MuiOutlinedInput-root relative', fieldClass)}>
         {InputProps?.startAdornment ? <span className="MuiInputAdornment-root inline-flex items-center">{InputProps.startAdornment}</span> : null}
         <span className="MuiOutlinedInput-notchedOutline pointer-events-none absolute inset-0 rounded-[inherit] border border-transparent" />
@@ -1349,17 +1361,19 @@ function FieldFrame({
 }
 
 export const Select: any = function Select({ children, style, ...props }) {
-  const { label, fullWidth, margin, InputProps, error, helperText, ...restProps } = props
+  const { label, fullWidth, margin, InputProps, error, helperText, sx, dense, ...restProps } = props
   const { className, rest } = useCompatClassName(
     {
       width: '100%',
-      minHeight: 40,
+      minHeight: dense ? 28 : 40,
       border: 'none',
       outline: 'none',
       backgroundColor: 'transparent',
       color: 'text.primary',
-      paddingTop: 1,
-      paddingBottom: 1,
+      paddingTop: dense ? 0.25 : 1,
+      paddingBottom: dense ? 0.25 : 1,
+      fontSize: dense ? '0.8125rem' : undefined,
+      lineHeight: dense ? 1.25 : undefined,
       appearance: 'none',
       cursor: 'pointer',
     },
@@ -1368,14 +1382,16 @@ export const Select: any = function Select({ children, style, ...props }) {
   return (
     <FieldFrame
       label={label}
+      compact={Boolean(dense)}
       fullWidth={fullWidth}
       margin={margin}
+      rootSx={sx}
       InputProps={{
         ...InputProps,
         endAdornment: (
           <>
             {InputProps?.endAdornment}
-            <ChevronDown size={16} />
+            <ChevronDown size={dense ? 14 : 16} />
           </>
         ),
       }}
@@ -1527,7 +1543,13 @@ export const Switch: any = function Switch({ checked, onChange, disabled, inputP
       width: 38,
       height: 22,
       borderRadius: '999px',
-      backgroundColor: checked ? 'primary.main' : theme.palette.mode === 'light' ? '#cbd5e1' : '#334155',
+      backgroundColor: checked
+        ? theme.palette.mode === 'light'
+          ? theme.palette.text.primary
+          : '#5a5a5a'
+        : theme.palette.mode === 'light'
+          ? theme.palette.divider
+          : '#363636',
       transition: 'background-color 160ms ease',
       cursor: disabled ? 'not-allowed' : 'pointer',
       '&::after': {
@@ -1735,7 +1757,6 @@ export const Snackbar: any = function Snackbar({
 }
 
 export const Collapse: any = function Collapse({ in: isOpen, unmountOnExit, children, style, ...restProps }) {
-  if (!isOpen && unmountOnExit) return null
   const { className, rest } = useCompatClassName(
     {
       display: isOpen ? 'block' : 'none',
@@ -1743,6 +1764,9 @@ export const Collapse: any = function Collapse({ in: isOpen, unmountOnExit, chil
     },
     restProps,
   )
+
+  if (!isOpen && unmountOnExit) return null
+
   return (
     <div {...rest} className={className} style={style}>
       {children}

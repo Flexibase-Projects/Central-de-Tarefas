@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
+  Avatar,
   Box,
-  Fab,
   FormControlLabel,
   InputAdornment,
   MenuItem,
@@ -17,6 +17,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@/compat/mui/material'
 import { Search } from 'lucide-react'
@@ -44,6 +45,12 @@ import {
   readExecutionViewPreference,
   writeExecutionViewPreference,
 } from '@/lib/execution-views'
+import {
+  compactScopeToggleLabelSx,
+  executionSearchFieldWrapperWideSx,
+} from '@/components/filters/execution-filters'
+import { AppFloatingActionIconButton } from '@/components/system/AppFloatingActionIconButton'
+import { denseTableHeadCellSx } from '@/components/system/denseTableHeadCellSx'
 
 async function findActivityIdByTodo(params: {
   activityIds: string[]
@@ -119,9 +126,7 @@ export default function Atividades() {
     )
   }, [summaryRows])
 
-  const userNameById = useMemo(() => {
-    return new Map(users.map((user) => [user.id, user.name]))
-  }, [users])
+  const userById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users])
 
   const projectsAsActivities: Project[] = useMemo(
     () =>
@@ -299,41 +304,102 @@ export default function Atividades() {
 
   return (
     <ProtectedRoute permission="access_atividades">
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', p: { xs: 2, md: 3 }, gap: 2 }}>
-        <AppSurface surface="subtle">
+      <Box
+        sx={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          overflow: 'hidden',
+          p: { xs: 1.5, md: 2 },
+          gap: 1.25,
+        }}
+      >
+        <AppSurface surface="subtle" compact>
           <SectionHeader
+            compact
             title="Atividades"
-            description="Fila operacional com foco em prazo, responsável e leitura densa. O Kanban continua disponível para visão macro da equipe."
-            sx={{ pb: 1.5 }}
+            description="Organize por prazo, responsável e status. Use a lista para leitura densa ou o Kanban para visão macro."
+            sx={{
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              pb: 1.25,
+              mb: 0.5,
+            }}
           />
 
-          <Stack spacing={1.5}>
-            <Tabs value={activeView} onChange={handleViewChange}>
-              <Tab value="list" label="Lista" />
-              <Tab value="kanban" label="Kanban" />
-            </Tabs>
-
-            <Stack direction={{ xs: 'column', xl: 'row' }} spacing={1.25} useFlexGap sx={{ flexWrap: 'wrap' }}>
-              <TextField
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar por nome ou descrição"
-                sx={{ minWidth: { xl: 320 } }}
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search size={16} />
-                    </InputAdornment>
-                  ),
+          <Stack spacing={1.125}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'stretch', sm: 'center' },
+                justifyContent: 'space-between',
+                gap: 0.75,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Tabs
+                value={activeView}
+                onChange={handleViewChange}
+                sx={{
+                  flex: '1 1 auto',
+                  minWidth: 0,
+                  '& > button': {
+                    minHeight: 34,
+                    paddingLeft: 1,
+                    paddingRight: 1,
+                    fontSize: 13,
+                  },
                 }}
-              />
+              >
+                <Tab value="list" label="Lista" />
+                <Tab value="kanban" label="Kanban" />
+              </Tabs>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
+                <StatusToken tone="neutral">
+                  {filteredActivities.length} atividade{filteredActivities.length === 1 ? '' : 's'} na vista
+                </StatusToken>
+                <StatusToken tone="neutral">
+                  {activeView === 'list' ? 'Lista padrão por perfil' : 'Kanban secundário'}
+                </StatusToken>
+                {summaryError ? <StatusToken tone="warning">Resumo operacional parcial</StatusToken> : null}
+              </Stack>
+            </Box>
+
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={0.875}
+              useFlexGap
+              sx={{
+                flexWrap: 'wrap',
+                alignItems: { xs: 'stretch', md: 'flex-end' },
+                alignContent: { md: 'flex-end' },
+                rowGap: { md: 0.875 },
+              }}
+            >
+              <Box sx={executionSearchFieldWrapperWideSx}>
+                <TextField
+                  label="Buscar"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Nome ou descrição"
+                  fullWidth
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={16} />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
               <TextField
                 select
                 label="Status"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as 'all' | Activity['status'])}
-                sx={{ minWidth: 170 }}
+                sx={{ minWidth: { md: 148 }, width: { xs: '100%', md: 'auto' }, flex: { md: '0 1 auto' } }}
               >
                 <MenuItem value="all">Todos</MenuItem>
                 <MenuItem value="backlog">{getStatusLabel('backlog')}</MenuItem>
@@ -347,7 +413,7 @@ export default function Atividades() {
                 label="Prioridade"
                 value={priorityFilter}
                 onChange={(event) => setPriorityFilter(event.target.value as 'all' | Activity['priority'])}
-                sx={{ minWidth: 170 }}
+                sx={{ minWidth: { md: 148 }, width: { xs: '100%', md: 'auto' }, flex: { md: '0 1 auto' } }}
               >
                 <MenuItem value="all">Todas</MenuItem>
                 <MenuItem value="low">Baixa</MenuItem>
@@ -359,7 +425,7 @@ export default function Atividades() {
                 label="Prazo"
                 value={deadlineFilter}
                 onChange={(event) => setDeadlineFilter(event.target.value as 'all' | 'overdue' | 'next_7d' | 'no_deadline')}
-                sx={{ minWidth: 170 }}
+                sx={{ minWidth: { md: 158 }, width: { xs: '100%', md: 'auto' }, flex: { md: '0 1 auto' } }}
               >
                 <MenuItem value="all">Todos</MenuItem>
                 <MenuItem value="overdue">Atrasadas</MenuItem>
@@ -371,7 +437,7 @@ export default function Atividades() {
                 label="Responsável"
                 value={assigneeFilter}
                 onChange={(event) => setAssigneeFilter(event.target.value)}
-                sx={{ minWidth: 200 }}
+                sx={{ minWidth: { md: 168 }, width: { xs: '100%', md: 'auto' }, flex: { md: '1 1 160px' }, maxWidth: { md: 240 } }}
               >
                 <MenuItem value="all">Todos</MenuItem>
                 <MenuItem value="unassigned">Sem responsável</MenuItem>
@@ -383,18 +449,10 @@ export default function Atividades() {
               </TextField>
               <FormControlLabel
                 control={<Switch checked={onlyMine} onChange={(event) => setOnlyMine(event.target.checked)} />}
-                label="Apenas minhas"
+                label="Só minhas"
+                title="Apenas atividades atribuídas a você ou criadas por você"
+                sx={compactScopeToggleLabelSx('md')}
               />
-            </Stack>
-
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <StatusToken tone="neutral">
-                {filteredActivities.length} atividade{filteredActivities.length === 1 ? '' : 's'} na vista
-              </StatusToken>
-              <StatusToken tone="info">
-                {activeView === 'list' ? 'Lista padrão por perfil' : 'Kanban secundário'}
-              </StatusToken>
-              {summaryError ? <StatusToken tone="warning">Resumo operacional parcial</StatusToken> : null}
             </Stack>
           </Stack>
         </AppSurface>
@@ -416,7 +474,7 @@ export default function Atividades() {
               minHeight="100%"
             />
           ) : activeView === 'kanban' ? (
-            <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <Box sx={{ height: '100%', overflow: 'hidden', px: { xs: 0, md: 0 } }}>
               <KanbanBoard
                 projects={filteredProjectsAsActivities}
                 onProjectMove={handleProjectMove}
@@ -429,19 +487,23 @@ export default function Atividades() {
                 <Table stickyHeader size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Atividade</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Prioridade</TableCell>
-                      <TableCell>Prazo</TableCell>
-                      <TableCell>Responsável</TableCell>
-                      <TableCell align="right">Meus to-dos</TableCell>
-                      <TableCell align="right">Abertos</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Atividade</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Status</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Prioridade</TableCell>
+                      <TableCell sx={denseTableHeadCellSx}>Prazo</TableCell>
+                      <TableCell
+                        title="Responsável"
+                        align="center"
+                        sx={[denseTableHeadCellSx, { width: 44, maxWidth: 48, px: 0.75 }]}
+                      >
+                        Resp.
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredActivities.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={5}>
                           <Box sx={{ py: 6, textAlign: 'center' }}>
                             <Typography variant="body2" color="text.secondary">
                               Nenhuma atividade corresponde aos filtros atuais.
@@ -451,7 +513,8 @@ export default function Atividades() {
                       </TableRow>
                     ) : (
                       filteredActivities.map((activity) => {
-                        const summary = summaryByActivityId.get(activity.id)
+                        const overdue = isOverdueDate(activity.due_date)
+                        const assignee = activity.assigned_to ? userById.get(activity.assigned_to) : null
                         return (
                           <TableRow
                             key={activity.id}
@@ -478,14 +541,31 @@ export default function Atividades() {
                               </StatusToken>
                             </TableCell>
                             <TableCell>{getPriorityLabel(activity.priority)}</TableCell>
-                            <TableCell>
-                              <StatusToken tone={isOverdueDate(activity.due_date) ? 'danger' : 'neutral'}>
-                                {formatDatePtBr(activity.due_date, 'Sem prazo')}
-                              </StatusToken>
+                            <TableCell
+                              sx={{
+                                color: overdue ? 'error.main' : undefined,
+                                fontWeight: overdue ? 600 : undefined,
+                              }}
+                            >
+                              {formatDatePtBr(activity.due_date, 'Sem prazo')}
                             </TableCell>
-                            <TableCell>{activity.assigned_to ? userNameById.get(activity.assigned_to) ?? 'Usuário' : 'Sem responsável'}</TableCell>
-                            <TableCell align="right">{summary?.myAssignedOpenCount ?? 0}</TableCell>
-                            <TableCell align="right">{summary?.totalOpenCount ?? 0}</TableCell>
+                            <TableCell align="center" sx={{ width: 44, maxWidth: 48, px: 0.5 }}>
+                              {assignee ? (
+                                <Tooltip title={assignee.name} placement="left" arrow>
+                                  <Avatar
+                                    src={assignee.avatar_url ?? undefined}
+                                    alt=""
+                                    sx={{ width: 28, height: 28, fontSize: 12, mx: 'auto' }}
+                                  >
+                                    {assignee.name?.[0]?.toUpperCase() ?? '?'}
+                                  </Avatar>
+                                </Tooltip>
+                              ) : (
+                                <Typography variant="caption" color="text.disabled" component="span">
+                                  —
+                                </Typography>
+                              )}
+                            </TableCell>
                           </TableRow>
                         )
                       })
@@ -498,14 +578,9 @@ export default function Atividades() {
         </Box>
 
         {isAdmin && (
-          <Fab
-            color="primary"
-            aria-label="Nova atividade"
-            onClick={() => setIsCreateDialogOpen(true)}
-            sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 1200 }}
-          >
-            <Plus size={24} />
-          </Fab>
+          <AppFloatingActionIconButton aria-label="Nova atividade" onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus size={20} strokeWidth={2.25} />
+          </AppFloatingActionIconButton>
         )}
 
         <CreateActivityDialog
