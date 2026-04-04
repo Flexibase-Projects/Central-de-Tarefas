@@ -333,7 +333,22 @@ export default function Ranking() {
             </Typography>
           </Box>
 
-          <Button variant="outlined" onClick={() => void refresh()} disabled={loading}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            onClick={() => void refresh()}
+            disabled={loading}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              borderColor: 'divider',
+              color: 'text.primary',
+              '&:hover': {
+                borderColor: 'text.secondary',
+                bgcolor: 'action.hover',
+              },
+            }}
+          >
             {loading ? 'Atualizando...' : 'Atualizar painel'}
           </Button>
         </Stack>

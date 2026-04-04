@@ -1,6 +1,6 @@
 {
   "name": "cdt-inteligencia",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Central de Tarefas do Departamento de Inteligência da Flexibase",
   "private": true,
   "workspaces": [

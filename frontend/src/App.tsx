@@ -17,6 +17,7 @@ import CustosDepartamento from './pages/CustosDepartamento'
 import Dashboard from './pages/Dashboard'
 import Desenvolvimentos from './pages/Desenvolvimentos'
 import Indicadores from './pages/Indicadores'
+import { FloatingPreLoginThemeToggleHost } from './components/system/FloatingPreLoginThemeToggle'
 import Login from './pages/Login'
 import Mapa from './pages/Mapa'
 import Niveis from './pages/Niveis'
@@ -200,6 +201,7 @@ function App() {
       }}
     >
       <AuthProvider>
+        <FloatingPreLoginThemeToggleHost />
         <Routes>
           <Route
             path="/admin/login"

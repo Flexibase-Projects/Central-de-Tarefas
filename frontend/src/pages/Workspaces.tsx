@@ -8,21 +8,18 @@ import {
   CircularProgress,
   Divider,
   Stack,
+  Tooltip,
   Typography,
 } from '@/compat/mui/material'
 import { alpha, type Theme } from '@/compat/mui/styles'
-import type { LucideIcon } from 'lucide-react'
 import {
+  ArrowLeft,
   ArrowRight,
-  BarChart2,
   Building2,
-  ClipboardList,
   LockKeyhole,
   LogOut,
-  Network,
   Rocket,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import AppSurface from '@/components/system/AppSurface'
@@ -33,6 +30,8 @@ import { buildAdminLoginPath } from '@/lib/admin-routing'
 import { buildWorkspaceLoginPath, buildWorkspacePath } from '@/lib/workspace-routing'
 import { PILOT_WORKSPACE_SLUG } from '@/lib/workspace-config'
 import type { WorkspaceQuickEntry } from '@/types'
+import { WorkspacePublicLanding } from '@/components/marketing/WorkspacePublicLanding'
+import { WorkspaceLoginPanel } from '@/components/auth/WorkspaceLoginPanel'
 
 type Workspace = {
   id: string
@@ -63,50 +62,14 @@ type PublicWorkspaceResponse = {
   workspaces: Workspace[]
 }
 
-type StoryCard = {
-  icon: LucideIcon
-  title: string
-  description: string
+function workspaceTagline(workspace: { slug: string; description?: string | null }): string {
+  if (workspace.slug === PILOT_WORKSPACE_SLUG) {
+    return 'Ambiente de referencia da Central de Tarefas, alinhado a operacao atual da base.'
+  }
+  return workspace.description?.trim() || 'Workspace com modulos e regras proprias.'
 }
 
-const storyPillars = [
-  'Entrada guiada por contexto',
-  'Login somente depois da escolha',
-  'Operacao, leitura e governanca no mesmo ecossistema',
-]
-
-const funnelSteps = [
-  {
-    title: 'Entenda a Central',
-    description: 'A plataforma organiza ferramentas operacionais e gerenciais em workspaces com regras proprias.',
-  },
-  {
-    title: 'Escolha o sistema certo',
-    description: 'Voce entra pela area ideal e evita cair em um funil generico antes da hora.',
-  },
-  {
-    title: 'Autentique no proximo passo',
-    description: 'O login acontece apenas quando o contexto ja esta definido para a sua jornada.',
-  },
-]
-
-const toolGroups: StoryCard[] = [
-  {
-    icon: ClipboardList,
-    title: 'Execucao diaria',
-    description: 'Projetos, atividades, listas e to-dos vivem no mesmo fluxo para a operacao andar sem trocar de tela.',
-  },
-  {
-    icon: BarChart2,
-    title: 'Leitura gerencial',
-    description: 'Indicadores, prioridades e visoes de acompanhamento ajudam cada area a decidir com mais clareza.',
-  },
-  {
-    icon: Network,
-    title: 'Governanca por workspace',
-    description: 'Cada sistema tem modulos, permissoes e acessos proprios, sem misturar administracao com rotina operacional.',
-  },
-]
+const GUEST_CATALOG_HISTORY_KEY = 'cdtGuestCatalog'
 
 export default function Workspaces() {
   const navigate = useNavigate()
@@ -115,6 +78,8 @@ export default function Workspaces() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const selectorRef = useRef<HTMLDivElement | null>(null)
+  const [guestStep, setGuestStep] = useState<'landing' | 'workspaces'>('landing')
+  const [guestSelectedSlug, setGuestSelectedSlug] = useState<string | null>(null)
 
   const fetchWorkspaces = useCallback(async () => {
     try {
@@ -138,6 +103,16 @@ export default function Workspaces() {
   useEffect(() => {
     void fetchWorkspaces()
   }, [fetchWorkspaces])
+
+  useEffect(() => {
+    if (currentUser) return
+    const onPop = () => {
+      setGuestSelectedSlug(null)
+      setGuestStep((prev) => (prev === 'workspaces' ? 'landing' : prev))
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [currentUser])
 
   const groupedWorkspaces = useMemo(() => {
     return data.groups.map((group) => ({
@@ -166,12 +141,12 @@ export default function Workspaces() {
     return [
       {
         key: 'pilot',
-        title: 'Sistema Piloto',
+        title: 'Workspace principal',
         description:
-          'Entre direto no workspace piloto para continuar a operacao principal da Central no contexto que ja esta ativo hoje.',
+          'Acesse o workspace de referencia da Central para continuar na operacao principal ja alinhada a base atual.',
         href: pilotHref,
-        cta: currentUser && pilotWorkspace?.has_access ? 'Abrir piloto' : 'Entrar no piloto',
-        badge: pilotWorkspace?.has_access ? 'Acesso liberado' : 'Workspace piloto',
+        cta: currentUser && pilotWorkspace?.has_access ? 'Abrir workspace' : 'Entrar',
+        badge: pilotWorkspace?.has_access ? 'Acesso liberado' : 'Referencia',
       },
       {
         key: 'admin',
@@ -204,9 +179,14 @@ export default function Workspaces() {
         return
       }
 
+      if (!currentUser && guestStep === 'workspaces') {
+        setGuestSelectedSlug(workspace.slug)
+        return
+      }
+
       navigate(buildWorkspaceLoginPath(workspace.slug, buildWorkspacePath(workspace.slug)))
     },
-    [currentUser, navigate, switchWorkspace],
+    [currentUser, guestStep, navigate, switchWorkspace],
   )
 
   const handleQuickEntry = useCallback(
@@ -223,16 +203,6 @@ export default function Workspaces() {
     [currentUser, navigate, pilotWorkspace?.has_access, switchWorkspace],
   )
 
-  const scrollToSelector = useCallback(() => {
-    const target = selectorRef.current
-    if (!target) return
-
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.requestAnimationFrame(() => {
-      target.focus({ preventScroll: true })
-    })
-  }, [])
-
   return (
     <Box
       sx={{
@@ -240,9 +210,7 @@ export default function Workspaces() {
         bgcolor: 'background.default',
         backgroundImage: currentUser
           ? 'none'
-          : (theme: Theme) =>
-              `radial-gradient(circle at top left, ${alpha(theme.palette.primary.main, 0.08)}, transparent 36%),
-               radial-gradient(circle at top right, ${alpha(theme.palette.secondary.main, 0.08)}, transparent 28%)`,
+          : 'none',
         px: { xs: 2, md: 4 },
         py: { xs: 3, md: 5 },
       }}
@@ -305,7 +273,7 @@ export default function Workspaces() {
                 <AppSurface surface="subtle" sx={{ overflow: 'hidden' }}>
                   <SectionHeader
                     title="Atalhos do seu perfil"
-                    description="Continue pelo piloto ou abra o painel global se este for o seu contexto de trabalho."
+                    description="Continue pelo workspace principal ou abra o painel global se este for o seu contexto de trabalho."
                     sx={{ pb: 2 }}
                   />
 
@@ -378,332 +346,50 @@ export default function Workspaces() {
                   </Box>
                 </AppSurface>
               </Stack>
+            ) : guestStep === 'landing' ? (
+              <WorkspacePublicLanding
+                workspaceCount={data.workspaces.length}
+                groupCount={data.groups.length}
+                onAccessWorkspaces={() => {
+                  window.history.pushState({ [GUEST_CATALOG_HISTORY_KEY]: true }, '', window.location.href)
+                  setGuestStep('workspaces')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                onAdminAccess={() => navigate(adminLoginPath)}
+              />
             ) : (
-              <Stack spacing={3}>
-                <AppSurface
-                  surface="raised"
-                  sx={{
-                    overflow: 'hidden',
-                    p: { xs: 2.5, md: 3.5 },
-                    backgroundImage: (theme: Theme) =>
-                      `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, transparent 58%)`,
+              <Box sx={{ mb: 0.5 }}>
+                <Button
+                  variant="text"
+                  color="inherit"
+                  size="small"
+                  startIcon={<ArrowLeft size={18} />}
+                  onClick={() => {
+                    if (guestSelectedSlug) {
+                      setGuestSelectedSlug(null)
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                      return
+                    }
+                    setGuestSelectedSlug(null)
+                    const st = window.history.state as Record<string, unknown> | null
+                    if (st?.[GUEST_CATALOG_HISTORY_KEY]) {
+                      window.history.back()
+                    } else {
+                      setGuestStep('landing')
+                    }
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
+                  sx={{ textTransform: 'none', fontWeight: 600 }}
                 >
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.45fr) minmax(320px, 0.95fr)' },
-                      gap: 3,
-                      alignItems: 'start',
-                    }}
-                  >
-                    <Stack spacing={2.5}>
-                      <Stack spacing={1.25}>
-                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
-                          <Sparkles size={16} />
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                            Central de Tarefas
-                          </Typography>
-                        </Box>
-
-                        <Typography variant="h2" component="h1" sx={{ maxWidth: 620 }}>
-                          Entrar no sistema certo comeca pelo contexto.
-                        </Typography>
-
-                        <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 700 }}>
-                          A Central organiza operacao, leitura e governanca em workspaces diferentes. Em vez de jogar voce
-                          direto no login, ela primeiro apresenta o ecossistema, orienta a escolha do sistema e so depois
-                          abre a autenticacao.
-                        </Typography>
-                      </Stack>
-
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
-                        <Button
-                          variant="contained"
-                          size="large"
-                          endIcon={<ArrowRight size={16} />}
-                          onClick={scrollToSelector}
-                        >
-                          Escolher sistema
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="secondary"
-                          size="large"
-                          onClick={() => navigate(adminLoginPath)}
-                        >
-                          Acesso administrativo
-                        </Button>
-                      </Stack>
-
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {storyPillars.map((pillar) => (
-                          <StatusToken key={pillar} tone="neutral">
-                            {pillar}
-                          </StatusToken>
-                        ))}
-                      </Box>
-                    </Stack>
-
-                    <AppSurface
-                      surface="subtle"
-                      sx={{
-                        p: { xs: 2, md: 2.5 },
-                        backgroundColor: (theme: Theme) => alpha(theme.palette.background.paper, 0.76),
-                      }}
-                    >
-                      <Stack spacing={2}>
-                        <Typography variant="h5">Como funciona a entrada</Typography>
-
-                        {funnelSteps.map((step, index) => (
-                          <Stack key={step.title} direction="row" spacing={1.5} alignItems="flex-start">
-                            <Box
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: '50%',
-                                bgcolor: 'action.hover',
-                                color: 'text.primary',
-                                display: 'grid',
-                                placeItems: 'center',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {String(index + 1).padStart(2, '0')}
-                            </Box>
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.25 }}>
-                                {step.title}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                                {step.description}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                        ))}
-
-                        {pilotWorkspace ? (
-                          <Box sx={{ pt: 0.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                            <StatusToken tone="info" sx={{ mb: 1 }}>
-                              Sistema piloto ja disponivel
-                            </StatusToken>
-                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                              {pilotWorkspace.name} concentra o fluxo operacional ja em uso enquanto o funil unificado da
-                              Central evolui.
-                            </Typography>
-                          </Box>
-                        ) : null}
-                      </Stack>
-                    </AppSurface>
-                  </Box>
-                </AppSurface>
-
-                <Box component="section">
-                  <SectionHeader
-                    title="O que voce encontra aqui"
-                    description="A Central separa ferramentas por tipo de trabalho, sem misturar rotina operacional com administracao global."
-                  />
-
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                      gap: 1.5,
-                    }}
-                  >
-                    {toolGroups.map(({ icon: Icon, title, description }) => (
-                      <AppSurface key={title} surface="subtle" compact sx={{ height: '100%' }}>
-                        <Stack spacing={1.25}>
-                          <Box
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 'var(--radius-sm)',
-                              bgcolor: 'background.paper',
-                              color: 'text.primary',
-                              display: 'grid',
-                              placeItems: 'center',
-                            }}
-                          >
-                            <Icon size={18} />
-                          </Box>
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.4 }}>
-                              {title}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                              {description}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                      </AppSurface>
-                    ))}
-                  </Box>
-                </Box>
-
-                <Box component="section">
-                  <SectionHeader
-                    title="Escolha seu caminho"
-                    description="Selecione o tipo de entrada agora. O login aparece so na proxima etapa, ja dentro do contexto correto."
-                  />
-
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                      gap: 2,
-                    }}
-                  >
-                    <AppSurface surface="interactive" sx={{ height: '100%', borderColor: 'primary.main' }}>
-                      <Stack spacing={1.5} sx={{ height: '100%' }}>
-                        <Stack direction="row" spacing={1.25} alignItems="flex-start" justifyContent="space-between">
-                          <Box
-                            sx={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 'var(--radius-sm)',
-                              bgcolor: 'primary.light',
-                              color: 'primary.main',
-                              display: 'grid',
-                              placeItems: 'center',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <Building2 size={18} />
-                          </Box>
-                          <StatusToken tone="info">Fluxo recomendado</StatusToken>
-                        </Stack>
-
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="h5" sx={{ mb: 0.45 }}>
-                            Entrar por workspace
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>
-                            Veja os sistemas disponiveis por area, escolha o contexto certo e siga para a autenticacao
-                            somente depois da selecao.
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ mt: 'auto' }}>
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={scrollToSelector}
-                            endIcon={<ArrowRight size={16} />}
-                            sx={{ justifyContent: 'space-between' }}
-                          >
-                            Abrir seletor
-                          </Button>
-                        </Box>
-                      </Stack>
-                    </AppSurface>
-
-                    <AppSurface sx={{ height: '100%' }}>
-                      <Stack spacing={1.5} sx={{ height: '100%' }}>
-                        <Stack direction="row" spacing={1.25} alignItems="flex-start" justifyContent="space-between">
-                          <Box
-                            sx={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 'var(--radius-sm)',
-                              bgcolor: 'action.hover',
-                              color: 'text.primary',
-                              display: 'grid',
-                              placeItems: 'center',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <ShieldCheck size={18} />
-                          </Box>
-                          <StatusToken tone="warning">Uso restrito</StatusToken>
-                        </Stack>
-
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="h5" sx={{ mb: 0.45 }}>
-                            Painel administrativo
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>
-                            Use este caminho apenas para gerenciar workspaces, modulos, catalogo e permissoes da
-                            plataforma.
-                          </Typography>
-                        </Box>
-
-                        <Box sx={{ mt: 'auto' }}>
-                          <Button
-                            fullWidth
-                            variant="outlined"
-                            color="secondary"
-                            onClick={() => navigate(adminLoginPath)}
-                            endIcon={<ArrowRight size={16} />}
-                            sx={{ justifyContent: 'space-between' }}
-                          >
-                            Seguir para login admin
-                          </Button>
-                        </Box>
-                      </Stack>
-                    </AppSurface>
-                  </Box>
-
-                  {pilotWorkspace ? (
-                    <AppSurface
-                      compact
-                      surface="default"
-                      sx={{
-                        mt: 2,
-                        display: 'flex',
-                        flexDirection: { xs: 'column', md: 'row' },
-                        alignItems: { xs: 'flex-start', md: 'center' },
-                        justifyContent: 'space-between',
-                        gap: 1.5,
-                      }}
-                    >
-                      <Stack direction="row" spacing={1.25} alignItems="center">
-                        <Box
-                          sx={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 'var(--radius-sm)',
-                            bgcolor: 'primary.light',
-                            color: 'primary.main',
-                            display: 'grid',
-                            placeItems: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <Rocket size={16} />
-                        </Box>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                            {pilotWorkspace.name}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Se voce ja sabe o destino, pode seguir direto para o workspace piloto.
-                          </Typography>
-                        </Box>
-                      </Stack>
-
-                      <Button
-                        variant="text"
-                        color="inherit"
-                        onClick={() => void handleOpenWorkspace(pilotWorkspace)}
-                        endIcon={<ArrowRight size={16} />}
-                        sx={{ whiteSpace: 'nowrap' }}
-                      >
-                        Selecionar piloto
-                      </Button>
-                    </AppSurface>
-                  ) : null}
-                </Box>
-              </Stack>
+                  Voltar
+                </Button>
+              </Box>
             )}
 
-            <Box
-              component="section"
-              ref={selectorRef}
-              tabIndex={-1}
-              sx={{
+            {(() => {
+              const compactLeftColumn = Boolean(!currentUser && guestSelectedSlug)
+
+              const sectionShellSx = {
                 scrollMarginTop: { xs: 24, md: 32 },
                 outline: 'none',
                 '&:focus-visible': {
@@ -711,124 +397,299 @@ export default function Workspaces() {
                   outlineOffset: 8,
                   borderRadius: 'var(--radius-md)',
                 },
-              }}
-            >
-              <SectionHeader
-                title={currentUser ? 'Catalogo de workspaces' : 'Seletor de sistemas'}
-                description={
-                  currentUser
-                    ? 'Escolha o contexto operacional disponivel para o seu perfil ou troque de area quando precisar.'
-                    : 'Escolha a area desejada. No proximo passo o sistema pede autenticacao ja dentro do workspace selecionado.'
-                }
-              />
+              } as const
 
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                  gap: 2,
-                  alignItems: 'start',
-                }}
-              >
-                {groupedWorkspaces.map(({ group, workspaces }) => (
-                  <AppSurface key={group.key} sx={{ p: 0, overflow: 'hidden', height: '100%' }}>
-                    <Box sx={{ px: 2, py: 1.75 }}>
-                      <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
-                        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-                          <Box
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 'var(--radius-sm)',
-                              bgcolor: 'action.hover',
-                              display: 'grid',
-                              placeItems: 'center',
-                              color: 'primary.main',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <Building2 size={18} />
-                          </Box>
-                          <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="h6">{group.label}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              {workspaces.length} workspace{workspaces.length === 1 ? '' : 's'}
+              const catalogInner = (
+                <>
+                  <SectionHeader
+                    title={currentUser ? 'Catalogo de workspaces' : 'Workspaces disponiveis'}
+                    description={
+                      currentUser
+                        ? 'Escolha o contexto operacional disponivel para o seu perfil ou troque de area quando precisar.'
+                        : compactLeftColumn
+                          ? undefined
+                          : guestSelectedSlug
+                            ? 'Troque de workspace na lista quando precisar; o login permanece neste painel.'
+                            : 'Selecione o sistema da sua area. Ao continuar, o login abre ao lado.'
+                    }
+                    sx={{ pb: compactLeftColumn ? 1 : 2 }}
+                  />
+
+                  <AppSurface
+                    surface="default"
+                    sx={{
+                      p: 0,
+                      overflow: 'hidden',
+                      borderRadius: 'var(--radius-md)',
+                    }}
+                  >
+                    {groupedWorkspaces.map(({ group, workspaces }, groupIndex) => (
+                      <Box key={group.key}>
+                        {groupIndex > 0 ? <Divider /> : null}
+                        <Box
+                          sx={(theme: Theme) => ({
+                            px: compactLeftColumn ? 1.25 : 2,
+                            py: compactLeftColumn ? 0.65 : 1.25,
+                            borderLeft: `3px solid ${theme.palette.primary.main}`,
+                            bgcolor: theme.palette.action.hover,
+                          })}
+                        >
+                          <Stack direction="row" alignItems="center" spacing={compactLeftColumn ? 0.65 : 1} sx={{ minWidth: 0 }}>
+                            <Building2
+                              size={compactLeftColumn ? 14 : 17}
+                              strokeWidth={2}
+                              style={{ flexShrink: 0, opacity: 0.85 }}
+                            />
+                            {compactLeftColumn ? (
+                              <Typography
+                                variant="subtitle2"
+                                sx={{
+                                  fontWeight: 700,
+                                  fontSize: '0.8125rem',
+                                  lineHeight: 1.25,
+                                  minWidth: 0,
+                                }}
+                                noWrap
+                              >
+                                {group.label}
+                              </Typography>
+                            ) : (
+                              <Box sx={{ minWidth: 0, flex: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+                                  {group.label}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {workspaces.length} workspace{workspaces.length === 1 ? '' : 's'}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Stack>
+                          {!compactLeftColumn && group.description ? (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ mt: 0.75, display: 'block', lineHeight: 1.5 }}
+                            >
+                              {group.description}
+                            </Typography>
+                          ) : null}
+                        </Box>
+
+                        {workspaces.length === 0 ? (
+                          <Box sx={{ px: 2, py: 2 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', lineHeight: 1.5 }}>
+                              Nenhum workspace publico nesta area por enquanto. A estrutura aparece para voce localizar a
+                              familia quando novos contextos forem publicados.
                             </Typography>
                           </Box>
-                        </Stack>
+                        ) : (
+                          <Box component="ul" sx={{ m: 0, p: 0, listStyle: 'none' }}>
+                            {workspaces.map((workspace, wsIndex) => {
+                              const rowSelected = Boolean(!currentUser && guestSelectedSlug === workspace.slug)
+                              const blurb = workspaceTagline(workspace)
+                              const cta = currentUser && workspace.has_access ? 'Entrar' : 'Continuar'
 
-                        <StatusToken tone="neutral">
-                          {workspaces.length} area{workspaces.length === 1 ? '' : 's'}
-                        </StatusToken>
-                      </Stack>
+                              return (
+                                <Box component="li" key={workspace.id} sx={{ display: 'block' }}>
+                                  {wsIndex > 0 ? <Divider /> : null}
+                                  <Box
+                                    sx={(theme: Theme) => ({
+                                      display: 'flex',
+                                      flexWrap: compactLeftColumn ? 'wrap' : 'nowrap',
+                                      alignItems: 'center',
+                                      gap: compactLeftColumn ? 1 : 1.5,
+                                      px: compactLeftColumn ? 1.25 : 2,
+                                      py: compactLeftColumn ? 1 : 1.35,
+                                      transition: 'background-color 0.15s ease, border-color 0.15s ease',
+                                      borderLeft: '3px solid',
+                                      borderLeftColor: rowSelected ? theme.palette.primary.main : 'transparent',
+                                      bgcolor: rowSelected
+                                        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.14 : 0.08)
+                                        : 'transparent',
+                                      '&:hover': {
+                                        bgcolor: rowSelected
+                                          ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.1)
+                                          : alpha(theme.palette.action.hover, theme.palette.mode === 'dark' ? 0.5 : 0.65),
+                                      },
+                                    })}
+                                  >
+                                    <Avatar
+                                      src={workspace.avatar_url ?? undefined}
+                                      alt=""
+                                      variant="rounded"
+                                      sx={{
+                                        width: compactLeftColumn ? 32 : 40,
+                                        height: compactLeftColumn ? 32 : 40,
+                                        fontSize: compactLeftColumn ? '0.75rem' : '0.875rem',
+                                        fontWeight: 700,
+                                        flexShrink: 0,
+                                        borderRadius: 'var(--radius-sm)',
+                                      }}
+                                    >
+                                      {workspace.name?.[0]?.toUpperCase() ?? '?'}
+                                    </Avatar>
 
-                      {group.description ? (
-                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6, mt: 1.25 }}>
-                          {group.description}
-                        </Typography>
-                      ) : null}
-                    </Box>
+                                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                                      <Box
+                                        sx={{
+                                          display: 'flex',
+                                          alignItems: 'baseline',
+                                          gap: 0.75,
+                                          minWidth: 0,
+                                        }}
+                                      >
+                                        <Typography component="span" variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+                                          {workspace.name}
+                                        </Typography>
+                                        <Typography
+                                          component="span"
+                                          variant="caption"
+                                          color="text.secondary"
+                                          sx={{ fontFamily: 'ui-monospace, monospace', flexShrink: 0 }}
+                                          noWrap
+                                        >
+                                          /{workspace.slug}
+                                        </Typography>
+                                      </Box>
+                                      {!compactLeftColumn ? (
+                                        <Tooltip title={blurb} placement="bottom-start" enterDelay={300} disableInteractive>
+                                          <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{
+                                              mt: 0.25,
+                                              lineHeight: 1.45,
+                                              overflow: 'hidden',
+                                              textOverflow: 'ellipsis',
+                                              display: '-webkit-box',
+                                              WebkitLineClamp: 2,
+                                              WebkitBoxOrient: 'vertical',
+                                            }}
+                                          >
+                                            {blurb}
+                                          </Typography>
+                                        </Tooltip>
+                                      ) : null}
+                                    </Box>
 
-                    <Divider />
-
-                    <Stack spacing={1} sx={{ p: 1.5 }}>
-                      {workspaces.map((workspace) => {
-                        const isPilot = workspace.slug === PILOT_WORKSPACE_SLUG
-                        const workspaceTone = isPilot && !currentUser ? 'info' : workspace.has_access ? 'info' : 'neutral'
-                        const workspaceLabel = isPilot && !currentUser
-                          ? 'Piloto'
-                          : workspace.has_access
-                            ? 'Acesso liberado'
-                            : 'Solicitar acesso'
-
-                        return (
-                          <AppSurface
-                            key={workspace.id}
-                            surface={workspace.has_access || (isPilot && !currentUser) ? 'interactive' : 'default'}
-                            sx={{
-                              p: 1.5,
-                              borderColor: workspace.has_access || (isPilot && !currentUser) ? 'primary.main' : 'divider',
-                            }}
-                          >
-                            <Stack spacing={1.25}>
-                              <Stack direction="row" spacing={1} alignItems="flex-start" justifyContent="space-between">
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
-                                    {workspace.name}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    /{workspace.slug}
-                                  </Typography>
+                                    <Button
+                                      size="small"
+                                      variant="outlined"
+                                      color="primary"
+                                      onClick={() => void handleOpenWorkspace(workspace)}
+                                      endIcon={<ArrowRight size={16} strokeWidth={2} />}
+                                      sx={(theme: Theme) => ({
+                                        flexShrink: compactLeftColumn ? undefined : 0,
+                                        textTransform: 'none',
+                                        fontWeight: 600,
+                                        minWidth: compactLeftColumn ? undefined : 108,
+                                        width: compactLeftColumn ? '100%' : undefined,
+                                        mt: compactLeftColumn ? 0.5 : 0,
+                                        px: 1.75,
+                                        borderRadius: 'var(--radius-sm)',
+                                        borderWidth: 1,
+                                        borderColor: alpha(
+                                          theme.palette.primary.main,
+                                          rowSelected ? 0.65 : theme.palette.mode === 'dark' ? 0.5 : 0.42,
+                                        ),
+                                        bgcolor: rowSelected
+                                          ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.1 : 0.05)
+                                          : 'transparent',
+                                        boxShadow: 'none',
+                                        '&:hover': {
+                                          borderColor: theme.palette.primary.main,
+                                          bgcolor: alpha(
+                                            theme.palette.primary.main,
+                                            theme.palette.mode === 'dark' ? 0.16 : 0.08,
+                                          ),
+                                          boxShadow: 'none',
+                                        },
+                                      })}
+                                    >
+                                      {cta}
+                                    </Button>
+                                  </Box>
                                 </Box>
-                                <StatusToken tone={workspaceTone}>{workspaceLabel}</StatusToken>
-                              </Stack>
-
-                              <Typography variant="body2" color="text.secondary" sx={{ minHeight: 44, lineHeight: 1.55 }}>
-                                {workspace.description || 'Workspace configuravel com modulos, titulos e regras proprias.'}
-                              </Typography>
-
-                              <Button
-                                fullWidth
-                                variant={workspace.has_access || (isPilot && !currentUser) ? 'contained' : 'outlined'}
-                                onClick={() => void handleOpenWorkspace(workspace)}
-                                endIcon={<ArrowRight size={16} />}
-                                sx={{ justifyContent: 'space-between' }}
-                              >
-                                {currentUser && workspace.has_access
-                                  ? 'Entrar agora'
-                                  : isPilot && !currentUser
-                                    ? 'Selecionar piloto'
-                                    : 'Abrir acesso'}
-                              </Button>
-                            </Stack>
-                          </AppSurface>
-                        )
-                      })}
-                    </Stack>
+                              )
+                            })}
+                          </Box>
+                        )}
+                      </Box>
+                    ))}
                   </AppSurface>
-                ))}
-              </Box>
-            </Box>
+                </>
+              )
+
+              if (currentUser) {
+                return (
+                  <Box
+                    component="section"
+                    ref={selectorRef}
+                    tabIndex={-1}
+                    sx={{
+                      ...sectionShellSx,
+                      maxWidth: { xs: '100%', md: 680 },
+                    }}
+                  >
+                    {catalogInner}
+                  </Box>
+                )
+              }
+
+              if (!currentUser && guestStep === 'workspaces') {
+                return (
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: {
+                        xs: '1fr',
+                        md: guestSelectedSlug
+                          ? 'minmax(280px, min(36vw, 400px)) minmax(0, 1fr)'
+                          : 'minmax(0, 680px)',
+                      },
+                      gap: { xs: 2, md: 3 },
+                      width: '100%',
+                      maxWidth: guestSelectedSlug ? '100%' : 680,
+                      mx: 'auto',
+                      alignItems: 'start',
+                    }}
+                  >
+                    <Box
+                      component="section"
+                      ref={selectorRef}
+                      tabIndex={-1}
+                      sx={{
+                        ...sectionShellSx,
+                        width: '100%',
+                        minWidth: 0,
+                        justifySelf: guestSelectedSlug ? 'stretch' : { md: 'center' },
+                        maxWidth: guestSelectedSlug ? undefined : { md: 680 },
+                      }}
+                    >
+                      {catalogInner}
+                    </Box>
+                    {guestSelectedSlug ? (
+                      <Box
+                        sx={{
+                          width: '100%',
+                          minWidth: 0,
+                          position: { md: 'sticky' },
+                          top: { md: 24 },
+                        }}
+                      >
+                        <WorkspaceLoginPanel
+                          key={guestSelectedSlug}
+                          workspaceSlug={guestSelectedSlug}
+                          variant="embedded"
+                        />
+                      </Box>
+                    ) : null}
+                  </Box>
+                )
+              }
+
+              return null
+            })()}
           </Stack>
         )}
       </Box>

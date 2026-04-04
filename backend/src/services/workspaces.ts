@@ -799,7 +799,15 @@ export async function loadWorkspaceCatalog(subjectUserId: string | null): Promis
       };
     });
 
-  const groups = workspaces.reduce<WorkspaceGroupSummary[]>((acc, workspace) => {
+  const groupsFromCatalog = groupRows
+    .filter((row: WorkspaceGroupRow) => row.is_public !== false)
+    .map((row: WorkspaceGroupRow) => ({
+      key: row.key,
+      label: row.label,
+      description: row.description ?? null,
+    }));
+
+  const groupsFromWorkspaces = workspaces.reduce<WorkspaceGroupSummary[]>((acc, workspace) => {
     if (acc.some((group) => group.key === workspace.group_key)) {
       return acc;
     }
@@ -812,6 +820,8 @@ export async function loadWorkspaceCatalog(subjectUserId: string | null): Promis
     });
     return acc;
   }, []);
+
+  const groups = groupsFromCatalog.length > 0 ? groupsFromCatalog : groupsFromWorkspaces;
 
   return { groups, workspaces };
 }
