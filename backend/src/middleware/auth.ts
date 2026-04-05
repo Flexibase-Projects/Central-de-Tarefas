@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+import type { User as AuthUser } from '@supabase/supabase-js';
 import { supabase } from '../config/supabase.js';
 import { ensureNativeAdminAccess } from '../services/native-admin.js';
 import { findCdtUserByField, updateCdtUserByIdCompat } from '../services/cdt-users.js';
 import { hasRole } from '../services/permissions.js';
+import { jsonError } from '../utils/api-error.js';
 
 type AuthRequest = Request & {
   userId?: string;
@@ -43,6 +45,10 @@ export function getRequesterId(req: Request): string | null {
   return getEffectiveUserId(req) ?? getRealUserId(req) ?? null;
 }
 
+export function getAuthFailureCode(req: Request): 'AUTH_TOKEN_INVALID' | undefined {
+  return req.authFailureCode;
+}
+
 export function setRequestAuthContext(
   req: Request,
   context: Partial<Pick<AuthRequest, 'authUserId' | 'authUserEmail' | 'realUserId' | 'effectiveUserId' | 'userId'>>,
@@ -71,34 +77,52 @@ export async function authMiddleware(
   next: NextFunction,
 ): Promise<void> {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = rawToken?.trim() || null;
 
   if (!token) {
     next();
     return;
   }
 
+  let user: AuthUser;
+  try {
+    const {
+      data: { user: u },
+      error,
+    } = await supabase.auth.getUser(token);
+
+    if (error || !u) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '[authMiddleware] JWT não aceito pelo Supabase do backend (getUser falhou). Confira se SUPABASE_URL / chaves batem com o frontend:',
+          error?.message ?? 'sem usuário',
+        );
+      }
+      req.authFailureCode = 'AUTH_TOKEN_INVALID';
+      next();
+      return;
+    }
+    user = u;
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[authMiddleware] getUser lançou exceção (rede/config?):', e);
+    }
+    req.authFailureCode = 'AUTH_TOKEN_INVALID';
+    next();
+    return;
+  }
+
+  const authReq = req as AuthRequest;
+  authReq.authUserId = user.id;
+  authReq.authUserEmail = user.email ?? '';
+
   try {
     const requestedUserIdHeader = readUserIdHeader(req);
     const nowIso = new Date().toISOString();
 
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      next();
-      return;
-    }
-
-    const authReq = req as AuthRequest;
-    authReq.authUserId = user.id;
-    authReq.authUserEmail = user.email ?? '';
-
     let realUserId: string | null = null;
 
-    // Novo fluxo: vínculo explícito com a identidade central.
     const byCentralUserId = await findCdtUserByField({
       field: 'central_user_id',
       value: user.id,
@@ -109,7 +133,6 @@ export async function authMiddleware(
       realUserId = byCentralUserId.id;
     }
 
-    // Compatibilidade com o modelo legado em que cdt_users.id == auth.users.id.
     if (!realUserId) {
       const byId = await findCdtUserByField({
         field: 'id',
@@ -130,7 +153,6 @@ export async function authMiddleware(
       }
     }
 
-    // Fallback legado por email: só vincula automaticamente quando não há conflito explícito.
     if (!realUserId && user.email) {
       const byEmail = await findCdtUserByField({
         field: 'email',
@@ -153,7 +175,6 @@ export async function authMiddleware(
       }
     }
 
-    // Automatic access only for native admin emails.
     if (!realUserId) {
       const resolvedName =
         (user.user_metadata?.full_name as string) ||
@@ -196,24 +217,30 @@ export async function authMiddleware(
         userId: effectiveUserId,
       });
     }
-  } catch {
-    // Ignore auth errors and continue as unauthenticated for app-level handling.
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[authMiddleware] erro ao resolver usuário CDT:', e);
+    }
   }
 
   next();
 }
 
 export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
-  const token = req.headers.authorization?.startsWith('Bearer ')
-    ? req.headers.authorization.slice(7)
-    : null;
+  const t = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null;
 
-  if (!token) {
+  if (!t?.trim()) {
     next();
     return;
   }
 
   next();
+}
+
+function readBearerToken(req: Request): string {
+  const h = req.headers.authorization;
+  if (!h?.startsWith('Bearer ')) return '';
+  return h.slice(7).trim();
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -222,5 +249,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  res.status(401).json({ error: 'Unauthorized' });
+  const bearer = readBearerToken(req);
+  if (!bearer) {
+    jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_MISSING' });
+    return;
+  }
+
+  if (getAuthFailureCode(req) === 'AUTH_TOKEN_INVALID') {
+    jsonError(res, 401, {
+      error:
+        'Token inválido ou emitido por outro projeto Supabase. Verifique SUPABASE_URL e chaves no backend.',
+      code: 'AUTH_TOKEN_INVALID',
+    });
+    return;
+  }
+
+  jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_CONTEXT_INCOMPLETE' });
 }

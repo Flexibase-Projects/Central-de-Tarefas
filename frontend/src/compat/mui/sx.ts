@@ -6,7 +6,7 @@ const BREAKPOINTS = {
   xs: 0,
   sm: 600,
   md: 900,
-  lg: 1200,
+  lg: 1024,
   xl: 1536,
 } as const
 
@@ -14,6 +14,8 @@ const BREAKPOINT_KEYS = Object.keys(BREAKPOINTS) as Array<keyof typeof BREAKPOIN
 const UNIT_LESS_PROPERTIES = new Set([
   'fontWeight',
   'lineHeight',
+  'lineClamp',
+  'WebkitLineClamp',
   'opacity',
   'zIndex',
   'flex',

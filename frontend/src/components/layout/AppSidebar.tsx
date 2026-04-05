@@ -328,6 +328,17 @@ export function AppSidebar(props: AppSidebarProps) {
 
   const workspaceRoot = currentWorkspace?.slug ? buildWorkspacePath(currentWorkspace.slug) : '/'
   const sidebarWidth = isCollapsed ? APP_SHELL_SIDEBAR_COLLAPSED_WIDTH : APP_SHELL_SIDEBAR_EXPANDED_WIDTH
+  const appVersion = import.meta.env.VITE_APP_VERSION
+  const versionFooterLabel = `Central de Tarefas - v${appVersion}`
+  const versionFooterCaptionSx = {
+    fontSize: 10,
+    lineHeight: 1.2,
+    color: 'text.disabled',
+    textAlign: 'center' as const,
+    width: '100%',
+    px: 0.5,
+    userSelect: 'none' as const,
+  }
   const isActiveLink = (url: string) =>
     url === '/'
       ? normalizedPath === '/'
@@ -379,6 +390,11 @@ export function AppSidebar(props: AppSidebarProps) {
                 borderColor: 'divider',
                 borderRadius: 'var(--radius-sm)',
                 color: 'text.secondary',
+                transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
+                '&:hover': {
+                  color: 'text.primary',
+                  bgcolor: 'action.hover',
+                },
               }}
             >
               <Dashboard size={20} aria-hidden />
@@ -479,6 +495,12 @@ export function AppSidebar(props: AppSidebarProps) {
                       textDecoration: 'none',
                       border: '1px solid',
                       borderColor: active ? 'divider' : 'transparent',
+                      transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease',
+                      '&:hover': {
+                        bgcolor: 'action.hover',
+                        borderColor: 'divider',
+                        color: 'text.primary',
+                      },
                     }}
                   >
                     <Icon size={16} />
@@ -596,22 +618,22 @@ export function AppSidebar(props: AppSidebarProps) {
             ) : null}
           </ButtonBase>
         </Tooltip>
-        <Typography
-          component="div"
-          variant="caption"
-          sx={{
-            fontSize: 10,
-            lineHeight: 1.2,
-            color: 'text.disabled',
-            textAlign: 'center',
-            width: '100%',
-            px: 0.5,
-            userSelect: 'none',
-          }}
-          aria-label={`Versão ${import.meta.env.VITE_APP_VERSION}`}
-        >
-          v{import.meta.env.VITE_APP_VERSION}
-        </Typography>
+        {isCollapsed ? (
+          <Tooltip title={versionFooterLabel} placement="right">
+            <Typography
+              component="div"
+              variant="caption"
+              sx={versionFooterCaptionSx}
+              aria-label={versionFooterLabel}
+            >
+              v{appVersion}
+            </Typography>
+          </Tooltip>
+        ) : (
+          <Typography component="div" variant="caption" sx={versionFooterCaptionSx} aria-label={versionFooterLabel}>
+            Central de Tarefas -&nbsp;v{appVersion}
+          </Typography>
+        )}
       </Box>
     </Box>
   )

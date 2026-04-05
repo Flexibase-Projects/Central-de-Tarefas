@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiUrl } from '@/lib/api'
-import type { WorkspaceManagedMember } from '@/types'
+import type { WorkspaceManagedMember, WorkspaceMemberGamificationPeek } from '@/types'
 
 type WorkspaceMembersResponse = {
   members?: WorkspaceManagedMember[]
@@ -31,18 +31,29 @@ function getCacheKey(
 function normalizeMemberRole(raw: unknown) {
   if (!raw || typeof raw !== 'object') return null
   const role = raw as Record<string, unknown>
-  if (
-    typeof role.id !== 'string' ||
-    typeof role.name !== 'string' ||
-    typeof role.display_name !== 'string'
-  ) {
-    return null
-  }
+  const id = typeof role.id === 'string' ? role.id : ''
+  const name = typeof role.name === 'string' ? role.name : ''
+  const display_name = typeof role.display_name === 'string' ? role.display_name : ''
+  if (!id && !name && !display_name) return null
   return {
-    id: role.id,
-    name: role.name,
-    display_name: role.display_name,
+    id,
+    name: name || display_name || 'member',
+    display_name: display_name || name,
   }
+}
+
+function normalizeGamificationPeek(raw: unknown): WorkspaceMemberGamificationPeek | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const level = typeof o.level === 'number' && Number.isFinite(o.level) ? Math.max(1, Math.floor(o.level)) : null
+  const tier_color = typeof o.tier_color === 'string' ? o.tier_color : null
+  const tier_name = typeof o.tier_name === 'string' ? o.tier_name : null
+  const todos_delivered_30d =
+    typeof o.todos_delivered_30d === 'number' && Number.isFinite(o.todos_delivered_30d)
+      ? Math.max(0, Math.floor(o.todos_delivered_30d))
+      : null
+  if (level === null || !tier_color || !tier_name || todos_delivered_30d === null) return null
+  return { level, tier_color, tier_name, todos_delivered_30d }
 }
 
 function normalizeWorkspaceMember(raw: unknown): WorkspaceManagedMember | null {
@@ -65,6 +76,7 @@ function normalizeWorkspaceMember(raw: unknown): WorkspaceManagedMember | null {
     is_active: Boolean(member.is_active),
     is_default: Boolean(member.is_default),
     joined_at: typeof member.joined_at === 'string' ? member.joined_at : '',
+    gamification_peek: normalizeGamificationPeek(member.gamification_peek),
   }
 }
 

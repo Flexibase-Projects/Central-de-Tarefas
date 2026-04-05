@@ -18,6 +18,7 @@ import { buildWorkspacePath } from '@/lib/workspace-routing'
 import { formatDatePtBr, isOverdueDate } from '@/lib/date-only'
 import { getStatusLabel } from '@/lib/status-labels'
 import type { HomeReviewItem, HomeTodoItem } from '@/types'
+import { DeliveryHeatAssigneeInline } from '@/components/gamification/DeliveryHeatAssigneeInline'
 import AppSurface from '@/components/system/AppSurface'
 import FormDialog from '@/components/system/FormDialog'
 import SectionHeader from '@/components/system/SectionHeader'
@@ -223,9 +224,11 @@ function TodoCard({
         ) : null}
 
         {showAssignee && item.assigneeName ? (
-          <Typography variant="caption" color="text.secondary">
-            Responsavel: {item.assigneeName}
-          </Typography>
+          <DeliveryHeatAssigneeInline userId={item.assigneeId ?? null}>
+            <Typography variant="caption" color="text.secondary">
+              Responsavel: {item.assigneeName}
+            </Typography>
+          </DeliveryHeatAssigneeInline>
         ) : null}
       </Stack>
     </Box>
@@ -269,9 +272,11 @@ function TeamCompactCard({
           {item.projectName || item.activityName || 'Sem projeto'}
         </Typography>
         <Stack direction="row" justifyContent="space-between" spacing={0.75} sx={{ minWidth: 0 }}>
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
-            {item.assigneeName || 'Sem responsavel'}
-          </Typography>
+          <DeliveryHeatAssigneeInline userId={item.assigneeId ?? null}>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>
+              {item.assigneeName || 'Sem responsavel'}
+            </Typography>
+          </DeliveryHeatAssigneeInline>
           <Typography variant="caption" color={isOverdueDate(item.deadline) ? 'error.main' : 'text.secondary'} noWrap>
             {formatDatePtBr(item.deadline, 'Sem prazo')}
           </Typography>
@@ -324,9 +329,11 @@ function WaitingCard({
         <Typography variant="caption" color="text.secondary">
           {getWaitingDescription(item)}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {item.ownerName ? `Responsavel: ${item.ownerName}` : 'Sem responsavel destacado'}
-        </Typography>
+        <DeliveryHeatAssigneeInline userId={item.ownerId ?? null}>
+          <Typography variant="caption" color="text.secondary">
+            {item.ownerName ? `Responsavel: ${item.ownerName}` : 'Sem responsavel destacado'}
+          </Typography>
+        </DeliveryHeatAssigneeInline>
       </Stack>
     </Box>
   )

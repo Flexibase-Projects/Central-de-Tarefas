@@ -31,11 +31,11 @@ import type { WorkspaceManagedMember } from '@/types'
 
 /**
  * Alinha o cargo do membro ao catálogo `/api/roles`: o backend pode mandar `role_id` vazio
- * mas `role.name` / `role_key` preenchidos — o valor do &lt;select&gt; precisa ser o `id` real.
+ * mas `role.name` / `role_key` / `display_name` preenchidos — o valor do &lt;select&gt; precisa ser o `id` real.
  */
 function resolveMemberRoleCatalogId(
   member: WorkspaceManagedMember,
-  catalog: Array<{ id: string; name: string }>,
+  catalog: Array<{ id: string; name: string; display_name: string }>,
 ): string {
   const rawId = member.role?.id?.trim() ?? ''
   if (rawId && catalog.some((r) => r.id === rawId)) return rawId
@@ -46,7 +46,33 @@ function resolveMemberRoleCatalogId(
     if (byName) return byName.id
   }
 
+  const fromDisplay = [
+    member.role?.display_name,
+    member.role_display_name,
+    member.role?.name,
+  ]
+    .map((s) => (typeof s === 'string' ? s.trim().toLowerCase() : ''))
+    .find(Boolean)
+  if (fromDisplay) {
+    const byCatalogDisplay = catalog.find((r) => r.display_name.trim().toLowerCase() === fromDisplay)
+    if (byCatalogDisplay) return byCatalogDisplay.id
+  }
+
   return rawId
+}
+
+/** Texto do cargo para o trigger quando o id ainda não casa com o catálogo. */
+function memberCargoFallbackLabel(member: WorkspaceManagedMember): string | undefined {
+  const candidates = [
+    member.role_display_name,
+    member.role?.display_name,
+    member.role?.name,
+    member.role_key,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim()
+  }
+  return undefined
 }
 
 function getPreferredRoleId(roles: Array<{ id: string; name: string }>): string {
@@ -257,11 +283,11 @@ export function UsersTable() {
                         dense
                         ariaLabel="Cargo no workspace"
                         value={resolveMemberRoleCatalogId(member, roles)}
-                        fallbackLabel={member.role_display_name ?? member.role?.display_name ?? undefined}
+                        fallbackLabel={memberCargoFallbackLabel(member)}
                         onChange={(roleId) => handleRoleChange(member.id, roleId)}
                         options={roles.map((role) => ({
                           value: role.id,
-                          label: role.display_name,
+                          label: role.display_name?.trim() || role.name?.trim() || role.id,
                         }))}
                       />
                     </Box>

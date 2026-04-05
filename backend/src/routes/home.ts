@@ -59,6 +59,8 @@ type HomeTodoItem = {
   activityId: string | null;
   activityName: string | null;
   assigneeName?: string | null;
+  /** Para UI de gamificação (delivery heat) no dashboard */
+  assigneeId?: string | null;
   sourceType?: 'todo' | 'activity';
 };
 
@@ -69,6 +71,7 @@ type HomeReviewItem = {
   status: string;
   dueDate: string | null;
   ownerName?: string | null;
+  ownerId?: string | null;
   waitingReason?: 'review' | 'xp';
 };
 
@@ -212,6 +215,7 @@ function buildTodoItem(
     activityId: todo.activity_id ?? null,
     activityName: todo.activity_id ? lookup.activityNameById.get(todo.activity_id) ?? null : null,
     assigneeName: todo.assigned_to ? lookup.userNameById.get(todo.assigned_to) ?? null : null,
+    assigneeId: todo.assigned_to ?? null,
     sourceType,
   };
 }
@@ -231,6 +235,7 @@ function buildActivityItem(
     activityId: activity.id,
     activityName: activity.name,
     assigneeName: activity.assigned_to ? lookup.userNameById.get(activity.assigned_to) ?? null : null,
+    assigneeId: activity.assigned_to ?? null,
     sourceType: 'activity',
   };
 }
@@ -378,6 +383,7 @@ router.get('/', async (req, res) => {
         status: activity.status,
         dueDate: activity.due_date ?? null,
         ownerName: activity.assigned_to ? userNameById.get(activity.assigned_to) ?? null : activity.created_by ? userNameById.get(activity.created_by) ?? null : null,
+        ownerId: activity.assigned_to ?? activity.created_by ?? null,
         waitingReason: 'review',
       }));
 
@@ -395,6 +401,7 @@ router.get('/', async (req, res) => {
           : project.created_by
             ? userNameById.get(project.created_by) ?? null
             : null,
+        ownerId: project.responsible_user_id ?? project.created_by ?? null,
         waitingReason: 'review',
       }));
 
@@ -407,6 +414,7 @@ router.get('/', async (req, res) => {
         status: 'xp_pending',
         dueDate: todo.deadline ?? null,
         ownerName: todo.assigned_to ? userNameById.get(todo.assigned_to) ?? null : null,
+        ownerId: todo.assigned_to ?? null,
         waitingReason: 'xp',
       }));
 

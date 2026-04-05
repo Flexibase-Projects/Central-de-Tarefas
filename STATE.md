@@ -38,6 +38,10 @@ Isto complementa o histórico acima com o que ainda pode não estar mergeado; re
 - Frontend production build still reports large chunks that should be reduced with better code-splitting.
 - Module manifest keys and Supabase `cdt_module_definitions` must stay aligned when adding or re-categorizing modules.
 
+## API / auth observability (mitigado)
+
+- 401 em `/api/users/me` por desalinhamento Supabase frontend vs backend continua sendo erro de **configuração**, mas a API agora devolve `code` (`AUTH_MISSING`, `AUTH_TOKEN_INVALID`, etc.) e `requestId` para diagnóstico rápido; ver `docs/adr/0003-api-error-contract-and-observability.md` e `docs/architecture/flows.md`.
+
 ## Next Actions
 
 - Continue shrinking `frontend/src/compat/mui/` in favor of native local primitives.

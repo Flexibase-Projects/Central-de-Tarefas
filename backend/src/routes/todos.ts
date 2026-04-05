@@ -293,25 +293,8 @@ async function getNextSortOrder(params: {
 async function calculateTodoAwardXp(todo: TodoRecord): Promise<number> {
   const linkedReward = await getLinkedAchievementReward(todo.achievement_id ?? null);
   const completedAt = todo.completed_at ? new Date(todo.completed_at) : new Date();
-  const deadlineDate = todo.deadline ? new Date(todo.deadline as string) : null;
-  const onDeadlineByTimestamp =
-    Boolean(deadlineDate) && completedAt.getTime() <= (deadlineDate as Date).getTime();
-  const completedDay = toDateKey(todo.completed_at ?? completedAt.toISOString());
-  const deadlineDay = toDateKey(todo.deadline ?? null);
   const onDeadlineByDay = isOnOrBeforeDate(todo.completed_at ?? completedAt.toISOString(), todo.deadline ?? null);
   const onDeadline = onDeadlineByDay;
-  console.log('[DBG d3f9fe H8] todo deadline evaluation', {
-    todoId: todo.id,
-    rawDeadline: todo.deadline ?? null,
-    rawCompletedAt: todo.completed_at ?? null,
-    completedAtIso: completedAt.toISOString(),
-    deadlineIso: deadlineDate ? deadlineDate.toISOString() : null,
-    onDeadlineByTimestamp,
-    onDeadlineByDay,
-  });
-  // #region agent log
-  fetch('http://127.0.0.1:7252/ingest/6d92a057-afdb-40f1-aa90-bc667d0d8da8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d3f9fe'},body:JSON.stringify({sessionId:'d3f9fe',runId:'pre-fix',hypothesisId:'H8',location:'backend/src/routes/todos.ts:291',message:'todo deadline evaluation',data:{todoId:todo.id,rawDeadline:todo.deadline??null,rawCompletedAt:todo.completed_at??null,completedAtIso:completedAt.toISOString(),deadlineIso:deadlineDate?deadlineDate.toISOString():null,onDeadlineByTimestamp,onDeadlineByDay},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   return calculateItemCompletionXp({
     baseXp: parseDecimal(todo.xp_reward, 0),

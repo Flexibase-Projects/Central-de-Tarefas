@@ -11,6 +11,7 @@ import {
 } from '@/compat/mui/material'
 import { alpha } from '@/compat/mui/styles'
 import { TierBadge } from '@/components/gamification/TierBadge'
+import { DeliveryHeatAvatarWrap } from '@/components/gamification/DeliveryHeatAvatarWrap'
 import AppSurface from '@/components/system/AppSurface'
 import ProgressIndicator from '@/components/system/ProgressIndicator'
 import { Medal, People, Sparkles, Star, TrendingUp, Trophy } from '@/components/ui/icons'
@@ -162,20 +163,22 @@ function PodiumCard({
         </Stack>
 
         <Stack spacing={1.25} alignItems="center" textAlign="center" sx={{ flex: 1, justifyContent: 'center' }}>
-          <Avatar
-            src={entry.avatar_url ?? undefined}
-            sx={{
-              width: isChampion ? 82 : 68,
-              height: isChampion ? 82 : 68,
-              fontSize: isChampion ? 28 : 22,
-              fontWeight: 900,
-              bgcolor: alpha(tone.color, 0.2),
-              color: tone.color,
-              border: `1px solid ${alpha(tone.color, 0.28)}`,
-            }}
-          >
-            {formatInitials(entry.name)}
-          </Avatar>
+          <DeliveryHeatAvatarWrap userId={entry.user_id} size="md">
+            <Avatar
+              src={entry.avatar_url ?? undefined}
+              sx={{
+                width: isChampion ? 82 : 68,
+                height: isChampion ? 82 : 68,
+                fontSize: isChampion ? 28 : 22,
+                fontWeight: 900,
+                bgcolor: alpha(tone.color, 0.2),
+                color: tone.color,
+                border: `1px solid ${alpha(tone.color, 0.28)}`,
+              }}
+            >
+              {formatInitials(entry.name)}
+            </Avatar>
+          </DeliveryHeatAvatarWrap>
           <Box sx={{ minWidth: 0 }}>
             <Typography variant={isChampion ? 'h6' : 'subtitle1'} fontWeight={900} noWrap>
               {entry.name}
@@ -239,12 +242,14 @@ function LeaderboardRow({
           #{entry.position}
         </Box>
 
-        <Avatar
-          src={entry.avatar_url ?? undefined}
-          sx={{ width: 42, height: 42, fontSize: 15, fontWeight: 800, flexShrink: 0 }}
-        >
-          {formatInitials(entry.name)}
-        </Avatar>
+        <DeliveryHeatAvatarWrap userId={entry.user_id} size="md">
+          <Avatar
+            src={entry.avatar_url ?? undefined}
+            sx={{ width: 42, height: 42, fontSize: 15, fontWeight: 800, flexShrink: 0 }}
+          >
+            {formatInitials(entry.name)}
+          </Avatar>
+        </DeliveryHeatAvatarWrap>
 
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', mb: 0.5 }}>

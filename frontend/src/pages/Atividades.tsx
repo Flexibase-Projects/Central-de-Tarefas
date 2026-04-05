@@ -25,6 +25,7 @@ import { Plus } from '@/components/ui/icons'
 import { KanbanBoard } from '@/components/kanban/kanban-board'
 import { ActivityCardDialog } from '@/components/kanban/activity-card-dialog'
 import { CreateActivityDialog } from '@/components/kanban/create-activity-dialog'
+import { DeliveryHeatAvatarWrap } from '@/components/gamification/DeliveryHeatAvatarWrap'
 import { useActivities } from '@/hooks/use-activities'
 import { useTodoCardSummary } from '@/hooks/use-todo-card-summary'
 import { useUsersList } from '@/hooks/use-users-list'
@@ -552,13 +553,15 @@ export default function Atividades() {
                             <TableCell align="center" sx={{ width: 44, maxWidth: 48, px: 0.5 }}>
                               {assignee ? (
                                 <Tooltip title={assignee.name} placement="left" arrow>
-                                  <Avatar
-                                    src={assignee.avatar_url ?? undefined}
-                                    alt=""
-                                    sx={{ width: 28, height: 28, fontSize: 12, mx: 'auto' }}
-                                  >
-                                    {assignee.name?.[0]?.toUpperCase() ?? '?'}
-                                  </Avatar>
+                                  <DeliveryHeatAvatarWrap userId={assignee.id} size="sm">
+                                    <Avatar
+                                      src={assignee.avatar_url ?? undefined}
+                                      alt=""
+                                      sx={{ width: 28, height: 28, fontSize: 12, mx: 'auto' }}
+                                    >
+                                      {assignee.name?.[0]?.toUpperCase() ?? '?'}
+                                    </Avatar>
+                                  </DeliveryHeatAvatarWrap>
                                 </Tooltip>
                               ) : (
                                 <Typography variant="caption" color="text.disabled" component="span">

@@ -21,6 +21,7 @@ function normalizeTodoItem(value: unknown): HomeTodoItem | null {
     activityId: typeof value.activityId === 'string' ? value.activityId : null,
     activityName: typeof value.activityName === 'string' ? value.activityName : null,
     assigneeName: typeof value.assigneeName === 'string' ? value.assigneeName : null,
+    assigneeId: typeof value.assigneeId === 'string' ? value.assigneeId : null,
     sourceType: value.sourceType === 'activity' ? 'activity' : 'todo',
   }
 }
@@ -34,6 +35,7 @@ function normalizeReviewItem(value: unknown): HomeReviewItem | null {
     status: typeof value.status === 'string' ? value.status : 'review',
     dueDate: typeof value.dueDate === 'string' ? value.dueDate : null,
     ownerName: typeof value.ownerName === 'string' ? value.ownerName : null,
+    ownerId: typeof value.ownerId === 'string' ? value.ownerId : null,
     waitingReason: value.waitingReason === 'xp' ? 'xp' : 'review',
   }
 }

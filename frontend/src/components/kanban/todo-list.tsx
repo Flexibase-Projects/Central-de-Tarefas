@@ -13,6 +13,7 @@ import {
   Chip,
   Tooltip,
   Autocomplete,
+  Avatar,
   ClickAwayListener,
   FormControlLabel,
   Switch,
@@ -27,6 +28,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { fireTodoCompleteToast } from '@/components/achievements/TodoCompleteToast'
 import { useUsersList } from '@/hooks/use-users-list'
 import { useAchievements } from '@/hooks/use-achievements'
+import { DeliveryHeatAssigneeInline } from '@/components/gamification/DeliveryHeatAssigneeInline'
+import { DeliveryHeatAvatarWrap } from '@/components/gamification/DeliveryHeatAvatarWrap'
 import { formatDatePtBr, isOverdueDate } from '@/lib/date-only'
 import {
   DndContext,
@@ -504,11 +507,28 @@ const TodoItem = memo(function TodoItem({
           loading={usersLoading}
           options={users}
           getOptionLabel={(u) => u.name || u.email || u.id}
-          isOptionEqualToValue={(a, b) => a.id === b.id}
+          isOptionEqualToValue={(a, b) => a?.id === b?.id}
           value={users.find((u) => u.id === todo.assigned_to) ?? null}
           onChange={(_, v) => onAssign(todo.id, v?.id ?? null)}
           renderInput={(params) => (
             <TextField {...params} placeholder="Responsável" size="small" />
+          )}
+          renderOption={(props, option) => (
+            <li {...props} key={option.id}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.25 }}>
+                <DeliveryHeatAvatarWrap userId={option.id} size="sm">
+                  <Avatar
+                    src={option.avatar_url ?? undefined}
+                    sx={{ width: 26, height: 26, fontSize: 11, fontWeight: 700 }}
+                  >
+                    {option.name?.[0]?.toUpperCase() ?? '?'}
+                  </Avatar>
+                </DeliveryHeatAvatarWrap>
+                <Typography component="span" variant="body2" sx={{ minWidth: 0 }}>
+                  {option.name || option.email || option.id}
+                </Typography>
+              </Box>
+            </li>
           )}
           slotProps={{
             popper: {
@@ -520,14 +540,16 @@ const TodoItem = memo(function TodoItem({
           noOptionsText={usersLoading ? 'Carregando usuários…' : 'Nenhum usuário'}
         />
       ) : (
-        <Box sx={{ minWidth: 156, maxWidth: 200, flexShrink: 0, textAlign: 'right' }}>
-          <Typography variant="caption" fontWeight={600} sx={{ display: 'block', color: mine ? 'primary.main' : 'text.secondary' }}>
-            {assigneeName}
-          </Typography>
-          <Typography variant="caption" color="text.disabled">
-            {mine ? 'Atribuído a você' : 'Responsável'}
-          </Typography>
-        </Box>
+        <DeliveryHeatAssigneeInline userId={todo.assigned_to}>
+          <Box sx={{ minWidth: 156, maxWidth: 200, flexShrink: 0, textAlign: 'right' }}>
+            <Typography variant="caption" fontWeight={600} sx={{ display: 'block', color: mine ? 'primary.main' : 'text.secondary' }}>
+              {assigneeName}
+            </Typography>
+            <Typography variant="caption" color="text.disabled">
+              {mine ? 'Atribuído a você' : 'Responsável'}
+            </Typography>
+          </Box>
+        </DeliveryHeatAssigneeInline>
       )}
 
       {canManage && (
@@ -1002,7 +1024,7 @@ export function TodoList(props: TodoListProps) {
               value={newTodoAssignee}
               onChange={(_, v) => setNewTodoAssignee(v)}
               getOptionLabel={(u) => u.name || u.email}
-              isOptionEqualToValue={(a, b) => a.id === b.id}
+              isOptionEqualToValue={(a, b) => a?.id === b?.id}
               renderInput={(params) => (
                 <TextField {...params} margin="none" label="Responsável" required placeholder="Busque por nome…" />
               )}

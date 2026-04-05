@@ -37,6 +37,7 @@ console.log(`📄 Loaded: ${loadedFile}`);
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import projectsRoutes from './routes/projects.js';
 import tasksRoutes from './routes/tasks.js';
 import activitiesRoutes from './routes/activities.js';
@@ -62,9 +63,13 @@ import costItemsRoutes from './routes/cost-items.js';
 import costMapRoutes from './routes/cost-map.js';
 import costManagementSummaryRoutes from './routes/cost-management-summary.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requestIdMiddleware } from './middleware/request-id.js';
 import { requireWorkspaceAccess } from './middleware/workspace.js';
 import { ensureTemporaryNativeAdminBootstrap } from './services/native-admin.js';
+import { jsonError } from './utils/api-error.js';
 import { isSupabaseConnectionRefused, SUPABASE_UNAVAILABLE_MESSAGE } from './utils/supabase-errors.js';
+import { probeSupabaseAuthReachable, probeSupabaseDbReady } from './utils/supabase-health.js';
+import { isValidationError } from './utils/validation.js';
 
 // Função para limpar notificações órfãs na inicialização
 async function initializeCleanup() {
@@ -162,6 +167,22 @@ async function ensureActivityCoversBucket() {
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 0) || false);
+
+app.use(requestIdMiddleware);
+
+const authApiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Math.max(1, Number(process.env.API_AUTH_RATE_LIMIT_MAX ?? 300)),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    jsonError(res, 429, {
+      error: 'Muitas requisições. Tente novamente em instantes.',
+      code: 'RATE_LIMIT_EXCEEDED',
+    });
+  },
+});
 // Lê PORT ou BACKEND_PORT (compatível com .env.local que usa BACKEND_PORT).
 const PORT = Number(process.env.PORT) || Number(process.env.BACKEND_PORT) || 3002;
 
@@ -215,16 +236,48 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-User-Id', 'X-Workspace-Slug'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-User-Id',
+    'X-Workspace-Slug',
+    'X-Request-Id',
+  ],
+  exposedHeaders: ['X-Request-Id'],
 }));
 
 // Limite 15mb para permitir upload de capa em base64 (imagem até 10MB)
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb', parameterLimit: 100 }));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+const livenessPayload = () => ({
+  status: 'ok' as const,
+  timestamp: new Date().toISOString(),
+});
+
+app.get('/health', (_req, res) => {
+  res.json({ ...livenessPayload(), requestId: res.locals.requestId });
+});
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ...livenessPayload(), requestId: res.locals.requestId });
+});
+
+app.get('/ready', async (_req, res) => {
+  const db = await probeSupabaseDbReady();
+  if (!db.ok) {
+    return jsonError(res, 503, {
+      error: SUPABASE_UNAVAILABLE_MESSAGE,
+      code: 'SUPABASE_UNAVAILABLE',
+      details: { check: 'database', detail: db.detail },
+    });
+  }
+  res.json({
+    status: 'ready',
+    timestamp: new Date().toISOString(),
+    requestId: res.locals.requestId,
+  });
 });
 
 // Autenticação: extrai usuário do JWT Supabase e define x-user-id
@@ -242,7 +295,7 @@ app.use('/api/project-comments', requireWorkspaceAccess, projectCommentsRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api/auth', authHintRoutes);
+app.use('/api/auth', authApiRateLimiter, authHintRoutes);
 app.use('/api/sso', ssoRoutes);
 app.use('/api/notifications', requireWorkspaceAccess, notificationsRoutes);
 app.use('/api/home', requireWorkspaceAccess, homeRoutes);
@@ -257,9 +310,13 @@ app.use('/api/cost-map', requireWorkspaceAccess, costMapRoutes);
 app.use('/api/cost-management', requireWorkspaceAccess, costManagementSummaryRoutes);
 
 // Tratamento de payload too large (413) em JSON para o cliente
-app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (err.status === 413 || err.type === 'entity.too.large') {
-    return res.status(413).json({ error: 'Imagem muito grande. O tamanho máximo é 10MB.' });
+app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const anyErr = err as { status?: number; type?: string };
+  if (anyErr.status === 413 || anyErr.type === 'entity.too.large') {
+    return jsonError(res, 413, {
+      error: 'Imagem muito grande. O tamanho máximo é 10MB.',
+      code: 'PAYLOAD_TOO_LARGE',
+    });
   }
   next(err);
 });
@@ -276,15 +333,20 @@ if (existsSync(frontendDistPath)) {
 
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {
-    res.status(404).json({ error: 'Not found' });
-    return;
+    return jsonError(res, 404, { error: 'Not found', code: 'NOT_FOUND' });
   }
   next();
 });
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled backend error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  if (isSupabaseConnectionRefused(err)) {
+    return jsonError(res, 503, { error: SUPABASE_UNAVAILABLE_MESSAGE, code: 'SUPABASE_UNAVAILABLE' });
+  }
+  if (isValidationError(err)) {
+    return jsonError(res, 400, { error: err.message, code: 'VALIDATION_ERROR' });
+  }
+  console.error('Unhandled backend error:', res.locals.requestId, err);
+  jsonError(res, 500, { error: 'Internal server error', code: 'INTERNAL_ERROR' });
 });
 
 const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : undefined;
@@ -301,9 +363,24 @@ if (HOST) {
 }
 
 async function logStartupStatus() {
-  const hasSupabase = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY);
+  const hasSupabaseUrl = Boolean((process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim());
+  const hasSupabaseKey = Boolean(
+    (
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      ''
+    ).trim(),
+  );
+  const hasSupabase = hasSupabaseUrl && hasSupabaseKey;
   if (hasSupabase) {
     console.log('✅ Supabase configured - database operations enabled');
+    const authProbe = await probeSupabaseAuthReachable();
+    if (authProbe.ok) {
+      console.log('✅ Supabase Auth /auth/v1/health alcançável');
+    } else {
+      console.warn('⚠️ Supabase Auth health não alcançável:', authProbe.detail);
+    }
     await initializeCleanup();
     await ensureActivityCoversBucket();
     await ensureTemporaryNativeAdminBootstrap();

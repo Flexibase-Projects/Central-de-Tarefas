@@ -201,6 +201,9 @@ ALTER TABLE cdt_activities ADD COLUMN IF NOT EXISTS cover_image_url TEXT NULL;
 -- Criar bucket no Supabase Dashboard: Storage > New bucket > "activity-covers" (public)
 -- Ou via SQL (Storage é gerenciado pelo Dashboard). Política: permitir leitura pública e upload autenticado.
 
+-- Bucket "workspace-profile-avatars" (público): avatares de perfil por workspace em cdt_workspace_user_profiles.avatar_url.
+-- Upload apenas via backend (service role); o servidor cria o bucket na inicialização se ainda não existir.
+
 -- ============================================
 -- Migração: Canva em Equipe (Excalidraw)
 -- ============================================

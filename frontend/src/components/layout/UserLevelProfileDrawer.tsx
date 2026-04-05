@@ -1,5 +1,4 @@
-import React from 'react'
-import { Avatar, Box, Button, CircularProgress, Divider, Typography } from '@/compat/mui/material'
+import { Avatar, Box, Button, CircularProgress, Typography } from '@/compat/mui/material'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserProgress } from '@/hooks/use-user-progress'
 import { useIndicators } from '@/hooks/use-indicators'
@@ -7,54 +6,55 @@ import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import { useWorkspaceProfile } from '@/hooks/use-workspace-profile'
 import { useProfileDrawerActions } from '@/hooks/use-profile-drawer-actions'
 import { TierBadge } from '@/components/gamification/TierBadge'
+import { DeliveryHeatAvatarWrap } from '@/components/gamification/DeliveryHeatAvatarWrap'
 import { LevelXpBar } from '@/components/master-mode/LevelXpBar'
-import {
-  BarChart2,
-  ExternalLink,
-  MessageCircleIcon,
-  List,
-  CheckCircle,
-  ClipboardList,
-} from '@/components/ui/icons'
+import { ExternalLink } from '@/components/ui/icons'
 import SidePanel from '@/components/system/SidePanel'
 import AppSurface from '@/components/system/AppSurface'
 import SectionHeader from '@/components/system/SectionHeader'
-
-function StatTile({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType
-  label: string
-  value: number
-}) {
+function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <AppSurface compact surface="subtle" sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-      <Box
-        sx={{
-          width: 34,
-          height: 34,
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          bgcolor: 'action.hover',
-          color: 'primary.main',
-        }}
-      >
-        <Icon size={16} />
-      </Box>
-      <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', display: 'block', mb: 0.2 }}>
-          {label}
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
-          {value}
-        </Typography>
-      </Box>
-    </AppSurface>
+    <Box
+      sx={{
+        px: 1.25,
+        py: 0.65,
+        borderRadius: 'var(--radius-sm)',
+        bgcolor: 'action.hover',
+        border: '1px solid',
+        borderColor: 'divider',
+        minWidth: 0,
+      }}
+    >
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2, mb: 0.15 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+        {value}
+      </Typography>
+    </Box>
+  )
+}
+
+function IndicatorRow({ label, value, isLast }: { label: string; value: number; isLast?: boolean }) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        gap: 2,
+        py: 0.85,
+        borderBottom: isLast ? 'none' : '1px solid',
+        borderColor: 'divider',
+      }}
+    >
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>
+        {value}
+      </Typography>
+    </Box>
   )
 }
 
@@ -82,7 +82,7 @@ export function UserLevelProfileDrawer({ open, onClose, userOverride = null }: U
   const workspaceSlug = currentWorkspace?.slug ?? null
   const { gamificationEnabled } = useWorkspaceContext(workspaceSlug)
   const { profile } = useWorkspaceProfile(workspaceSlug)
-  const { goPerfil, goIndicadores, goWorkspaces, handleLogout } = useProfileDrawerActions({ onClose })
+  const { goPerfil, goIndicadores, handleLogout } = useProfileDrawerActions({ onClose })
 
   const profileUser = userOverride ?? currentUser
   const isOwnProfile = !userOverride || userOverride.id === currentUser?.id
@@ -96,6 +96,7 @@ export function UserLevelProfileDrawer({ open, onClose, userOverride = null }: U
   )
 
   const personal = indicators?.personal ?? null
+  const level = progress?.level ?? 1
 
   if (!profileUser) return null
 
@@ -103,135 +104,155 @@ export function UserLevelProfileDrawer({ open, onClose, userOverride = null }: U
     <SidePanel
       open={open}
       onClose={onClose}
-      title={isOwnProfile ? 'Perfil rapido' : `Perfil de ${profileUser.name}`}
+      title={isOwnProfile ? 'Perfil rápido' : `Perfil de ${profileUser.name}`}
       description={
         isOwnProfile
-          ? 'Resumo do seu perfil da workspace atual.'
-          : 'Visao rapida do progresso e dos indicadores desta pessoa no workspace atual.'
+          ? 'Resumo do seu perfil na workspace atual.'
+          : 'Visão rápida do progresso e dos indicadores desta pessoa na workspace atual.'
       }
       footer={
         isOwnProfile ? (
-          <>
-            <Button variant="text" onClick={goWorkspaces}>
-              Workspaces
-            </Button>
+          <Box sx={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.25 }}>
             <Button variant="outlined" onClick={goIndicadores} startIcon={<ExternalLink size={16} />}>
               Indicadores
             </Button>
             <Button variant="contained" onClick={goPerfil}>
               Perfil completo
             </Button>
-          </>
+          </Box>
         ) : undefined
       }
     >
       <AppSurface sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar
-            src={avatarUrl ?? undefined}
-            sx={{
-              width: 68,
-              height: 68,
-              fontSize: 24,
-              fontWeight: 800,
-              bgcolor: 'action.hover',
-            }}
-          >
-            {formatInitials(displayName || profileUser.name)}
-          </Avatar>
+          <DeliveryHeatAvatarWrap userId={profileUser.id} enabled={gamificationEnabled} size="md">
+            <Avatar
+              src={avatarUrl ?? undefined}
+              sx={{
+                width: 68,
+                height: 68,
+                fontSize: 24,
+                fontWeight: 800,
+                bgcolor: 'action.hover',
+              }}
+            >
+              {formatInitials(displayName || profileUser.name)}
+            </Avatar>
+          </DeliveryHeatAvatarWrap>
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography variant="h4" sx={{ mb: 0.3 }} noWrap>
               {displayName || profileUser.name}
             </Typography>
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ mb: 0.9 }}>
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ mb: gamificationEnabled ? 0.9 : 0 }}>
               {profileUser.email ?? 'Membro do workspace'}
             </Typography>
-            {gamificationEnabled ? <TierBadge level={progress?.level ?? 1} size="sm" showTierName /> : null}
+            {gamificationEnabled ? <TierBadge level={level} size="sm" showTierName /> : null}
           </Box>
         </Box>
       </AppSurface>
 
-      {isOwnProfile ? (
-        <AppSurface sx={{ mb: 2 }}>
-          <SectionHeader
-            title="Perfil do workspace"
-            description="Nome e avatar ajustados para este contexto."
-            sx={{ pb: 1 }}
-          />
-          <Typography variant="body2" color="text.secondary">
-            {profile?.is_overridden
-              ? 'Seu perfil está customizado para esta workspace.'
-              : 'Este workspace ainda usa os dados padrão do usuário.'}
-          </Typography>
-        </AppSurface>
-      ) : null}
-
       {gamificationEnabled ? (
-        <AppSurface sx={{ mb: 2 }}>
-          <SectionHeader title="Progressao" description="Nivel, XP e entregas concluidas." sx={{ pb: 1 }} />
+        <AppSurface
+          sx={{
+            mb: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            backgroundImage:
+              'linear-gradient(145deg, color-mix(in srgb, var(--color-primary, #6366f1) 12%, transparent) 0%, color-mix(in srgb, var(--color-primary, #6366f1) 4%, transparent) 42%, transparent 72%)',
+            boxShadow: 'inset 0 1px 0 color-mix(in srgb, var(--foreground, #fff) 6%, transparent)',
+          }}
+        >
+          <SectionHeader title="Progressão" description="XP, nível e entregas." sx={{ pb: 1.25 }} />
 
-          <>
-            <LevelXpBar progress={progress} loading={progressLoading} />
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 1.25,
+              rowGap: 1,
+              mb: 2,
+              pb: 2,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{ fontWeight: 700, letterSpacing: '0.12em', color: 'text.secondary', textTransform: 'uppercase' }}
+            >
+              Nível
+            </Typography>
+            <Typography
+              component="span"
+              variant="h2"
+              sx={{
+                fontWeight: 900,
+                lineHeight: 1,
+                letterSpacing: '-0.03em',
+                color: 'text.primary',
+              }}
+            >
+              {level}
+            </Typography>
+            <TierBadge level={level} size="md" showTierName />
+          </Box>
 
-            {progress ? (
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1.5 }}>
-                <Typography variant="caption" color="text.secondary">
-                  <strong style={{ color: 'var(--text-primary)' }}>{progress.totalXp}</strong> XP total
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  <strong style={{ color: 'var(--text-primary)' }}>{progress.completedTodos}</strong> to-dos
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  <strong style={{ color: 'var(--text-primary)' }}>{progress.completedActivities}</strong> atividades
-                </Typography>
-                {progress.streakDays != null && progress.streakDays > 0 ? (
-                  <Typography variant="caption" color="text.secondary">
-                    <strong style={{ color: 'var(--text-primary)' }}>{progress.streakDays}</strong> dias de streak
-                  </Typography>
-                ) : null}
-              </Box>
-            ) : null}
-          </>
+          <LevelXpBar progress={progress} loading={progressLoading} hideTierRow />
+
+          {progress ? (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: 1,
+                mt: 2,
+                width: '100%',
+              }}
+            >
+              <StatPill label="XP total" value={progress.totalXp} />
+              <StatPill label="To-dos feitos" value={progress.completedTodos} />
+              <StatPill label="Atividades" value={progress.completedActivities} />
+              {progress.streakDays != null && progress.streakDays > 0 ? (
+                <Box sx={{ gridColumn: '1 / -1' }}>
+                  <StatPill label="Streak (dias)" value={progress.streakDays} />
+                </Box>
+              ) : null}
+            </Box>
+          ) : null}
         </AppSurface>
       ) : null}
 
-      <AppSurface>
-        <SectionHeader
-          title="Indicadores"
-          description="Recorte da sua atividade recente."
-          sx={{ pb: 1 }}
-          actions={indicatorsLoading ? <CircularProgress size={16} /> : null}
-        />
+      <AppSurface sx={{ mb: isOwnProfile ? 2 : 0 }}>
+        <SectionHeader title="Indicadores" sx={{ pb: 1 }} actions={indicatorsLoading ? <CircularProgress size={16} /> : null} />
 
         {indicatorsError ? (
           <Typography variant="body2" color="error">
             {indicatorsError}
           </Typography>
         ) : personal ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
-            <StatTile icon={MessageCircleIcon} label="Comentarios" value={personal.commentsCount} />
-            <StatTile icon={List} label="To-dos atribuidos" value={personal.todosAssignedTotal} />
-            <StatTile icon={CheckCircle} label="To-dos concluidos" value={personal.todosAssignedCompleted} />
-            <StatTile icon={ClipboardList} label="To-dos pendentes" value={personal.todosAssignedOpen} />
-            <Box sx={{ gridColumn: '1 / -1' }}>
-              <StatTile icon={BarChart2} label="Atividades atribuidas" value={personal.activitiesAssigned} />
-            </Box>
+          <Box>
+            <IndicatorRow label="Comentários" value={personal.commentsCount} />
+            <IndicatorRow label="To-dos atribuídos" value={personal.todosAssignedTotal} />
+            <IndicatorRow label="To-dos concluídos" value={personal.todosAssignedCompleted} />
+            <IndicatorRow label="To-dos pendentes" value={personal.todosAssignedOpen} />
+            <IndicatorRow label="Atividades atribuídas" value={personal.activitiesAssigned} isLast />
           </Box>
         ) : !indicatorsLoading ? (
           <Typography variant="body2" color="text.secondary">
-            Ainda nao ha linha sua na tabela de indicadores do time.
+            Ainda não há linha sua na tabela de indicadores do time.
           </Typography>
         ) : null}
+      </AppSurface>
 
-        <Divider sx={{ my: 2 }} />
-
-        {isOwnProfile ? (
+      {isOwnProfile ? (
+        <AppSurface surface="subtle" sx={{ py: 1.25 }}>
           <Button fullWidth variant="text" color="error" onClick={handleLogout}>
             Desconectar
           </Button>
-        ) : null}
-      </AppSurface>
+        </AppSurface>
+      ) : null}
     </SidePanel>
   )
 }

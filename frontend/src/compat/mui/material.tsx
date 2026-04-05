@@ -229,7 +229,7 @@ export const Stack: any = React.forwardRef(function Stack(
   },
   ref,
 ) {
-  const { direction = 'column', spacing = 0, children, component, style, ...restProps } = props
+  const { direction = 'column', spacing = 0, useFlexGap: _useFlexGap, children, component, style, ...restProps } = props
   const { className, rest } = useCompatClassName(
     {
       display: 'flex',
@@ -743,14 +743,77 @@ export const Skeleton: any = function Skeleton({
   )
 }
 
-export const Tooltip: any = function Tooltip({ title, children, disableHoverListener, ...props }) {
+function muiTooltipPlacementToRadix(placement?: string): {
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  align?: 'start' | 'center' | 'end'
+} {
+  if (!placement || typeof placement !== 'string') return {}
+  const parts = placement.split('-')
+  const rawSide = parts[0]
+  const tail = parts[1]
+  const valid = new Set(['top', 'right', 'bottom', 'left'])
+  if (!valid.has(rawSide)) return {}
+  let align: 'start' | 'center' | 'end' | undefined
+  if (tail === 'start') align = 'start'
+  else if (tail === 'end') align = 'end'
+  return { side: rawSide as 'top' | 'right' | 'bottom' | 'left', align }
+}
+
+export const Tooltip: any = function Tooltip(props: Record<string, unknown>) {
+  const {
+    title,
+    children,
+    disableHoverListener,
+    arrow: _arrow,
+    placement,
+    components: _components,
+    componentsProps: _componentsProps,
+    describeChild: _describeChild,
+    disableFocusListener: _disableFocusListener,
+    disableInteractive: _disableInteractive,
+    disableTouchListener: _disableTouchListener,
+    enterDelay: _enterDelay,
+    enterNextDelay: _enterNextDelay,
+    enterTouchDelay: _enterTouchDelay,
+    followCursor: _followCursor,
+    leaveDelay: _leaveDelay,
+    leaveTouchDelay: _leaveTouchDelay,
+    id: _id,
+    onClose: _onClose,
+    onOpen: _onOpen,
+    open: _open,
+    defaultOpen: _defaultOpen,
+    PopperProps: _PopperProps,
+    slotProps: _slotProps,
+    slots: _slots,
+    TransitionComponent: _TransitionComponent,
+    TransitionProps: _TransitionProps,
+    classes: _classes,
+    sx: _sx,
+    className,
+    style,
+    sideOffset,
+    side: sideProp,
+    align: alignProp,
+  } = props
+
   if (!title || disableHoverListener) return <>{children}</>
+
+  const fromPlacement = muiTooltipPlacementToRadix(placement as string | undefined)
 
   return (
     <TooltipProvider delayDuration={80}>
       <PrimitiveTooltip>
         <TooltipTrigger asChild>{ensureNode(children)}</TooltipTrigger>
-        <TooltipContent {...props}>{title}</TooltipContent>
+        <TooltipContent
+          className={className as string | undefined}
+          style={style as React.CSSProperties | undefined}
+          sideOffset={typeof sideOffset === 'number' ? sideOffset : undefined}
+          side={(sideProp as 'top' | 'right' | 'bottom' | 'left' | undefined) ?? fromPlacement.side}
+          align={(alignProp as 'start' | 'center' | 'end' | undefined) ?? fromPlacement.align}
+        >
+          {title}
+        </TooltipContent>
       </PrimitiveTooltip>
     </TooltipProvider>
   )

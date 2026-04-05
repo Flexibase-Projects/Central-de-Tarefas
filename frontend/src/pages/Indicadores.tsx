@@ -26,6 +26,7 @@ import {
   Folder,
   ClipboardList,
 } from '@/components/ui/icons'
+import { DeliveryHeatAssigneeInline } from '@/components/gamification/DeliveryHeatAssigneeInline'
 import { useIndicators, type RecentAssignedTodo } from '@/hooks/use-indicators'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDatePtBr } from '@/lib/date-only'
@@ -551,14 +552,16 @@ export default function Indicadores() {
                             </Typography>
                           </TableCell>
                           <TableCell sx={{ ...tableCellCompact, verticalAlign: 'middle', maxWidth: 0 }}>
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              title={todo.assigneeName ?? '—'}
-                              sx={ellipsisOneLine}
-                            >
-                              {todo.assigneeName ?? '—'}
-                            </Typography>
+                            <DeliveryHeatAssigneeInline userId={todo.assigneeId ?? null}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                title={todo.assigneeName ?? '—'}
+                                sx={ellipsisOneLine}
+                              >
+                                {todo.assigneeName ?? '—'}
+                              </Typography>
+                            </DeliveryHeatAssigneeInline>
                           </TableCell>
                           <TableCell sx={{ ...tableCellCompact, verticalAlign: 'middle', width: 100 }}>
                             <TodoStatusChip completed={todo.completed} />
@@ -628,12 +631,14 @@ export default function Indicadores() {
                     byUser.map((u, idx) => (
                       <TableRow key={u.user_id} hover sx={{ bgcolor: idx % 2 === 0 ? 'transparent' : 'action.hover' }}>
                         <TableCell sx={tableCellCompact}>
-                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.8125rem' }}>
-                            {u.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }} display="block">
-                            {u.email}
-                          </Typography>
+                          <DeliveryHeatAssigneeInline userId={u.user_id}>
+                            <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.8125rem' }}>
+                              {u.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }} display="block">
+                              {u.email}
+                            </Typography>
+                          </DeliveryHeatAssigneeInline>
                         </TableCell>
                         <TableCell align="right" sx={tableCellCompact}>{u.comments_count}</TableCell>
                         <TableCell align="right" sx={tableCellCompact}>{u.todos_created}</TableCell>
@@ -1002,9 +1007,11 @@ export default function Indicadores() {
                             <StatusChip status={a.status} />
                           </TableCell>
                           <TableCell sx={{ ...tableCellCompact, verticalAlign: 'middle', maxWidth: 0 }}>
-                            <Typography variant="body2" color="text.secondary" title={assigneeLabel} sx={ellipsisOneLine}>
-                              {assigneeLabel}
-                            </Typography>
+                            <DeliveryHeatAssigneeInline userId={a.assigned_to}>
+                              <Typography variant="body2" color="text.secondary" title={assigneeLabel} sx={ellipsisOneLine}>
+                                {assigneeLabel}
+                              </Typography>
+                            </DeliveryHeatAssigneeInline>
                           </TableCell>
                           <TableCell sx={{ ...tableCellCompact, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8125rem' }}>

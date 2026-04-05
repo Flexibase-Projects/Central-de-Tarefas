@@ -557,3 +557,126 @@ async function buildWorkspaceRankingComputation(workspaceId: string): Promise<{
     leaderboard,
   };
 }
+
+/** Compact gamification fields for workspace member list (header avatars, tooltips). */
+export type WorkspaceMemberGamificationPeek = {
+  level: number;
+  tier_color: string;
+  tier_name: string;
+  todos_delivered_30d: number;
+};
+
+/**
+ * Batch-compute level (from total XP, same rules as getWorkspaceUserProgress) and
+ * completed to-dos in the last 30 days per user, for tooltip-style UI.
+ */
+export async function getWorkspaceMembersGamificationPeek(
+  workspaceId: string,
+  userIds: string[],
+): Promise<Map<string, WorkspaceMemberGamificationPeek>> {
+  const out = new Map<string, WorkspaceMemberGamificationPeek>();
+  if (userIds.length === 0) return out;
+
+  const uniqueIds = Array.from(new Set(userIds.filter((id) => typeof id === 'string' && id.length > 0)));
+  if (uniqueIds.length === 0) return out;
+
+  const idSet = new Set(uniqueIds);
+  const cutoffIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const inList = uniqueIds.join(',');
+
+  const [xpLogRes, todosRes, activitiesRes] = await Promise.all([
+    supabase
+      .from('cdt_user_xp_log')
+      .select('user_id, xp_amount, created_at, reason')
+      .eq('workspace_id', workspaceId)
+      .in('user_id', uniqueIds),
+    supabase
+      .from('cdt_project_todos')
+      .select('assigned_to, xp_reward, completed_at, deadline, achievement_id')
+      .eq('workspace_id', workspaceId)
+      .eq('completed', true)
+      .in('assigned_to', uniqueIds),
+    supabase
+      .from('cdt_activities')
+      .select('assigned_to, created_by, xp_reward, completed_at, due_date')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'done')
+      .or(`assigned_to.in.(${inList}),created_by.in.(${inList})`),
+  ]);
+
+  type XpRow = { user_id: string; xp_amount: number | null };
+  const xpRows = (!xpLogRes.error && xpLogRes.data ? xpLogRes.data : []) as XpRow[];
+  const xpByUser = new Map<string, XpRow[]>();
+  for (const row of xpRows) {
+    const uid = row.user_id;
+    if (!idSet.has(uid)) continue;
+    const list = xpByUser.get(uid) ?? [];
+    list.push(row);
+    xpByUser.set(uid, list);
+  }
+
+  type TodoRow = TodoProgressRow & { assigned_to?: string | null };
+  const todos = (!todosRes.error && todosRes.data ? todosRes.data : []) as TodoRow[];
+  const todosByUser = new Map<string, TodoProgressRow[]>();
+  for (const row of todos) {
+    const uid = typeof row.assigned_to === 'string' ? row.assigned_to : '';
+    if (!uid || !idSet.has(uid)) continue;
+    const list = todosByUser.get(uid) ?? [];
+    list.push(row);
+    todosByUser.set(uid, list);
+  }
+
+  const activities = (!activitiesRes.error && activitiesRes.data ? activitiesRes.data : []) as Array<{
+    assigned_to?: string | null;
+    created_by?: string | null;
+    xp_reward?: number | null;
+    completed_at?: string | null;
+    due_date?: string | null;
+  }>;
+
+  const activityXpByUser = new Map<string, number>();
+  for (const activity of activities) {
+    const xp = parseNumber(activity.xp_reward, 1);
+    const aid = activity.assigned_to ?? null;
+    const cid = activity.created_by ?? null;
+    if (aid && idSet.has(aid)) {
+      activityXpByUser.set(aid, (activityXpByUser.get(aid) ?? 0) + xp);
+    }
+    if (cid && idSet.has(cid) && cid !== aid) {
+      activityXpByUser.set(cid, (activityXpByUser.get(cid) ?? 0) + xp);
+    }
+  }
+
+  for (const userId of uniqueIds) {
+    const userTodos = todosByUser.get(userId) ?? [];
+    const userXpLog = xpByUser.get(userId) ?? [];
+
+    let totalXp = 0;
+    if (userXpLog.length > 0) {
+      totalXp = roundNumber(
+        userXpLog.reduce((sum, row) => sum + parseNumber(row.xp_amount, 0), 0),
+      );
+    } else {
+      const todoXp = userTodos.reduce((sum, todo) => sum + parseNumber(todo.xp_reward, 1), 0);
+      const activityXp = activityXpByUser.get(userId) ?? 0;
+      totalXp = roundNumber(todoXp + activityXp);
+    }
+
+    const { level } = getLevelFromTotalXp(totalXp);
+    const tier = getTierForLevel(level);
+
+    const todos30d = userTodos.filter((todo) => {
+      const ca = todo.completed_at ?? null;
+      return typeof ca === 'string' && ca.length > 0 && ca >= cutoffIso;
+    }).length;
+
+    out.set(userId, {
+      level,
+      tier_color: tier.color,
+      tier_name: tier.name,
+      todos_delivered_30d: todos30d,
+    });
+  }
+
+  return out;
+}

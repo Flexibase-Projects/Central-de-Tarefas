@@ -95,28 +95,27 @@ export function ViewAsUserButton() {
   return (
     <ClickAwayListener onClickAway={() => setOpen(false)}>
       <Box sx={{ position: 'relative' }}>
-        <Tooltip title="Ver como usuario">
-          <Button
-            ref={anchorRef}
-            size="small"
-            variant="outlined"
-            color="inherit"
-            startIcon={starting ? <CircularProgress size={14} color="inherit" /> : <Visibility />}
-            onClick={() => setOpen((prev) => !prev)}
-            disabled={starting}
-            sx={{
-              ...appShellHeaderControlSx,
-              color: 'text.primary',
-              textTransform: 'none',
-              fontSize: 12,
-              px: 1.25,
-              boxShadow: 'none',
-              '& .MuiButton-startIcon': { color: 'text.secondary' },
-            }}
-          >
-            Ver como
-          </Button>
-        </Tooltip>
+        <Button
+          ref={anchorRef}
+          size="small"
+          variant="outlined"
+          color="inherit"
+          title="Ver como usuario"
+          startIcon={starting ? <CircularProgress size={14} color="inherit" /> : <Visibility />}
+          onClick={() => setOpen((prev) => !prev)}
+          disabled={starting}
+          sx={{
+            ...appShellHeaderControlSx,
+            color: 'text.primary',
+            textTransform: 'none',
+            fontSize: 12,
+            px: 1.25,
+            boxShadow: 'none',
+            '& .MuiButton-startIcon': { color: 'text.secondary' },
+          }}
+        >
+          Ver como
+        </Button>
 
         <Popper open={open} anchorEl={anchorRef.current} placement="bottom-end" style={{ zIndex: 1400 }}>
           <AppSurface sx={{ width: 280, mt: 0.5, p: 0, overflow: 'hidden' }}>

@@ -76,6 +76,7 @@ interface RecentAssignedTodo {
   projectId: string | null;
   activityId: string | null;
   assigneeName?: string | null;
+  assigneeId?: string | null;
 }
 
 interface RecentActivity {
@@ -375,6 +376,7 @@ function buildRecentAssignedTodos(params: {
       projectId: todo.project_id,
       activityId: todo.activity_id,
       assigneeName: todo.assigned_to ? userNameById.get(todo.assigned_to) ?? '—' : '—',
+      assigneeId: todo.assigned_to ?? null,
     }));
 }
 
@@ -417,6 +419,7 @@ function buildPendingAssignedTodos(params: {
       projectId: todo.project_id,
       activityId: todo.activity_id,
       assigneeName: todo.assigned_to ? userNameById.get(todo.assigned_to) ?? '—' : '—',
+      assigneeId: todo.assigned_to ?? null,
     }));
 }
 

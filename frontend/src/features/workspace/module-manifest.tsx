@@ -136,13 +136,12 @@ const WORKSPACE_MODULE_MANIFEST: Record<string, WorkspaceModuleManifestEntry> = 
   teams: {
     key: 'teams',
     title: 'Canva em Equipe',
-    description: 'Ferramenta visual compartilhada desta workspace.',
+    description: 'Quadro visual compartilhado (Excalidraw) com persistencia por workspace.',
     entryPath: '/canva-equipe',
     icon: MapIcon,
-    section: 'administration',
+    section: 'execution',
     order: 5,
     visibleInSidebar: true,
-    maintenance: true,
   },
   org_chart: {
     key: 'org_chart',

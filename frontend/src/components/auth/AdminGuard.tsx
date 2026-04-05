@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { buildAdminLoginPath } from '@/lib/admin-routing'
 import { PageSyncScreen } from '@/components/system/WorkspaceSyncFeedback'
+import { ProfileLoadErrorScreen } from '@/components/auth/ProfileLoadErrorScreen'
 
 interface AdminGuardProps {
   children: ReactNode
@@ -10,7 +11,7 @@ interface AdminGuardProps {
 
 export function AdminGuard({ children }: AdminGuardProps) {
   const location = useLocation()
-  const { currentUser, isLoading, hasRole } = useAuth()
+  const { currentUser, isLoading, hasRole, session, userProfileTransientError, refreshUserData } = useAuth()
   const returnTo = `${location.pathname}${location.search}${location.hash}`
 
   if (isLoading) {
@@ -18,6 +19,16 @@ export function AdminGuard({ children }: AdminGuardProps) {
       <PageSyncScreen
         title="Validando acesso administrativo"
         description="Estamos conferindo sua sessao para abrir o painel global com seguranca."
+        minHeight="100vh"
+      />
+    )
+  }
+
+  if (!currentUser && session && userProfileTransientError) {
+    return (
+      <ProfileLoadErrorScreen
+        message={userProfileTransientError}
+        onRetry={() => refreshUserData()}
         minHeight="100vh"
       />
     )

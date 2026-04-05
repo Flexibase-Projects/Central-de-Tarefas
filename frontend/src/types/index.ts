@@ -76,44 +76,6 @@ export interface ProjectTodo {
   assigned_at?: string | null
 }
 
-export interface GitHubCommit {
-  sha: string
-  commit: {
-    message: string
-    author: {
-      name: string
-      email: string
-      date: string
-    }
-  }
-  author: {
-    login: string
-    avatar_url: string
-  } | null
-  html_url: string
-}
-
-export interface GitHubRepository {
-  id: number
-  name: string
-  full_name: string
-  description: string | null
-  html_url: string
-  language: string | null
-  stargazers_count: number
-  forks_count: number
-  open_issues_count: number
-  default_branch: string
-  updated_at: string
-  created_at: string
-  size: number
-  watchers_count: number
-  license: string | null
-  topics: string[]
-  archived: boolean
-  private: boolean
-}
-
 export interface Activity {
   id: string
   name: string
@@ -262,6 +224,8 @@ export interface RecentAssignedTodo {
   xpReward: number
   projectId?: string | null
   activityId?: string | null
+  assigneeName?: string | null
+  assigneeId?: string | null
 }
 
 export interface ProjectTodoCardSummary {
@@ -382,6 +346,13 @@ export interface WorkspaceMemberRole {
   display_name: string
 }
 
+export interface WorkspaceMemberGamificationPeek {
+  level: number
+  tier_color: string
+  tier_name: string
+  todos_delivered_30d: number
+}
+
 export interface WorkspaceManagedMember {
   id: string
   name: string
@@ -395,6 +366,8 @@ export interface WorkspaceManagedMember {
   is_active: boolean
   is_default: boolean
   joined_at: string
+  /** Present when workspace gamification is enabled (see GET workspace members). */
+  gamification_peek?: WorkspaceMemberGamificationPeek | null
 }
 
 export interface WorkspaceProfileData {
@@ -486,6 +459,8 @@ export interface HomeTodoItem {
   activityId: string | null
   activityName: string | null
   assigneeName?: string | null
+  /** Presente no payload do home para efeitos de gamificação (delivery heat) */
+  assigneeId?: string | null
   sourceType?: 'todo' | 'activity'
 }
 
@@ -496,6 +471,7 @@ export interface HomeReviewItem {
   status: string
   dueDate: string | null
   ownerName?: string | null
+  ownerId?: string | null
   waitingReason?: 'review' | 'xp'
 }
 
@@ -535,6 +511,7 @@ export interface ExecutionCardSummaryRow {
   project_status: string
   myAssignedOpenCount: number
   totalOpenCount: number
+  totalCompletedCount: number
   xpPendingCount: number
 }
 

@@ -11,11 +11,6 @@ export function useProfileDrawerActions({ onClose }: UseProfileDrawerActionsPara
   const navigate = useNavigate()
   const { logout, currentWorkspace } = useAuth()
 
-  const goWorkspaces = useCallback(() => {
-    onClose()
-    navigate('/workspaces')
-  }, [navigate, onClose])
-
   const goPerfil = useCallback(() => {
     onClose()
     navigate(buildWorkspacePath(currentWorkspace?.slug, '/perfil'))
@@ -34,7 +29,6 @@ export function useProfileDrawerActions({ onClose }: UseProfileDrawerActionsPara
   return {
     goPerfil,
     goIndicadores,
-    goWorkspaces,
     handleLogout,
   }
 }

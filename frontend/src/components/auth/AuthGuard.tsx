@@ -4,13 +4,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceAccess } from '@/hooks/use-workspace-access';
 import { buildWorkspaceLoginPath, getWorkspaceSlugFromPath } from '@/lib/workspace-routing';
 import { PageSyncScreen } from '@/components/system/WorkspaceSyncFeedback';
+import { ProfileLoadErrorScreen } from '@/components/auth/ProfileLoadErrorScreen';
 
 interface AuthGuardProps {
   children: ReactNode;
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { currentUser, isLoading } = useAuth();
+  const { currentUser, isLoading, session, userProfileTransientError, refreshUserData } = useAuth();
   const location = useLocation();
   const params = useParams();
   const navigate = useNavigate();
@@ -20,9 +21,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     if (!isLoading && !currentUser) {
+      if (session && userProfileTransientError) {
+        return;
+      }
       navigate(buildWorkspaceLoginPath(routeWorkspaceSlug, returnTo), { replace: true });
     }
-  }, [currentUser, isLoading, navigate, returnTo, routeWorkspaceSlug]);
+  }, [currentUser, isLoading, navigate, returnTo, routeWorkspaceSlug, session, userProfileTransientError]);
 
   useEffect(() => {
     if (
@@ -60,6 +64,16 @@ export function AuthGuard({ children }: AuthGuardProps) {
       <PageSyncScreen
         title="Validando acesso ao workspace"
         description="Estamos conferindo sua sessao e sincronizando as permissoes para abrir a area correta."
+        minHeight="100vh"
+      />
+    );
+  }
+
+  if (!currentUser && session && userProfileTransientError) {
+    return (
+      <ProfileLoadErrorScreen
+        message={userProfileTransientError}
+        onRetry={() => refreshUserData()}
         minHeight="100vh"
       />
     );

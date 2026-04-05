@@ -3,6 +3,7 @@ import { Project } from '@/types'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent, Box, Typography, useTheme, Chip } from '@/compat/mui/material'
+import { useAuth } from '@/contexts/AuthContext'
 import { useGitHub } from '@/hooks/use-github'
 import { usePermissions } from '@/hooks/use-permissions'
 import { apiUrl } from '@/lib/api'
@@ -34,6 +35,7 @@ const STATUS_STRIPE: Record<string, string> = {
 export function KanbanCard({ project, onClick, summary }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: project.id })
   const { getCommitsCount } = useGitHub()
+  const { getAuthHeaders } = useAuth()
   const { hasRole } = usePermissions()
   const theme = useTheme()
   const isLight = theme.palette.mode === 'light'
@@ -55,11 +57,12 @@ export function KanbanCard({ project, onClick, summary }: KanbanCardProps) {
       setOnline(null)
       return
     }
-    fetch(apiUrl('/api/projects/health-check', { url: project.project_url }))
+    const headers = getAuthHeaders()
+    fetch(apiUrl('/api/projects/health-check', { url: project.project_url }), { headers })
       .then((r) => (r.ok ? r.json() : { ok: false }))
       .then((d) => setOnline(d.ok === true))
       .catch(() => setOnline(false))
-  }, [project.project_url])
+  }, [project.project_url, getAuthHeaders])
 
   const isAdmin = hasRole('admin')
   const assignedCount = Math.max(0, Number(summary?.myAssignedOpenCount ?? 0))

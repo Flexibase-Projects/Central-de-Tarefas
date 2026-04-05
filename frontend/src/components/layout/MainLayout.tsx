@@ -1,5 +1,5 @@
 import { ReactNode, useMemo, useState } from 'react'
-import { Avatar, Box, Stack, Typography, Alert, Tooltip } from '@/compat/mui/material'
+import { Avatar, Box, Stack, Typography, Alert, Tooltip, Button } from '@/compat/mui/material'
 import type { Theme } from '@/compat/mui/styles'
 import { AppSidebar } from './AppSidebar'
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown'
@@ -14,6 +14,7 @@ import { HeaderProfileButton } from './HeaderProfileButton'
 import { HeaderCollapsedSidebarTools } from './HeaderCollapsedSidebarTools'
 import { WorkspaceNavigationWarmup } from '@/components/system/WorkspaceNavigationWarmup'
 import { useWorkspaceMembers } from '@/hooks/use-workspace-members'
+import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 import {
   APP_SHELL_HEADER_HEIGHT,
   APP_SHELL_SIDEBAR_COLLAPSED_WIDTH,
@@ -21,6 +22,10 @@ import {
 } from './layout-shell'
 import type { AuthContextType } from '@/contexts/AuthContext'
 import StatusToken from '@/components/system/StatusToken'
+import { DeliveryHeatMapProvider } from '@/contexts/DeliveryHeatContext'
+import { DeliveryHeatAvatarWrap } from '@/components/gamification/DeliveryHeatAvatarWrap'
+import { SuperhotEmberParticles } from '@/components/gamification/SuperhotEmberParticles'
+import { resolveDeliveryHeat } from '@/utils/delivery-heat'
 
 type WorkspaceMember = {
   id: string
@@ -47,18 +52,27 @@ function MainLayoutContent({ children }: MainLayoutProps) {
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false)
   const [profileDrawerUser, setProfileDrawerUser] = useState<WorkspaceMember | null>(null)
   const sidebarWidth = sidebarCollapsed ? APP_SHELL_SIDEBAR_COLLAPSED_WIDTH : APP_SHELL_SIDEBAR_EXPANDED_WIDTH
-  const { isViewingAs, viewAsUser, stopViewingAs, currentUser, currentWorkspace } =
-    useAuth() as unknown as AuthContextWithWorkspace
+  const {
+    isViewingAs,
+    viewAsUser,
+    stopViewingAs,
+    currentUser,
+    currentWorkspace,
+    userProfileTransientError,
+    refreshUserData,
+  } = useAuth() as unknown as AuthContextWithWorkspace
   const { data: progressData, loading: progressLoading } = useUserProgress()
   const { count: pendingTodosCount } = useMyPendingTodosCount()
   const { profile: workspaceProfile } = useWorkspaceProfile(currentWorkspace?.slug ?? null)
   const { members: workspaceMembers } = useWorkspaceMembers(currentWorkspace?.slug ?? null)
+  const { gamificationEnabled } = useWorkspaceContext(currentWorkspace?.slug ?? null)
 
 
   const visibleMembers = useMemo(() => workspaceMembers.slice(0, 5), [workspaceMembers])
   const overflowMembers = Math.max(0, workspaceMembers.length - visibleMembers.length)
 
   return (
+    <DeliveryHeatMapProvider gamificationEnabled={gamificationEnabled} members={workspaceMembers}>
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <WorkspaceNavigationWarmup />
 
@@ -92,6 +106,33 @@ function MainLayoutContent({ children }: MainLayoutProps) {
           </Alert>
         ) : null}
 
+        {currentUser && userProfileTransientError ? (
+          <Alert
+            severity="warning"
+            sx={{
+              borderRadius: 0,
+              py: 0.35,
+              flexWrap: 'wrap',
+              '& .MuiAlert-message': { py: 0.35, width: '100%' },
+            }}
+          >
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+              justifyContent="space-between"
+              sx={{ width: '100%', gap: 1 }}
+            >
+              <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }}>
+                {userProfileTransientError}
+              </Typography>
+              <Button size="small" variant="outlined" onClick={() => void refreshUserData()}>
+                Tentar novamente
+              </Button>
+            </Stack>
+          </Alert>
+        ) : null}
+
         <Box
           sx={{
             minHeight: APP_SHELL_HEADER_HEIGHT,
@@ -106,13 +147,12 @@ function MainLayoutContent({ children }: MainLayoutProps) {
           }}
         >
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
-            {sidebarCollapsed ? (
-              <HeaderCollapsedSidebarTools
-                pendingTodosCount={pendingTodosCount}
-                progressData={progressData}
-                progressLoading={progressLoading}
-              />
-            ) : null}
+            <HeaderCollapsedSidebarTools
+              show={sidebarCollapsed}
+              pendingTodosCount={pendingTodosCount}
+              progressData={progressData}
+              progressLoading={progressLoading}
+            />
 
             <Box sx={{ minWidth: 0 }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
@@ -136,12 +176,95 @@ function MainLayoutContent({ children }: MainLayoutProps) {
                 sx={{
                   display: { xs: 'none', md: 'flex' },
                   '& > *:not(:first-of-type)': {
-                    ml: -1,
+                    /* -1 theme ≈ -8px; +3px entre avatares ≈ -5px */
+                    ml: '-5px',
                   },
                 }}
               >
-                {visibleMembers.map((member) => (
-                  <Tooltip key={member.id} title={member.name} arrow>
+                {visibleMembers.map((member) => {
+                  const peek = member.gamification_peek
+                  const deliveryHeat =
+                    gamificationEnabled && peek ? resolveDeliveryHeat(peek.todos_delivered_30d) : null
+                  return (
+                  <Tooltip
+                    key={member.id}
+                    arrow
+                    className={
+                      gamificationEnabled &&
+                      peek &&
+                      deliveryHeat?.tier === 'superhot'
+                        ? 'cdt-delivery-heat-tooltip--superhot'
+                        : undefined
+                    }
+                    title={
+                      gamificationEnabled && peek ? (
+                        <Box sx={{ position: 'relative', overflow: 'visible' }}>
+                          {deliveryHeat?.tier === 'superhot' ? (
+                            <SuperhotEmberParticles seed={member.id} variant="tooltip-bar" />
+                          ) : null}
+                          <Stack
+                            spacing={0.35}
+                            sx={{ maxWidth: 240, py: 0.15, position: 'relative', zIndex: 3 }}
+                          >
+                          <Typography
+                            variant="caption"
+                            sx={{ fontWeight: 600, lineHeight: 1.25, display: 'block' }}
+                          >
+                            {member.name}
+                          </Typography>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 1,
+                              lineHeight: 1.25,
+                            }}
+                          >
+                            <Typography
+                              component="span"
+                              variant="caption"
+                              sx={{
+                                fontWeight: 700,
+                                color: peek.tier_color,
+                              }}
+                            >
+                              Lv.{peek.level}
+                            </Typography>
+                            <Typography
+                              component="span"
+                              variant="caption"
+                              sx={{
+                                fontVariantNumeric: 'tabular-nums',
+                                fontWeight: 700,
+                                ...(deliveryHeat && deliveryHeat.tier !== 'none'
+                                  ? { color: deliveryHeat.meta.accentColor }
+                                  : {}),
+                              }}
+                              color={deliveryHeat?.tier === 'none' ? 'text.secondary' : undefined}
+                            >
+                              {`{${peek.todos_delivered_30d}}`}
+                            </Typography>
+                          </Box>
+                          {deliveryHeat && deliveryHeat.tier !== 'none' ? (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                lineHeight: 1.2,
+                                fontWeight: 700,
+                                color: deliveryHeat.meta.accentColor,
+                              }}
+                            >
+                              {deliveryHeat.meta.label}
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                        </Box>
+                      ) : (
+                        member.name
+                      )
+                    }
+                  >
                     <Box
                       component="button"
                       type="button"
@@ -171,26 +294,29 @@ function MainLayoutContent({ children }: MainLayoutProps) {
                         },
                       }}
                     >
-                      <Avatar
-                        className="workspace-member-avatar"
-                        src={member.avatar_url ?? undefined}
-                        alt={member.name}
-                        sx={{
-                          width: 34,
-                          height: 34,
-                          fontSize: 13,
-                          fontWeight: 700,
-                          border: '2px solid',
-                          borderColor: 'background.paper',
-                          boxShadow: '0 0 0 1px rgba(15, 23, 42, 0.08)',
-                          transition: 'box-shadow 140ms ease, filter 140ms ease',
-                        }}
-                      >
-                        {member.name?.[0]?.toUpperCase() ?? '?'}
-                      </Avatar>
+                      <DeliveryHeatAvatarWrap userId={member.id} enabled={gamificationEnabled} size="md">
+                        <Avatar
+                          className="workspace-member-avatar"
+                          src={member.avatar_url ?? undefined}
+                          alt={member.name}
+                          sx={{
+                            width: 34,
+                            height: 34,
+                            fontSize: 13,
+                            fontWeight: 700,
+                            border: '2px solid',
+                            borderColor: 'background.paper',
+                            boxShadow: '0 0 0 1px rgba(15, 23, 42, 0.08)',
+                            transition: 'box-shadow 140ms ease, filter 140ms ease',
+                          }}
+                        >
+                          {member.name?.[0]?.toUpperCase() ?? '?'}
+                        </Avatar>
+                      </DeliveryHeatAvatarWrap>
                     </Box>
                   </Tooltip>
-                ))}
+                )
+              })}
                 {overflowMembers > 0 ? (
                   <StatusToken tone="neutral">+{overflowMembers}</StatusToken>
                 ) : null}
@@ -201,6 +327,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
             <NotificationsDropdown />
             {currentUser ? (
               <HeaderProfileButton
+                userId={currentUser.id}
                 name={workspaceProfile?.display_name ?? currentUser.name}
                 avatarUrl={workspaceProfile?.avatar_url ?? currentUser.avatar_url}
                 onClick={() => {
@@ -224,6 +351,7 @@ function MainLayoutContent({ children }: MainLayoutProps) {
         userOverride={profileDrawerUser}
       />
     </Box>
+    </DeliveryHeatMapProvider>
   )
 }
 

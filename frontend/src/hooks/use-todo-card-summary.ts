@@ -16,6 +16,7 @@ function normalizeRow(value: unknown): ExecutionCardSummaryRow | null {
     project_status: typeof row.project_status === 'string' ? row.project_status : 'backlog',
     myAssignedOpenCount: typeof row.myAssignedOpenCount === 'number' ? row.myAssignedOpenCount : 0,
     totalOpenCount: typeof row.totalOpenCount === 'number' ? row.totalOpenCount : 0,
+    totalCompletedCount: typeof row.totalCompletedCount === 'number' ? row.totalCompletedCount : 0,
     xpPendingCount: typeof row.xpPendingCount === 'number' ? row.xpPendingCount : 0,
   }
 }

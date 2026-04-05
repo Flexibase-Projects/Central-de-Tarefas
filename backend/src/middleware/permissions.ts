@@ -1,6 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
 import { hasPermission, hasRole, getUserPermissions } from '../services/permissions.js';
-import { getRequesterId } from './auth.js';
+import { jsonError } from '../utils/api-error.js';
+import { getAuthFailureCode, getRequesterId } from './auth.js';
+
+function respondUnauthorized(req: Request, res: Response): void {
+  const bearer =
+    typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+      ? req.headers.authorization.slice(7).trim()
+      : '';
+  if (!bearer) {
+    jsonError(res, 401, { error: 'User ID required', code: 'AUTH_MISSING' });
+    return;
+  }
+  if (getAuthFailureCode(req) === 'AUTH_TOKEN_INVALID') {
+    jsonError(res, 401, {
+      error:
+        'Token inválido ou emitido por outro projeto Supabase. Verifique SUPABASE_URL e chaves no backend.',
+      code: 'AUTH_TOKEN_INVALID',
+    });
+    return;
+  }
+  jsonError(res, 401, { error: 'User ID required', code: 'AUTH_CONTEXT_INCOMPLETE' });
+}
 
 /**
  * Middleware para verificar se o usuário tem uma permissão específica
@@ -14,7 +35,8 @@ export function checkPermission(permission: string) {
       const userId = getRequesterId(req);
 
       if (!userId) {
-        return res.status(401).json({ error: 'User ID required' });
+        respondUnauthorized(req, res);
+        return;
       }
 
       const hasAccess = await hasPermission(userId, permission);
@@ -29,7 +51,7 @@ export function checkPermission(permission: string) {
       next();
     } catch (error) {
       console.error('Error in checkPermission middleware:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      jsonError(res, 500, { error: 'Internal server error', code: 'INTERNAL_ERROR' });
     }
   };
 }
@@ -46,7 +68,8 @@ export function checkRole(role: string) {
       const userId = getRequesterId(req);
 
       if (!userId) {
-        return res.status(401).json({ error: 'User ID required' });
+        respondUnauthorized(req, res);
+        return;
       }
 
       const hasAccess = await hasRole(userId, role);
@@ -61,7 +84,7 @@ export function checkRole(role: string) {
       next();
     } catch (error) {
       console.error('Error in checkRole middleware:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      jsonError(res, 500, { error: 'Internal server error', code: 'INTERNAL_ERROR' });
     }
   };
 }

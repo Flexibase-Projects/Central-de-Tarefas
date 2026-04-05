@@ -246,13 +246,24 @@ router.get('/todo-card-summary', async (req, res) => {
 
     const todos = (todosRes.data ?? []) as ProjectTodoSummaryRow[];
     const activities = (activitiesRes.data ?? []) as ActivitySummaryRow[];
-    const todoCountByEntity = new Map<string, { myAssignedOpenCount: number; totalOpenCount: number; xpPendingCount: number }>();
+    const todoCountByEntity = new Map<
+      string,
+      { myAssignedOpenCount: number; totalOpenCount: number; totalCompletedCount: number; xpPendingCount: number }
+    >();
 
     for (const todo of todos) {
       const entityId = todo.project_id ?? todo.activity_id ?? null;
       if (!entityId) continue;
-      const current = todoCountByEntity.get(entityId) ?? { myAssignedOpenCount: 0, totalOpenCount: 0, xpPendingCount: 0 };
-      if (todo.completed !== true) {
+      const current =
+        todoCountByEntity.get(entityId) ?? {
+          myAssignedOpenCount: 0,
+          totalOpenCount: 0,
+          totalCompletedCount: 0,
+          xpPendingCount: 0,
+        };
+      if (todo.completed === true) {
+        current.totalCompletedCount += 1;
+      } else {
         current.totalOpenCount += 1;
       }
       if (todo.assigned_to === requesterId && todo.completed !== true) {
@@ -264,8 +275,10 @@ router.get('/todo-card-summary', async (req, res) => {
       todoCountByEntity.set(entityId, current);
     }
 
+    const emptyCounts = { myAssignedOpenCount: 0, totalOpenCount: 0, totalCompletedCount: 0, xpPendingCount: 0 };
+
     const projectSummary = projects.map((project: { id: string; name: string; status: string }) => {
-      const counts = todoCountByEntity.get(project.id) ?? { myAssignedOpenCount: 0, totalOpenCount: 0, xpPendingCount: 0 };
+      const counts = todoCountByEntity.get(project.id) ?? emptyCounts;
       return {
         entity_type: 'project',
         project_id: project.id,
@@ -273,12 +286,13 @@ router.get('/todo-card-summary', async (req, res) => {
         project_status: project.status,
         myAssignedOpenCount: counts.myAssignedOpenCount,
         totalOpenCount: counts.totalOpenCount,
+        totalCompletedCount: counts.totalCompletedCount,
         xpPendingCount: counts.xpPendingCount,
       };
     });
 
     const activitySummary = activities.map((activity) => {
-      const counts = todoCountByEntity.get(activity.id) ?? { myAssignedOpenCount: 0, totalOpenCount: 0, xpPendingCount: 0 };
+      const counts = todoCountByEntity.get(activity.id) ?? emptyCounts;
       return {
         entity_type: 'activity',
         project_id: activity.id,
@@ -286,6 +300,7 @@ router.get('/todo-card-summary', async (req, res) => {
         project_status: activity.status,
         myAssignedOpenCount: counts.myAssignedOpenCount,
         totalOpenCount: counts.totalOpenCount,
+        totalCompletedCount: counts.totalCompletedCount,
         xpPendingCount: counts.xpPendingCount,
       };
     });
@@ -392,9 +407,6 @@ router.post('/', async (req, res) => {
     const status = projectBody.status ? requireOneOf(projectBody.status, 'status', ['backlog', 'todo', 'in_progress', 'review', 'done'] as const) : 'backlog';
     const name = requireString(projectBody.name, 'name', { minLength: 2, maxLength: 200 });
     const description = optionalString(projectBody.description, 'description', { maxLength: 4000 });
-    const githubUrl = optionalString(projectBody.github_url, 'github_url', { maxLength: 2048 });
-    const githubOwner = optionalString(projectBody.github_owner, 'github_owner', { maxLength: 255 });
-    const githubRepo = optionalString(projectBody.github_repo, 'github_repo', { maxLength: 255 });
     const projectUrl = optionalString(projectBody.project_url, 'project_url', { maxLength: 2048 });
     const createdBy = optionalString(projectBody.created_by, 'created_by', { maxLength: 64 });
     const responsibleUserId = await resolveAuthBackedUserId(
@@ -411,9 +423,9 @@ router.post('/', async (req, res) => {
         name,
         description,
         status,
-        github_url: githubUrl,
-        github_owner: githubOwner,
-        github_repo: githubRepo,
+        github_url: null,
+        github_owner: null,
+        github_repo: null,
         project_url: projectUrl,
         map_quadrant: mapQuadrant,
         map_x: mapX ?? null,
@@ -468,9 +480,6 @@ router.put('/:id', async (req, res) => {
     if (updates.name !== undefined) updateData.name = requireString(updates.name, 'name', { minLength: 2, maxLength: 200 });
     if (updates.description !== undefined) updateData.description = optionalString(updates.description, 'description', { maxLength: 4000 });
     if (updates.status !== undefined) updateData.status = requireOneOf(updates.status, 'status', validStatuses);
-    if (updates.github_url !== undefined) updateData.github_url = optionalString(updates.github_url, 'github_url', { maxLength: 2048 });
-    if (updates.github_owner !== undefined) updateData.github_owner = optionalString(updates.github_owner, 'github_owner', { maxLength: 255 });
-    if (updates.github_repo !== undefined) updateData.github_repo = optionalString(updates.github_repo, 'github_repo', { maxLength: 255 });
     if (updates.project_url !== undefined) updateData.project_url = optionalString(updates.project_url, 'project_url', { maxLength: 2048 });
     if (updates.map_quadrant !== undefined) updateData.map_quadrant = optionalNumber(updates.map_quadrant, 'map_quadrant');
     if (updates.map_x !== undefined) updateData.map_x = optionalNumber(updates.map_x, 'map_x');

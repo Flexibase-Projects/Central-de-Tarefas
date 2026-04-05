@@ -5,7 +5,6 @@ import { UsersTable } from '@/components/admin/users-table'
 import { RolesTable } from '@/components/admin/roles-table'
 import { PermissionsList } from '@/components/admin/permissions-list'
 import { AchievementsAdminTable } from '@/components/admin/achievements-table'
-import { usePermissions } from '@/hooks/use-permissions'
 import { useAuth } from '@/contexts/AuthContext'
 import { useWorkspaceContext } from '@/hooks/use-workspace-context'
 
@@ -13,16 +12,16 @@ type AdminTab = 'users' | 'roles' | 'permissions' | 'achievements'
 
 export default function Administracao() {
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
-  const { hasRole } = usePermissions()
   const { currentWorkspace } = useAuth()
-  const { canManageWorkspace } = useWorkspaceContext(currentWorkspace?.slug ?? null)
-  const isGlobalAdmin = hasRole('admin')
+  const { canManageWorkspace, capabilities } = useWorkspaceContext(currentWorkspace?.slug ?? null)
+  /** Admin da plataforma (cdt_user_roles), não apenas gestor/admin da workspace. */
+  const isPlatformGlobalAdmin = Boolean(capabilities.is_global_admin)
 
   const tabs = useMemo(() => {
     return [
       { value: 'users' as const, label: 'Usuarios', icon: <People size={16} />, visible: canManageWorkspace },
-      { value: 'roles' as const, label: 'Cargos', icon: <Security size={16} />, visible: isGlobalAdmin },
-      { value: 'permissions' as const, label: 'Permissoes', icon: <Key size={16} />, visible: isGlobalAdmin },
+      { value: 'roles' as const, label: 'Cargos', icon: <Security size={16} />, visible: isPlatformGlobalAdmin },
+      { value: 'permissions' as const, label: 'Permissoes', icon: <Key size={16} />, visible: isPlatformGlobalAdmin },
       {
         value: 'achievements' as const,
         label: 'Conquistas',
@@ -31,10 +30,10 @@ export default function Administracao() {
             <Trophy size={16} />
           </Box>
         ),
-        visible: isGlobalAdmin,
+        visible: isPlatformGlobalAdmin,
       },
     ].filter((tab) => tab.visible)
-  }, [canManageWorkspace, isGlobalAdmin])
+  }, [canManageWorkspace, isPlatformGlobalAdmin])
 
   useEffect(() => {
     if (tabs.some((tab) => tab.value === activeTab)) return
@@ -57,9 +56,9 @@ export default function Administracao() {
         Administracao
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ mb: 1.25, display: 'block', maxWidth: 640, lineHeight: 1.45 }}>
-        {isGlobalAdmin
+        {isPlatformGlobalAdmin
           ? 'Membros da workspace e configuracoes globais (cargos, permissoes, conquistas).'
-          : 'Apenas membros desta workspace; configuracoes globais ficam com o admin do sistema.'}
+          : 'Apenas membros desta workspace; configuracoes globais ficam com o admin da plataforma.'}
       </Typography>
 
       <Tabs
@@ -87,9 +86,9 @@ export default function Administracao() {
 
       <Box sx={{ pt: 0.75 }}>
         {activeTab === 'users' && <UsersTable />}
-        {activeTab === 'roles' && isGlobalAdmin ? <RolesTable /> : null}
-        {activeTab === 'permissions' && isGlobalAdmin ? <PermissionsList /> : null}
-        {activeTab === 'achievements' && isGlobalAdmin ? <AchievementsAdminTable /> : null}
+        {activeTab === 'roles' && isPlatformGlobalAdmin ? <RolesTable /> : null}
+        {activeTab === 'permissions' && isPlatformGlobalAdmin ? <PermissionsList /> : null}
+        {activeTab === 'achievements' && isPlatformGlobalAdmin ? <AchievementsAdminTable /> : null}
       </Box>
     </Box>
   )

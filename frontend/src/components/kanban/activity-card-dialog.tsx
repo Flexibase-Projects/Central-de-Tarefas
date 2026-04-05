@@ -188,7 +188,6 @@ export function ActivityCardDialog({
         }}
         maxWidth="lg"
         fullWidth
-        aria-labelledby="activity-dialog-title"
         scroll="paper"
         PaperProps={{
           sx: {
@@ -205,6 +204,7 @@ export function ActivityCardDialog({
           },
         }}
       >
+        <DialogTitle className="sr-only">{activity.name}</DialogTitle>
         <Box
           sx={{
             position: 'relative',
@@ -293,7 +293,7 @@ export function ActivityCardDialog({
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
+              gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
               gap: 3,
               height: 'calc(92vh - 220px)',
               minHeight: 280,
@@ -302,7 +302,7 @@ export function ActivityCardDialog({
             }}
           >
             <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-              <Box sx={{ flex: 1, overflow: 'auto', pr: { xs: 0, lg: 1 } }}>
+              <Box sx={{ flex: 1, overflow: 'auto', pr: { xs: 0, md: 1 } }}>
                 <Stack spacing={3}>
                   <Box>
                     <Typography

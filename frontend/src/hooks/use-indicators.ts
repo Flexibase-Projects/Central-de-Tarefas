@@ -79,6 +79,7 @@ export interface RecentAssignedTodo {
   projectId?: string | null
   activityId?: string | null
   assigneeName?: string | null
+  assigneeId?: string | null
 }
 
 export interface IndicatorsViewData {
@@ -186,6 +187,7 @@ function normalizeRecentAssignedTodos(raw: unknown): RecentAssignedTodo[] {
         projectId: typeof row.projectId === 'string' ? row.projectId : null,
         activityId: typeof row.activityId === 'string' ? row.activityId : null,
         assigneeName: typeof row.assigneeName === 'string' ? row.assigneeName : null,
+        assigneeId: typeof row.assigneeId === 'string' ? row.assigneeId : null,
       }
     })
     .filter((item): item is RecentAssignedTodo => item !== null)

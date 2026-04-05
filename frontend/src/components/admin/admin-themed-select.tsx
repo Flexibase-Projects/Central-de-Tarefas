@@ -41,7 +41,9 @@ export function AdminThemedSelect({
   const open = Boolean(anchorEl)
 
   const selected = options.find((o) => o.value === value)
-  const displayLabel = selected?.label ?? fallbackLabel ?? '—'
+  const trimmedFallback = typeof fallbackLabel === 'string' ? fallbackLabel.trim() : ''
+  const selectedLabel = typeof selected?.label === 'string' ? selected.label.trim() : ''
+  const displayLabel = selectedLabel || trimmedFallback || '—'
 
   const minH = dense ? 30 : 40
   const fontSize = dense ? '0.8125rem' : undefined

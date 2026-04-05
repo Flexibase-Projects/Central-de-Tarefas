@@ -57,11 +57,14 @@ export function useWorkspaceProfile(workspaceSlug?: string | null) {
         setError(null)
         const response = await fetch(apiUrl(`/api/workspaces/${workspaceSlug}/my-profile`), {
           method: 'PUT',
-          headers: getAuthHeaders(),
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
         const body = (await response.json().catch(() => null)) as WorkspaceProfileResponse | null
         if (!response.ok || !body?.profile) {
+          if (response.status === 401) {
+            throw new Error('Sessão expirada ou acesso negado. Entre novamente e tente outra vez.')
+          }
           throw new Error((body as { error?: string } | null)?.error || 'Falha ao salvar perfil do workspace')
         }
         setData(body)
@@ -73,6 +76,37 @@ export function useWorkspaceProfile(workspaceSlug?: string | null) {
       } finally {
         setSaving(false)
       }
+    },
+    [getAuthHeaders, workspaceSlug],
+  )
+
+  const uploadAvatarImage = useCallback(
+    async (imageDataUrl: string): Promise<string> => {
+      if (!workspaceSlug) {
+        throw new Error('Workspace indisponível')
+      }
+      const response = await fetch(apiUrl(`/api/workspaces/${workspaceSlug}/my-profile/avatar`), {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageDataUrl }),
+      })
+      const body = (await response.json().catch(() => null)) as { avatar_url?: string; error?: string } | null
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Sessão expirada ou acesso negado. Entre novamente e tente outra vez.')
+        }
+        if (response.status === 413) {
+          throw new Error(
+            body?.error ??
+              'Imagem muito grande para o servidor (máximo 5 MB). Comprima a imagem ou escolha um arquivo menor.',
+          )
+        }
+        throw new Error(body?.error || 'Falha ao enviar avatar')
+      }
+      if (!body?.avatar_url) {
+        throw new Error('Resposta inválida do servidor')
+      }
+      return body.avatar_url
     },
     [getAuthHeaders, workspaceSlug],
   )
@@ -95,5 +129,6 @@ export function useWorkspaceProfile(workspaceSlug?: string | null) {
     error,
     refresh,
     update,
+    uploadAvatarImage,
   }
 }

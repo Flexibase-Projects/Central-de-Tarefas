@@ -1,9 +1,11 @@
 import express from 'express';
 import { supabase } from '../config/supabase.js';
+import { WORKSPACE_PROFILE_AVATARS_BUCKET } from '../constants/storage-buckets.js';
 import { getAuthUserEmail, getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { getCurrentWorkspaceContextFromRequest } from '../services/workspace-access.js';
 import { listCdtUsersByIds } from '../services/cdt-users.js';
 import {
+  getWorkspaceMembersGamificationPeek,
   getWorkspaceRankingSnapshot,
   getWorkspaceTeamGamificationSummary,
 } from '../services/workspace-gamification.js';
@@ -14,7 +16,7 @@ import {
   sortWorkspaceMembershipRows,
   updateWorkspaceMembershipCompat,
 } from '../services/workspace-memberships.js';
-import { listWorkspaceModuleStates } from '../services/workspace-modules.js';
+import { getWorkspaceModuleState, listWorkspaceModuleStates } from '../services/workspace-modules.js';
 import {
   formatWorkspaceRoleDisplayName,
   isManagerialWorkspaceRole,
@@ -141,6 +143,12 @@ type WorkspaceManagedMember = {
   is_active: boolean;
   is_default: boolean;
   joined_at: string;
+  gamification_peek?: {
+    level: number;
+    tier_color: string;
+    tier_name: string;
+    todos_delivered_30d: number;
+  } | null;
 };
 
 async function loadWorkspaceRoleById(roleId: string): Promise<WorkspaceRoleOption | null> {
@@ -160,6 +168,33 @@ async function loadWorkspaceRoleById(roleId: string): Promise<WorkspaceRoleOptio
     name: data.name,
     display_name: data.display_name,
   };
+}
+
+async function loadWorkspaceRoleMapByIds(roleIds: string[]): Promise<Map<string, WorkspaceRoleOption>> {
+  const unique = Array.from(new Set(roleIds.filter((id) => typeof id === 'string' && id.length > 0)));
+  const map = new Map<string, WorkspaceRoleOption>();
+  if (unique.length === 0) return map;
+
+  const { data, error } = await supabase.from('cdt_roles').select('id, name, display_name').in('id', unique);
+
+  if (error) throw error;
+
+  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+    if (
+      typeof row.id !== 'string' ||
+      typeof row.name !== 'string' ||
+      typeof row.display_name !== 'string'
+    ) {
+      continue;
+    }
+    map.set(row.id, {
+      id: row.id,
+      name: row.name,
+      display_name: row.display_name,
+    });
+  }
+
+  return map;
 }
 
 async function loadDefaultWorkspaceRole(): Promise<WorkspaceRoleOption | null> {
@@ -227,6 +262,11 @@ async function listWorkspaceMembersDetailed(params: {
     return [];
   }
 
+  const roleIdList = memberships
+    .map((m) => m.role_id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const roleById = await loadWorkspaceRoleMapByIds(roleIdList);
+
   const userIds = Array.from(new Set(memberships.map((membership) => membership.user_id)));
   const [users, presentations] = await Promise.all([
     listCdtUsersByIds(userIds, ['central_user_id']),
@@ -241,7 +281,22 @@ async function listWorkspaceMembersDetailed(params: {
       if (!user) return [];
 
       const presentation = presentations.get(membership.user_id) ?? null;
-      const roleKey = membership.role_name ?? membership.role_key ?? null;
+      let roleKey = membership.role_name ?? membership.role_key ?? null;
+      const catalogRole = membership.role_id ? roleById.get(membership.role_id) ?? null : null;
+      if (!roleKey && catalogRole) {
+        roleKey = catalogRole.name;
+      }
+
+      const rolePayload: WorkspaceRoleOption | null = catalogRole
+        ? catalogRole
+        : roleKey
+          ? {
+              id: membership.role_id ?? '',
+              name: roleKey,
+              display_name:
+                formatWorkspaceRoleDisplayName(roleKey) ?? membership.role_display_name ?? roleKey,
+            }
+          : null;
 
       return [
         {
@@ -254,18 +309,12 @@ async function listWorkspaceMembersDetailed(params: {
           email: user.email,
           avatar_url: presentation?.effective_avatar_url ?? user.avatar_url ?? null,
           central_user_id: user.central_user_id ?? null,
-          role: roleKey
-            ? {
-                id: membership.role_id ?? '',
-                name: roleKey,
-                display_name: formatWorkspaceRoleDisplayName(
-                  roleKey,
-                ) ?? membership.role_display_name ?? roleKey,
-              }
-            : null,
+          role: rolePayload,
           role_key: roleKey,
           role_display_name:
-            membership.role_display_name ?? formatWorkspaceRoleDisplayName(roleKey),
+            membership.role_display_name ??
+            catalogRole?.display_name ??
+            formatWorkspaceRoleDisplayName(roleKey),
           membership_status: membership.membership_status,
           is_active: membership.membership_status === 'active',
           is_default: membership.is_default,
@@ -606,6 +655,74 @@ router.get('/:workspaceSlug/my-profile', async (req, res) => {
   }
 });
 
+router.post('/:workspaceSlug/my-profile/avatar', async (req, res) => {
+  try {
+    const workspaceContext = await requireWorkspaceContext(req, res);
+    if (!workspaceContext) return;
+
+    const { image } = req.body as { image?: string };
+    if (!image || typeof image !== 'string') {
+      return res.status(400).json({ error: 'Body deve incluir { image: "data:image/...;base64,..." }' });
+    }
+
+    const match = image.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ error: 'Imagem deve ser um data URL (data:image/...;base64,...)' });
+    }
+
+    const mimeRaw = match[1].toLowerCase();
+    const mimeNorm = mimeRaw === 'jpeg' ? 'jpg' : mimeRaw;
+    const ext =
+      mimeNorm === 'jpg' || mimeNorm === 'jpeg'
+        ? 'jpg'
+        : mimeNorm === 'png'
+          ? 'png'
+          : mimeNorm === 'webp'
+            ? 'webp'
+            : null;
+    if (!ext) {
+      return res.status(400).json({ error: 'Formato não suportado. Use PNG, JPEG ou WebP.' });
+    }
+
+    const base64Data = match[2];
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(base64Data, 'base64');
+    } catch {
+      return res.status(400).json({ error: 'Base64 inválido' });
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (buffer.length > maxBytes) {
+      return res.status(413).json({ error: 'Imagem muito grande. O tamanho máximo é 5MB.' });
+    }
+
+    const workspaceId = workspaceContext.workspace.id;
+    const userId = workspaceContext.membership.user_id;
+    const objectPath = `${workspaceId}/${userId}/avatar.${ext}`;
+    const contentType = ext === 'jpg' ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'image/webp';
+
+    const { error: uploadError } = await supabase.storage
+      .from(WORKSPACE_PROFILE_AVATARS_BUCKET)
+      .upload(objectPath, buffer, { upsert: true, contentType });
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from(WORKSPACE_PROFILE_AVATARS_BUCKET).getPublicUrl(objectPath);
+    return res.json({ avatar_url: data.publicUrl });
+  } catch (error: unknown) {
+    if (isValidationError(error)) {
+      return res.status(400).json({ error: error.message });
+    }
+    if (isSupabaseConnectionRefused(error)) {
+      return res.status(503).json({ error: SUPABASE_UNAVAILABLE_MESSAGE });
+    }
+    console.error('workspaces.my-profile-avatar:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Falha ao enviar avatar',
+    });
+  }
+});
+
 router.get('/:workspaceSlug/ranking', async (req, res) => {
   try {
     const workspaceContext = await requireWorkspaceContext(req, res);
@@ -712,10 +829,28 @@ router.get('/:workspaceSlug/members', async (req, res) => {
       includeInactive,
     });
 
+    let membersPayload = members;
+    try {
+      const gamificationModule = await getWorkspaceModuleState(workspaceContext.workspace.id, 'gamification');
+      const gamificationEnabled = Boolean(gamificationModule?.available && gamificationModule.is_enabled);
+      if (gamificationEnabled && members.length > 0) {
+        const peekMap = await getWorkspaceMembersGamificationPeek(
+          workspaceContext.workspace.id,
+          members.map((member) => member.id),
+        );
+        membersPayload = members.map((member) => ({
+          ...member,
+          gamification_peek: peekMap.get(member.id) ?? null,
+        }));
+      }
+    } catch (peekError) {
+      console.error('workspaces.members.gamification_peek:', peekError);
+    }
+
     return res.json({
       status: 'success',
       workspace: workspaceContext.workspace,
-      members,
+      members: membersPayload,
     });
   } catch (error: unknown) {
     if (isValidationError(error)) {

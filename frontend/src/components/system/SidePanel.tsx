@@ -65,8 +65,12 @@ export function SidePanel({
 
         <Divider />
 
-        <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.25 }}>
-          {footer ?? <Button onClick={onClose}>Fechar</Button>}
+        <Box sx={{ px: 2.5, py: 1.5, display: 'flex', alignItems: 'center', width: '100%', boxSizing: 'border-box' }}>
+          {footer ?? (
+            <Box sx={{ ml: 'auto' }}>
+              <Button onClick={onClose}>Fechar</Button>
+            </Box>
+          )}
         </Box>
       </Box>
     </Drawer>

@@ -2,7 +2,7 @@ import express from 'express';
 import { supabase } from '../config/supabase.js';
 import { User } from '../types/index.js';
 import { checkRole } from '../middleware/permissions.js';
-import { getAuthUserId, getRequesterId } from '../middleware/auth.js';
+import { getAuthFailureCode, getAuthUserId, getRequesterId } from '../middleware/auth.js';
 import { hasRole } from '../services/permissions.js';
 import { isNativeAdminUserId } from '../services/native-admin.js';
 import {
@@ -15,6 +15,7 @@ import {
   isSupabaseConnectionRefused,
   SUPABASE_UNAVAILABLE_MESSAGE,
 } from '../utils/supabase-errors.js';
+import { jsonError } from '../utils/api-error.js';
 import { isValidationError, optionalBoolean, optionalString, requireArrayOfStrings, requireOneOf, requireString } from '../utils/validation.js';
 
 const router = express.Router();
@@ -25,13 +26,27 @@ async function ensureAdmin(
 ): Promise<string | null> {
   const requesterId = getRequesterId(req);
   if (!requesterId) {
-    res.status(401).json({ error: 'Unauthorized' });
+    const bearer =
+      typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7).trim()
+        : '';
+    if (!bearer) {
+      jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_MISSING' });
+    } else if (getAuthFailureCode(req) === 'AUTH_TOKEN_INVALID') {
+      jsonError(res, 401, {
+        error:
+          'Token inválido ou emitido por outro projeto Supabase. Verifique SUPABASE_URL e chaves no backend.',
+        code: 'AUTH_TOKEN_INVALID',
+      });
+    } else {
+      jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_CONTEXT_INCOMPLETE' });
+    }
     return null;
   }
 
   const isAdmin = await hasRole(requesterId, 'admin');
   if (!isAdmin) {
-    res.status(403).json({ error: 'Forbidden' });
+    jsonError(res, 403, { error: 'Forbidden', code: 'FORBIDDEN' });
     return null;
   }
 
@@ -461,7 +476,21 @@ router.post('/me/finish-first-login', async (req, res) => {
   try {
     const requesterId = getRequesterId(req);
     if (!requesterId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      const bearer =
+        typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7).trim()
+          : '';
+      if (!bearer) {
+        return jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_MISSING' });
+      }
+      if (getAuthFailureCode(req) === 'AUTH_TOKEN_INVALID') {
+        return jsonError(res, 401, {
+          error:
+            'Token inválido ou emitido por outro projeto Supabase. Verifique SUPABASE_URL e chaves no backend.',
+          code: 'AUTH_TOKEN_INVALID',
+        });
+      }
+      return jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_CONTEXT_INCOMPLETE' });
     }
 
     await updateCdtUserByIdCompat(requesterId, {
@@ -490,11 +519,25 @@ router.get('/me', async (req, res) => {
     const authUserId = getAuthUserId(req);
 
     if (!authUserId && !requesterId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      const bearer =
+        typeof req.headers.authorization === 'string' && req.headers.authorization.startsWith('Bearer ')
+          ? req.headers.authorization.slice(7).trim()
+          : '';
+      if (!bearer) {
+        return jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_MISSING' });
+      }
+      if (getAuthFailureCode(req) === 'AUTH_TOKEN_INVALID') {
+        return jsonError(res, 401, {
+          error:
+            'Token inválido ou emitido por outro projeto Supabase. Verifique SUPABASE_URL e chaves no backend.',
+          code: 'AUTH_TOKEN_INVALID',
+        });
+      }
+      return jsonError(res, 401, { error: 'Unauthorized', code: 'AUTH_CONTEXT_INCOMPLETE' });
     }
 
     if (!requesterId) {
-      return res.status(403).json({
+      return jsonError(res, 403, {
         error: 'Acesso pendente de liberacao pelo administrador.',
         code: 'ACCESS_PENDING',
       });
@@ -507,7 +550,7 @@ router.get('/me', async (req, res) => {
       .single();
 
     if (userError || !user) {
-      return res.status(404).json({ error: 'User not found' });
+      return jsonError(res, 404, { error: 'User not found', code: 'NOT_FOUND' });
     }
 
     const role = await getUserRole(requesterId);

@@ -266,3 +266,267 @@
 .tier-hero-flexibase {
   background: linear-gradient(180deg, rgba(62, 99, 184, 0.1) 0%, transparent 100%);
 }
+
+/* Super quente: cores partilhadas (anel, chama, tooltip) */
+:root {
+  --cdt-superhot: 245, 158, 11;
+  --cdt-superhot-bright: 251, 146, 60;
+  --cdt-superhot-deep: 249, 115, 22;
+}
+
+/* Gamificação: brilho “delivery heat” colado ao avatar (sem padding no wrapper; anel com spread fixo) */
+@keyframes cdt-delivery-heat-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(234, 179, 8, 0.92),
+      0 0 5px rgba(250, 204, 21, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(253, 224, 71, 0.98),
+      0 0 10px rgba(250, 204, 21, 0.5);
+  }
+}
+
+@keyframes cdt-delivery-heat-pulse-super {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(var(--cdt-superhot), 0.88),
+      0 0 4px rgba(var(--cdt-superhot-bright), 0.32);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(var(--cdt-superhot-bright), 0.98),
+      0 0 8px rgba(var(--cdt-superhot-deep), 0.42);
+  }
+}
+
+/* Partículas superhot (React) — keyframe partilhado */
+@keyframes cdt-superhot-ember-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.5, 0.7);
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -40px, 0) scale(0.2, 0.35);
+  }
+}
+
+@keyframes cdt-delivery-heat-pulse-fire {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.98),
+      0 0 8px rgba(255, 255, 255, 0.85),
+      0 0 16px rgba(254, 252, 232, 0.75),
+      0 0 22px rgba(253, 230, 138, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 1),
+      0 0 14px rgba(255, 255, 255, 0.95),
+      0 0 22px rgba(255, 251, 235, 0.9),
+      0 0 28px rgba(254, 243, 199, 0.55);
+  }
+}
+
+.cdt-delivery-heat-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  line-height: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.cdt-delivery-heat-wrap--sm,
+.cdt-delivery-heat-wrap--md {
+  padding: 0;
+}
+
+.cdt-delivery-heat--hot {
+  animation: cdt-delivery-heat-pulse 2.2s ease-in-out infinite;
+}
+
+.cdt-delivery-heat--superhot {
+  animation: cdt-delivery-heat-pulse-super 1.8s ease-in-out infinite;
+}
+
+/* Superhot: partículas visíveis (display:block nas brasas; z acima do avatar na base) */
+.cdt-delivery-heat-wrap.cdt-delivery-heat--superhot {
+  position: relative;
+  overflow: visible;
+  z-index: 0;
+}
+
+.cdt-delivery-heat-wrap.cdt-delivery-heat--superhot > .cdt-superhot-embers {
+  z-index: 2;
+}
+
+.cdt-delivery-heat-wrap.cdt-delivery-heat--superhot > *:not(.cdt-superhot-embers) {
+  position: relative;
+  z-index: 1;
+}
+
+.cdt-superhot-embers {
+  position: absolute;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 0;
+}
+
+.cdt-superhot-embers--avatar-md {
+  inset: -12px;
+}
+
+.cdt-superhot-embers--avatar-sm {
+  inset: -10px;
+}
+
+.cdt-superhot-embers--tooltip {
+  inset: -2px -8px -4px -8px;
+  z-index: 2;
+}
+
+.cdt-superhot-embers--inline-left {
+  inset: -8px -6px -8px -10px;
+  z-index: 1;
+}
+
+.cdt-delivery-heat-inline--superhot {
+  position: relative;
+}
+
+.cdt-delivery-heat-inline--superhot > *:not(.cdt-superhot-embers) {
+  position: relative;
+  z-index: 2;
+}
+
+.cdt-delivery-heat-inline--superhot > .cdt-superhot-embers {
+  z-index: 1;
+}
+
+.cdt-superhot-ember {
+  display: block;
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border-radius: 4px;
+  transform-origin: center bottom;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 248, 1) 0%,
+    rgba(var(--cdt-superhot-bright), 0.95) 38%,
+    rgba(var(--cdt-superhot-deep), 0.55) 100%
+  );
+  box-shadow:
+    0 0 6px rgba(var(--cdt-superhot-bright), 0.85),
+    0 0 2px rgba(255, 200, 120, 0.9);
+  animation-name: cdt-superhot-ember-rise;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+.cdt-delivery-heat--on-fire {
+  animation: cdt-delivery-heat-pulse-fire 1.4s ease-in-out infinite;
+}
+
+/* Mesmo peso visual dos demais: anel acinzentado (sem tier quente) */
+.cdt-delivery-heat--muted {
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.58);
+}
+
+.dark .cdt-delivery-heat--muted {
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdt-delivery-heat--hot,
+  .cdt-delivery-heat--superhot,
+  .cdt-delivery-heat--on-fire {
+    animation: none;
+  }
+
+  .cdt-delivery-heat--muted {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.58);
+  }
+
+  .dark .cdt-delivery-heat--muted {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.45);
+  }
+
+  .cdt-delivery-heat--hot {
+    box-shadow:
+      0 0 0 2px rgba(234, 179, 8, 0.9),
+      0 0 6px rgba(250, 204, 21, 0.35);
+  }
+
+  .cdt-delivery-heat--superhot {
+    box-shadow:
+      0 0 0 2px rgba(var(--cdt-superhot), 0.9),
+      0 0 6px rgba(var(--cdt-superhot-bright), 0.38);
+  }
+
+  .cdt-superhot-embers {
+    display: none !important;
+  }
+
+  .cdt-delivery-heat--on-fire {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.95),
+      0 0 12px rgba(255, 255, 255, 0.65),
+      0 0 18px rgba(254, 243, 199, 0.4);
+  }
+}
+
+/* Tooltip do membro no header — superhot: borda âmbar + chama discreta */
+.cdt-delivery-heat-tooltip--superhot {
+  position: relative;
+  overflow: visible !important;
+  padding-bottom: 12px !important;
+  border-color: rgba(var(--cdt-superhot), 0.58) !important;
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.1),
+    0 0 0 1px rgba(var(--cdt-superhot-bright), 0.22) !important;
+}
+
+/* Texto por cima; chama fica na faixa do padding inferior */
+.cdt-delivery-heat-tooltip--superhot > * {
+  position: relative;
+  z-index: 2;
+}
+
+.dark .cdt-delivery-heat-tooltip--superhot {
+  border-color: rgba(var(--cdt-superhot-bright), 0.5) !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(var(--cdt-superhot-bright), 0.18) !important;
+}
+
+/* Bloco texto (responsável em lista) */
+.cdt-delivery-heat-inline {
+  border-radius: var(--radius-sm, 6px);
+  transition: box-shadow 0.2s ease;
+}
+
+.cdt-delivery-heat-inline--hot {
+  box-shadow: inset 3px 0 0 0 #ca8a04;
+}
+
+.cdt-delivery-heat-inline--superhot {
+  box-shadow: inset 3px 0 0 0 #f59e0b;
+}
+
+.cdt-delivery-heat-inline--on-fire {
+  box-shadow:
+    inset 3px 0 0 0 #fef9c3,
+    0 0 0 1px rgba(254, 243, 199, 0.35);
+}
