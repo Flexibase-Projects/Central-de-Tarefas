@@ -67,6 +67,7 @@ const SIDEBAR_SECTIONS: NavSection[] = [
       { title: 'Projetos', url: '/desenvolvimentos', icon: Code, permission: 'access_desenvolvimentos', moduleKey: 'projects' },
       { title: 'Atividades', url: '/atividades', icon: CheckSquare, permission: 'access_atividades', moduleKey: 'activities' },
       { title: 'Prioridades', url: '/prioridades', icon: Flag, permission: null, moduleKey: 'projects' },
+      { title: 'Canva em Equipe', url: '/canva-equipe', icon: MapIcon, permission: null, moduleKey: 'teams' },
     ],
   },
   {
@@ -81,7 +82,6 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     title: 'Administração',
     hint: 'Estrutura, custos e configurações',
     items: [
-      { title: 'Canva em Equipe', url: '/canva-equipe', icon: MapIcon, permission: null, moduleKey: 'teams' },
       { title: 'Organograma', url: '/organograma', icon: OrgChartIcon, permission: null, requireManagerial: true, moduleKey: 'org_chart' },
       { title: 'Custos', url: '/custos-departamento', icon: DollarSign, permission: null, requireManagerial: true, moduleKey: 'costs' },
       { title: 'Configuracoes', url: '/configuracoes', icon: Settings, permission: null },
@@ -596,6 +596,22 @@ export function AppSidebar(props: AppSidebarProps) {
             ) : null}
           </ButtonBase>
         </Tooltip>
+        <Typography
+          component="div"
+          variant="caption"
+          sx={{
+            fontSize: 10,
+            lineHeight: 1.2,
+            color: 'text.disabled',
+            textAlign: 'center',
+            width: '100%',
+            px: 0.5,
+            userSelect: 'none',
+          }}
+          aria-label={`Versão ${import.meta.env.VITE_APP_VERSION}`}
+        >
+          v{import.meta.env.VITE_APP_VERSION}
+        </Typography>
       </Box>
     </Box>
   )

@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+
+const rootPackageJson = JSON.parse(
+  readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'),
+) as { version?: string }
+const appVersion = rootPackageJson.version ?? '0.0.0'
 
 const envDir = path.resolve(__dirname, '..')
 
@@ -34,6 +40,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    },
     envDir,
     resolve: {
       alias: {
